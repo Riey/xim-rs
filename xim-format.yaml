@@ -1,4 +1,77 @@
 Enums:
+  CommitFlag:
+    repr: u16
+    bitflag: true
+    variants:
+      Synchronous: 1
+      LookupChars: 2
+      LookupKeySym: 4
+      LoopupBoth: 6
+
+  ErrorFlag:
+    repr: u16
+    bitflag: true
+    variants:
+      InputMethodIdValid: 1
+      InputContextIdValid: 2
+
+  PreeditDrawStatus:
+    repr: u32
+    bitflag: true
+    variants:
+      NoString: 1
+      NoFeedback: 2
+
+  PreeditStateFlag:
+    repr: u32
+    bitflag: true
+    variants:
+      Unknown: 0
+      Enable: 1
+      Disable: 2
+
+  Feedback:
+    repr: u32
+    variants:
+      Reverse: 0x1
+      Underline: 0x2
+      Highlight: 0x4
+      Primary: 0x8
+      Secondary: 0x10
+      Tertiary: 0x20
+      VisibleToForward: 0x40
+      VisibleToBackward: 0x80
+      VisibleCenter: 0x100
+
+  CaretDirection:
+    repr: u32
+    variants:
+      ForwardChar: 0
+      BackwardChar: 1
+      ForwardWord: 2
+      BackwardWord: 3
+      CaretUp: 4
+      CaretDown: 5
+      NextLine: 6
+      PreviousLine: 7
+      LineStart: 8
+      LineEnd: 9
+      AbsolutePosition: 10
+      DontChange: 11
+
+  CaretStyle:
+    repr: u32
+    variants:
+      Invisible: 0
+      Primary: 1
+      Secondary: 2
+
+  TriggerNotifyFlag:
+    repr: u32
+    variants:
+      OnKeyList: 0
+      OffKeyList: 1
+
   AttrType:
     repr: u16
     variants:
@@ -17,22 +90,48 @@ Enums:
       PreeditState: 18
       ResetState: 19
       NestedList: 0x7fff
-  CaretStyle:
-    repr: u32
+
+  ErrorCode:
+    repr: u16
     variants:
-      Invisible: 0
-      Primary: 1
-      Secondary: 2
+      BadAlloc: 1
+      BadStyle: 2
+      BadClientWindow: 3
+      BadFocusWindow: 4
+      BadArea: 5
+      BadSpotLocation: 6
+      BadColormap: 7
+      BadAtom: 8
+      BadPixel: 9
+      BadPixmap: 10
+      BadName: 11
+      BadCursor: 12
+      BadProtocol: 13
+      BadForeground: 14
+      BadBackground: 15
+      LocaleNotSupported: 16
+      BadSomething: 999
 
 Structs:
   Attr:
     - "id u16"
     - "ty AttrType"
     - "name @pad string"
+  Attribute:
+    - "id u16"
+    - "value @pad string"
   Extension:
     - "major_opcode u8"
     - "minor_opcode u8"
     - "name @pad string"
+  TriggerKey:
+    - "keysym u32"
+    - "modifier u32"
+    - "modifier_mask u32"
+  StatusTextContent:
+    - "status PreeditDrawStatus"
+    - "status_string @pad string"
+    - "feedbacks @list22 Feedback"
 
 Requests:
   Connect:
@@ -60,6 +159,8 @@ Requests:
     major_opcode: 4
     minor_opcode: ~
     body: []
+
+# Don't implement auth request since it doesn't used at all
 
   AuthRequired:
     major_opcode: 10
@@ -89,7 +190,11 @@ Requests:
   Error:
     major_opcode: 20
     minor_opcode: ~
-    body: []
+    body:
+      - "input_method_id u16"
+      - "input_context_id u16"
+      - "flag ErrorFlag"
+      - "detail @pad err_string"
 
   Open:
     major_opcode: 30
@@ -120,32 +225,52 @@ Requests:
   RegisterTriggerKeys:
     major_opcode: 34
     minor_opcode: ~
-    body: []
+    body:
+      - "input_method_id @append2 u16"
+      - "on_keys @list04 TriggerKey"
+      - "off_keys @list04 TriggerKey"
 
   TriggerNotify:
     major_opcode: 35
     minor_opcode: ~
-    body: []
+    body:
+      - "input_method_id u16"
+      - "input_context_id u16"
+      - "flag TriggerNotifyFlag"
+      - "index u32"
+      - "event_mask u32"
 
   TriggerNotifyReply:
     major_opcode: 36
     minor_opcode: ~
-    body: []
+    body:
+      - "input_method_id u16"
+      - "input_context_id u16"
 
   SetEventMask:
     major_opcode: 37
     minor_opcode: ~
-    body: []
+    body:
+      - "input_method_id u16"
+      - "input_context_id u16"
+      - "forward_event_mask u32"
+      - "synchronous_event_mask u32"
 
   EncodingNegotiation:
     major_opcode: 38
     minor_opcode: ~
-    body: []
+    body:
+      - "input_method_id u16"
+      - "encodings @pad @list string1"
+      - "encoding_infos @list22 @pad string"
 
   EncodingNegotiationReply:
     major_opcode: 39
     minor_opcode: ~
-    body: []
+    body:
+      - "input_method_id u16"
+      - "category u16"
+      - "index @append2 u16"
 
   QueryExtension:
     major_opcode: 40
@@ -164,72 +289,102 @@ Requests:
   SetImValues:
     major_opcode: 42
     minor_opcode: ~
-    body: []
+    body:
+      - "input_method_id u16"
+      - "attributes @list Attribute<'b>"
 
   SetImValuesReply:
     major_opcode: 43
     minor_opcode: ~
-    body: []
+    body:
+      - "input_method_id @append2 u16"
 
   GetImValues:
     major_opcode: 44
     minor_opcode: ~
-    body: []
+    body:
+      - "input_method_id u16"
+      - "im_attributes @pad @list u16"
 
   GetImValuesReply:
     major_opcode: 45
     minor_opcode: ~
-    body: []
+    body:
+      - "input_method_id u16"
+      - "im_attributes @list Attribute<'b>"
 
   CreateIc:
     major_opcode: 50
     minor_opcode: ~
-    body: []
+    body:
+      - "input_method_id u16"
+      - "ic_attributes @pad @list Attribute<'b>"
 
   CreateIcReply:
     major_opcode: 51
     minor_opcode: ~
-    body: []
+    body:
+      - "input_method_id u16"
+      - "input_context_id u16"
 
   DestoryIc:
     major_opcode: 52
     minor_opcode: ~
-    body: []
+    body:
+      - "input_method_id u16"
+      - "input_context_id u16"
 
   DestroyIcReply:
     major_opcode: 53
     minor_opcode: ~
-    body: []
+    body:
+      - "input_method_id u16"
+      - "input_context_id u16"
 
   SetIcValues:
     major_opcode: 54
     minor_opcode: ~
-    body: []
+    body:
+      - "input_method_id u16"
+      - "input_context_id u16"
+      - "ic_attributes @list22 Attribute<'b>"
 
   SetIcValuesReply:
     major_opcode: 55
     minor_opcode: ~
-    body: []
+    body:
+      - "input_method_id u16"
+      - "input_context_id u16"
 
   GetIcValues:
     major_opcode: 56
     minor_opcode: ~
-    body: []
+    body:
+      - "input_method_id u16"
+      - "input_context_id u16"
+      - "ic_attributes @pad @list u16"
 
   GetIcValuesReply:
     major_opcode: 57
     minor_opcode: ~
-    body: []
+    body:
+      - "input_method_id u16"
+      - "input_context_id u16"
+      - "ic_attributes @list22 Attribute<'b>"
 
   SetIcFocus:
     major_opcode: 58
     minor_opcode: ~
-    body: []
+    body:
+      - "input_method_id u16"
+      - "input_context_id u16"
 
   UnsetIcFocus:
     major_opcode: 59
     minor_opcode: ~
-    body: []
+    body:
+      - "input_method_id u16"
+      - "input_context_id u16"
 
   ForwardEvent:
     major_opcode: 60
@@ -239,32 +394,48 @@ Requests:
   Sync:
     major_opcode: 61
     minor_opcode: ~
-    body: []
+    body:
+      - "input_method_id u16"
+      - "input_context_id u16"
 
   SyncReply:
     major_opcode: 62
     minor_opcode: ~
-    body: []
+    body:
+      - "input_method_id u16"
+      - "input_context_id u16"
 
   Commit:
     major_opcode: 63
     minor_opcode: ~
-    body: []
+    body:
+      - "input_method_id u16"
+      - "input_context_id u16"
+      - "flag CommitFlag"
 
   ResetIc:
     major_opcode: 64
     minor_opcode: ~
-    body: []
+    body:
+      - "input_method_id u16"
+      - "input_context_id u16"
 
   ResetIcReply:
     major_opcode: 65
     minor_opcode: ~
-    body: []
+    body:
+      - "input_method_id u16"
+      - "input_context_id u16"
+      - "preedit_string @pad string"
 
   Geometry:
     major_opcode: 70
     minor_opcode: ~
-    body: []
+    body:
+      - "input_method_id u16"
+      - "input_context_id u16"
+
+# Don't implement StrConversion same as auth
 
   StrConversion:
     major_opcode: 71
@@ -276,52 +447,87 @@ Requests:
     minor_opcode: ~
     body: []
 
+
+
   PreeditStart:
     major_opcode: 73
     minor_opcode: ~
-    body: []
+    body:
+      - "input_method_id u16"
+      - "input_context_id u16"
 
   PreeditStartReply:
     major_opcode: 74
     minor_opcode: ~
-    body: []
+    body:
+      - "input_method_id u16"
+      - "input_context_id u16"
+      - "return_value i32"
 
   PreeditDraw:
     major_opcode: 75
     minor_opcode: ~
-    body: []
+    body:
+      - "input_method_id u16"
+      - "input_context_id u16"
+      - "caret i32"
+      - "chg_first i32"
+      - "chg_length i32"
+      - "status PreeditDrawStatus"
+      - "preedit_string @pad string"
+      - "feedbacks @list22 Feedback"
 
   PreeditCaret:
     major_opcode: 76
     minor_opcode: ~
-    body: []
+    body:
+      - "input_method_id u16"
+      - "input_context_id u16"
+      - "position i32"
+      - "direction CaretDirection"
+      - "style CaretStyle"
 
   PreeditCaretReply:
     major_opcode: 77
     minor_opcode: ~
-    body: []
+    body:
+      - "input_method_id u16"
+      - "input_context_id u16"
+      - "position i32"
 
   PreeditDone:
     major_opcode: 78
     minor_opcode: ~
-    body: []
+    body:
+      - "input_method_id u16"
+      - "input_context_id u16"
 
   StatusStart:
     major_opcode: 79
     minor_opcode: ~
-    body: []
+    body:
+      - "input_method_id u16"
+      - "input_context_id u16"
 
   StatusDraw:
     major_opcode: 80
     minor_opcode: ~
-    body: []
+    body:
+      - "input_method_id u16"
+      - "input_context_id u16"
+      - "content StatusContent<'b>"
 
   StatusDone:
     major_opcode: 81
     minor_opcode: ~
-    body: []
+    body:
+      - "input_method_id u16"
+      - "input_context_id u16"
 
   PreeditState:
     major_opcode: 82
     minor_opcode: ~
-    body: []
+    body:
+      - "input_method_id u16"
+      - "input_context_id u16"
+      - "state PreeditStateFlag"

@@ -10,6 +10,8 @@ mod format_type;
 #[cfg_attr(debug_assertions, derive(Debug, Eq, PartialEq))]
 struct EnumFormat {
     repr: String,
+    #[serde(default)]
+    bitflag: bool,
     variants: BTreeMap<String, usize>,
 }
 
@@ -19,45 +21,64 @@ impl EnumFormat {
         let mut variants = self.variants.iter().collect::<Vec<_>>();
         variants.sort_unstable_by(|l, r| l.1.cmp(&r.1));
 
-        writeln!(out, "#[derive(Clone, Copy, Debug, Eq, PartialEq)]")?;
-        writeln!(out, "#[repr({})]", self.repr)?;
-        writeln!(out, "pub enum {} {{", name)?;
+        if self.bitflag {
+            writeln!(out, "bitflags::bitflags! {{")?;
 
-        for (name, variant) in variants.iter() {
-            writeln!(out, "{} = {},", name, variant)?;
+            writeln!(out, "pub struct {}: {} {{", name, self.repr)?;
+            for (name, variant) in variants.iter() {
+                writeln!(out, "const {} = {};", name.to_ascii_uppercase(), variant)?;
+            }
+            writeln!(out, "}}")?;
+
+            writeln!(out, "}}")?;
+        } else {
+            writeln!(out, "#[derive(Clone, Copy, Debug, Eq, PartialEq)]")?;
+            writeln!(out, "#[repr({})]", self.repr)?;
+            writeln!(out, "pub enum {} {{", name)?;
+
+            for (name, variant) in variants.iter() {
+                writeln!(out, "{} = {},", name, variant)?;
+            }
+            writeln!(out, "}}")?;
         }
-
-        writeln!(out, "}}")?;
 
         writeln!(out, "impl<'b> XimFormat<'b> for {} {{", name)?;
 
         writeln!(
             out,
-            "fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {{
-    let repr = {repr}::read(reader)?;
-    match repr {{",
-            repr = self.repr
-        )?;
+            "fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {{ let repr = {}::read(reader)?;", self.repr)?;
 
-        for (name, variants) in variants.iter() {
-            writeln!(out, "{v} => Ok(Self::{n}),", v = variants, n = name)?;
+        if self.bitflag {
+            writeln!(out, "Self::from_bits(repr).ok_or(reader.invalid_data(\"{}\", repr))", name)?;
+        } else {
+            writeln!(out, "match repr {{")?;
+            for (name, variants) in variants.iter() {
+                writeln!(out, "{v} => Ok(Self::{n}),", v = variants, n = name)?;
+            }
+
+            writeln!(
+                out,
+                "_ => Err(reader.invalid_data(\"{n}\", repr)),",
+                n = name
+            )?;
+
+            writeln!(out, "}}")?;
         }
 
-        writeln!(
-            out,
-            "_ => Err(reader.invalid_data(\"{n}\", repr)),",
-            n = name
-        )?;
-
-        writeln!(out, "}}}}")?;
+        writeln!(out, "}}")?;
 
         writeln!(
             out,
-            "fn write(&self, writer: &mut Writer) {{
-            (*self as {repr}).write(writer);
-            }}",
-            repr = self.repr
-        )?;
+            "fn write(&self, writer: &mut Writer) {{")?;
+
+        if self.bitflag {
+            writeln!(out, "self.bits().write(writer);")?;
+        } else {
+            writeln!(out, "(*self as {}).write(writer);",self.repr)?;
+        }
+
+
+        writeln!(out, "}}")?;
 
         writeln!(
             out,

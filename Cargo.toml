@@ -15,6 +15,8 @@ edition = "2018"
 [dependencies]
 thiserror = "1.0.22"
 num-traits = "0.2.14"
+bitflags = "1.2.1"
+libc = "0.2.81"
 
 [build-dependencies]
 xim-gen = { path = "./xim-gen" }

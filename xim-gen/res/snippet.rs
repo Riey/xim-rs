@@ -21,6 +21,12 @@ pub enum Endian {
     Little = 0x6c,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum StatusContent<'b> {
+    Text(StatusTextContent<'b>),
+    Pixmap(std::os::raw::c_ulong),
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum ReadError {
     #[error("End of Stream")]
@@ -87,6 +93,11 @@ impl<'b> Reader<'b> {
     pub fn u32(&mut self) -> Result<u32, ReadError> {
         let bytes = self.consume(4)?.try_into().unwrap();
         Ok(u32::from_ne_bytes(bytes))
+    }
+
+    pub fn u64(&mut self) -> Result<u64, ReadError> {
+        let bytes = self.consume(4)?.try_into().unwrap();
+        Ok(u64::from_ne_bytes(bytes))
     }
 
     pub fn i32(&mut self) -> Result<i32, ReadError> {
@@ -172,6 +183,50 @@ impl<'b> XimFormat<'b> for Endian {
     }
 }
 
+impl<'b> XimFormat<'b> for StatusContent<'b> {
+    fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
+        let ty = u32::read(reader)?;
+
+        match ty {
+            0 => {
+                Ok(Self::Text(XimFormat::read(reader)?))
+            }
+            1 => {
+                Ok(Self::Pixmap(XimFormat::read(reader)?))
+            }
+            _ => {
+                Err(reader.invalid_data("StatusContentType", ty))
+            }
+        }
+    }
+
+    fn write(&self, writer: &mut Writer) {
+        match self {
+            StatusContent::Text(content) => {
+                0u32.write(writer);
+                content.write(writer);
+            }
+            StatusContent::Pixmap(pixmap) => {
+                1u32.write(writer);
+                pixmap.write(writer);
+            }
+        }
+    }
+
+    fn size(&self) -> usize {
+        let size = match self {
+            StatusContent::Text(content) => {
+                content.size()
+            }
+            StatusContent::Pixmap(pixmap) => {
+                std::mem::size_of_val(pixmap)
+            }
+        };
+
+        size + 4
+    }
+}
+
 impl<'b> XimFormat<'b> for u8 {
     fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
         reader.u8()
@@ -211,6 +266,20 @@ impl<'b> XimFormat<'b> for u32 {
 
     fn size(&self) -> usize {
         4
+    }
+}
+
+impl<'b> XimFormat<'b> for u64 {
+    fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
+        reader.u64()
+    }
+
+    fn write(&self, writer: &mut Writer) {
+        writer.write(&self.to_ne_bytes())
+    }
+
+    fn size(&self) -> usize {
+        8
     }
 }
 impl<'b> XimFormat<'b> for i32 {

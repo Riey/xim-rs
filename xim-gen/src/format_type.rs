@@ -14,7 +14,10 @@ pub enum FormatType {
     Append(Box<Self>, usize),
     Pad(Box<Self>),
     List(Box<Self>, usize, usize),
-    String(usize),
+    String {
+        between_unused: usize,
+        len: usize,
+    },
     Normal(String),
 }
 
@@ -24,7 +27,7 @@ impl FormatType {
             FormatType::Append(inner, ..)
             | FormatType::Pad(inner)
             | FormatType::List(inner, ..) => inner.has_lifetime(),
-            FormatType::String(_) => true,
+            FormatType::String { .. } => true,
             FormatType::Normal(name) => name.contains("'"),
         }
     }
@@ -34,7 +37,7 @@ impl FormatType {
             FormatType::Append(inner, size) => {
                 write!(out, "{{ let inner = ")?;
                 inner.read(out)?;
-                write!(out, "; u{}::read(reader)?; inner }}", size * 8)?;
+                write!(out, "; reader.consume({})?; inner }}", size)?;
             }
             FormatType::Pad(inner) => {
                 write!(out, "{{ let inner = ")?;
@@ -53,8 +56,9 @@ impl FormatType {
                 write!(out, "}}")?;
                 write!(out, "out }}")?;
             }
-            FormatType::String(len) => {
+            FormatType::String { len, between_unused } => {
                 writeln!(out, "{{ let len = u{}::read(reader)?;", len * 8)?;
+                writeln!(out, "reader.consume({})?;", between_unused)?;
                 writeln!(
                     out,
                     "let bytes = reader.consume(len as usize)?; XimString(bytes)"
@@ -71,7 +75,7 @@ impl FormatType {
         match self {
             FormatType::Append(inner, size) => {
                 inner.write(this, out)?;
-                writeln!(out, "0u{}.write(writer);", size * 8)?;
+                writeln!(out, "writer.write(&[0u8; {}]);", size)?;
             }
             FormatType::List(inner, prefix, len) => {
                 write!(out, "((")?;
@@ -90,8 +94,9 @@ impl FormatType {
                 inner.write(this, out)?;
                 writeln!(out, "writer.write_pad4();")?;
             }
-            FormatType::String(len) => {
+            FormatType::String { len, between_unused } => {
                 writeln!(out, "({}.0.len() as u{}).write(writer);", this, len * 8)?;
+                writeln!(out, "writer.write(&[0u8; {}]);", between_unused)?;
                 writeln!(out, "writer.write({}.0);", this)?;
             }
             FormatType::Normal(_name) => write!(out, "{}.write(writer);", this)?,
@@ -106,8 +111,9 @@ impl FormatType {
                 inner.size(this, out)?;
                 write!(out, "+ {}", size)
             }
-            FormatType::String(len) => {
-                write!(out, "{}.0.len() + {}", this, len)
+            FormatType::String {len
+            ,between_unused} => {
+                write!(out, "{}.0.len() + {} + {}", this, len, between_unused)
             }
             FormatType::List(inner, prefix, len) => {
                 write!(out, "{}.iter().map(|e| ", this)?;
@@ -130,7 +136,7 @@ impl fmt::Display for FormatType {
             FormatType::Append(inner, _len) => inner.fmt(f),
             FormatType::Pad(inner) => inner.fmt(f),
             FormatType::List(inner, _prefix, _len) => write!(f, "Vec<{}>", inner),
-            FormatType::String(_len) => f.write_str("XimString<'b>"),
+            FormatType::String { .. } => f.write_str("XimString<'b>"),
             FormatType::Normal(name) => f.write_str(name),
         }
     }
@@ -175,14 +181,18 @@ impl std::str::FromStr for FormatType {
             }
 
             Ok(Self::List(Box::new(left.parse()?), prefix, len))
-        } else if let Some(left) = s.strip_prefix("@append1") {
-            Ok(Self::Append(Box::new(left.parse()?), 1))
-        } else if let Some(left) = s.strip_prefix("@append2") {
-            Ok(Self::Append(Box::new(left.parse()?), 2))
+        } else if let Some(left) = s.strip_prefix("@append") {
+            let (n, left) = left.split_at(1);
+            Ok(Self::Append(
+                Box::new(left.parse()?),
+                n.parse().or_else(|_| Err("@append need number!"))?,
+            ))
+        } else if s.starts_with("err_string") {
+            Ok(Self::String { len: 2, between_unused: 2 })
         } else if s.starts_with("string1") {
-            Ok(Self::String(1))
+            Ok(Self::String { len: 1, between_unused: 0 })
         } else if s.starts_with("string") {
-            Ok(Self::String(2))
+            Ok(Self::String { len: 2, between_unused: 0 })
         } else {
             if s.starts_with("@") {
                 Err("Invalid format command")

@@ -21,6 +21,12 @@ pub enum Endian {
     Little = 0x6c,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum StatusContent<'b> {
+    Text(StatusTextContent<'b>),
+    Pixmap(std::os::raw::c_ulong),
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum ReadError {
     #[error("End of Stream")]
@@ -87,6 +93,11 @@ impl<'b> Reader<'b> {
     pub fn u32(&mut self) -> Result<u32, ReadError> {
         let bytes = self.consume(4)?.try_into().unwrap();
         Ok(u32::from_ne_bytes(bytes))
+    }
+
+    pub fn u64(&mut self) -> Result<u64, ReadError> {
+        let bytes = self.consume(4)?.try_into().unwrap();
+        Ok(u64::from_ne_bytes(bytes))
     }
 
     pub fn i32(&mut self) -> Result<i32, ReadError> {
@@ -172,6 +183,40 @@ impl<'b> XimFormat<'b> for Endian {
     }
 }
 
+impl<'b> XimFormat<'b> for StatusContent<'b> {
+    fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
+        let ty = u32::read(reader)?;
+
+        match ty {
+            0 => Ok(Self::Text(XimFormat::read(reader)?)),
+            1 => Ok(Self::Pixmap(XimFormat::read(reader)?)),
+            _ => Err(reader.invalid_data("StatusContentType", ty)),
+        }
+    }
+
+    fn write(&self, writer: &mut Writer) {
+        match self {
+            StatusContent::Text(content) => {
+                0u32.write(writer);
+                content.write(writer);
+            }
+            StatusContent::Pixmap(pixmap) => {
+                1u32.write(writer);
+                pixmap.write(writer);
+            }
+        }
+    }
+
+    fn size(&self) -> usize {
+        let size = match self {
+            StatusContent::Text(content) => content.size(),
+            StatusContent::Pixmap(pixmap) => std::mem::size_of_val(pixmap),
+        };
+
+        size + 4
+    }
+}
+
 impl<'b> XimFormat<'b> for u8 {
     fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
         reader.u8()
@@ -211,6 +256,20 @@ impl<'b> XimFormat<'b> for u32 {
 
     fn size(&self) -> usize {
         4
+    }
+}
+
+impl<'b> XimFormat<'b> for u64 {
+    fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
+        reader.u64()
+    }
+
+    fn write(&self, writer: &mut Writer) {
+        writer.write(&self.to_ne_bytes())
+    }
+
+    fn size(&self) -> usize {
+        8
     }
 }
 impl<'b> XimFormat<'b> for i32 {
@@ -276,6 +335,48 @@ impl<'b> XimFormat<'b> for AttrType {
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(u32)]
+pub enum CaretDirection {
+    ForwardChar = 0,
+    BackwardChar = 1,
+    ForwardWord = 2,
+    BackwardWord = 3,
+    CaretUp = 4,
+    CaretDown = 5,
+    NextLine = 6,
+    PreviousLine = 7,
+    LineStart = 8,
+    LineEnd = 9,
+    AbsolutePosition = 10,
+    DontChange = 11,
+}
+impl<'b> XimFormat<'b> for CaretDirection {
+    fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
+        let repr = u32::read(reader)?;
+        match repr {
+            0 => Ok(Self::ForwardChar),
+            1 => Ok(Self::BackwardChar),
+            2 => Ok(Self::ForwardWord),
+            3 => Ok(Self::BackwardWord),
+            4 => Ok(Self::CaretUp),
+            5 => Ok(Self::CaretDown),
+            6 => Ok(Self::NextLine),
+            7 => Ok(Self::PreviousLine),
+            8 => Ok(Self::LineStart),
+            9 => Ok(Self::LineEnd),
+            10 => Ok(Self::AbsolutePosition),
+            11 => Ok(Self::DontChange),
+            _ => Err(reader.invalid_data("CaretDirection", repr)),
+        }
+    }
+    fn write(&self, writer: &mut Writer) {
+        (*self as u32).write(writer);
+    }
+    fn size(&self) -> usize {
+        std::mem::size_of::<u32>()
+    }
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u32)]
 pub enum CaretStyle {
     Invisible = 0,
     Primary = 1,
@@ -289,6 +390,191 @@ impl<'b> XimFormat<'b> for CaretStyle {
             1 => Ok(Self::Primary),
             2 => Ok(Self::Secondary),
             _ => Err(reader.invalid_data("CaretStyle", repr)),
+        }
+    }
+    fn write(&self, writer: &mut Writer) {
+        (*self as u32).write(writer);
+    }
+    fn size(&self) -> usize {
+        std::mem::size_of::<u32>()
+    }
+}
+bitflags::bitflags! {
+pub struct CommitFlag: u16 {
+const SYNCHRONOUS = 1;
+const LOOKUPCHARS = 2;
+const LOOKUPKEYSYM = 4;
+const LOOPUPBOTH = 6;
+}
+}
+impl<'b> XimFormat<'b> for CommitFlag {
+    fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
+        let repr = u16::read(reader)?;
+        Self::from_bits(repr).ok_or(reader.invalid_data("CommitFlag", repr))
+    }
+    fn write(&self, writer: &mut Writer) {
+        self.bits().write(writer);
+    }
+    fn size(&self) -> usize {
+        std::mem::size_of::<u16>()
+    }
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u16)]
+pub enum ErrorCode {
+    BadAlloc = 1,
+    BadStyle = 2,
+    BadClientWindow = 3,
+    BadFocusWindow = 4,
+    BadArea = 5,
+    BadSpotLocation = 6,
+    BadColormap = 7,
+    BadAtom = 8,
+    BadPixel = 9,
+    BadPixmap = 10,
+    BadName = 11,
+    BadCursor = 12,
+    BadProtocol = 13,
+    BadForeground = 14,
+    BadBackground = 15,
+    LocaleNotSupported = 16,
+    BadSomething = 999,
+}
+impl<'b> XimFormat<'b> for ErrorCode {
+    fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
+        let repr = u16::read(reader)?;
+        match repr {
+            1 => Ok(Self::BadAlloc),
+            2 => Ok(Self::BadStyle),
+            3 => Ok(Self::BadClientWindow),
+            4 => Ok(Self::BadFocusWindow),
+            5 => Ok(Self::BadArea),
+            6 => Ok(Self::BadSpotLocation),
+            7 => Ok(Self::BadColormap),
+            8 => Ok(Self::BadAtom),
+            9 => Ok(Self::BadPixel),
+            10 => Ok(Self::BadPixmap),
+            11 => Ok(Self::BadName),
+            12 => Ok(Self::BadCursor),
+            13 => Ok(Self::BadProtocol),
+            14 => Ok(Self::BadForeground),
+            15 => Ok(Self::BadBackground),
+            16 => Ok(Self::LocaleNotSupported),
+            999 => Ok(Self::BadSomething),
+            _ => Err(reader.invalid_data("ErrorCode", repr)),
+        }
+    }
+    fn write(&self, writer: &mut Writer) {
+        (*self as u16).write(writer);
+    }
+    fn size(&self) -> usize {
+        std::mem::size_of::<u16>()
+    }
+}
+bitflags::bitflags! {
+pub struct ErrorFlag: u16 {
+const INPUTMETHODIDVALID = 1;
+const INPUTCONTEXTIDVALID = 2;
+}
+}
+impl<'b> XimFormat<'b> for ErrorFlag {
+    fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
+        let repr = u16::read(reader)?;
+        Self::from_bits(repr).ok_or(reader.invalid_data("ErrorFlag", repr))
+    }
+    fn write(&self, writer: &mut Writer) {
+        self.bits().write(writer);
+    }
+    fn size(&self) -> usize {
+        std::mem::size_of::<u16>()
+    }
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u32)]
+pub enum Feedback {
+    Reverse = 1,
+    Underline = 2,
+    Highlight = 4,
+    Primary = 8,
+    Secondary = 16,
+    Tertiary = 32,
+    VisibleToForward = 64,
+    VisibleToBackward = 128,
+    VisibleCenter = 256,
+}
+impl<'b> XimFormat<'b> for Feedback {
+    fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
+        let repr = u32::read(reader)?;
+        match repr {
+            1 => Ok(Self::Reverse),
+            2 => Ok(Self::Underline),
+            4 => Ok(Self::Highlight),
+            8 => Ok(Self::Primary),
+            16 => Ok(Self::Secondary),
+            32 => Ok(Self::Tertiary),
+            64 => Ok(Self::VisibleToForward),
+            128 => Ok(Self::VisibleToBackward),
+            256 => Ok(Self::VisibleCenter),
+            _ => Err(reader.invalid_data("Feedback", repr)),
+        }
+    }
+    fn write(&self, writer: &mut Writer) {
+        (*self as u32).write(writer);
+    }
+    fn size(&self) -> usize {
+        std::mem::size_of::<u32>()
+    }
+}
+bitflags::bitflags! {
+pub struct PreeditDrawStatus: u32 {
+const NOSTRING = 1;
+const NOFEEDBACK = 2;
+}
+}
+impl<'b> XimFormat<'b> for PreeditDrawStatus {
+    fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
+        let repr = u32::read(reader)?;
+        Self::from_bits(repr).ok_or(reader.invalid_data("PreeditDrawStatus", repr))
+    }
+    fn write(&self, writer: &mut Writer) {
+        self.bits().write(writer);
+    }
+    fn size(&self) -> usize {
+        std::mem::size_of::<u32>()
+    }
+}
+bitflags::bitflags! {
+pub struct PreeditStateFlag: u32 {
+const UNKNOWN = 0;
+const ENABLE = 1;
+const DISABLE = 2;
+}
+}
+impl<'b> XimFormat<'b> for PreeditStateFlag {
+    fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
+        let repr = u32::read(reader)?;
+        Self::from_bits(repr).ok_or(reader.invalid_data("PreeditStateFlag", repr))
+    }
+    fn write(&self, writer: &mut Writer) {
+        self.bits().write(writer);
+    }
+    fn size(&self) -> usize {
+        std::mem::size_of::<u32>()
+    }
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u32)]
+pub enum TriggerNotifyFlag {
+    OnKeyList = 0,
+    OffKeyList = 1,
+}
+impl<'b> XimFormat<'b> for TriggerNotifyFlag {
+    fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
+        let repr = u32::read(reader)?;
+        match repr {
+            0 => Ok(Self::OnKeyList),
+            1 => Ok(Self::OffKeyList),
+            _ => Err(reader.invalid_data("TriggerNotifyFlag", repr)),
         }
     }
     fn write(&self, writer: &mut Writer) {
@@ -312,6 +598,7 @@ impl<'b> XimFormat<'b> for Attr<'b> {
             name: {
                 let inner = {
                     let len = u16::read(reader)?;
+                    reader.consume(0)?;
                     let bytes = reader.consume(len as usize)?;
                     XimString(bytes)
                 };
@@ -324,6 +611,7 @@ impl<'b> XimFormat<'b> for Attr<'b> {
         self.id.write(writer);
         self.ty.write(writer);
         (self.name.0.len() as u16).write(writer);
+        writer.write(&[0u8; 0]);
         writer.write(self.name.0);
         writer.write_pad4();
     }
@@ -331,7 +619,42 @@ impl<'b> XimFormat<'b> for Attr<'b> {
         let mut content_size = 0;
         content_size += self.id.size();
         content_size += self.ty.size();
-        content_size += with_pad4(self.name.0.len() + 2);
+        content_size += with_pad4(self.name.0.len() + 2 + 0);
+        content_size
+    }
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Attribute<'b> {
+    pub id: u16,
+    pub value: XimString<'b>,
+}
+impl<'b> XimFormat<'b> for Attribute<'b> {
+    fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
+        Ok(Self {
+            id: <u16 as XimFormat<'b>>::read(reader)?,
+            value: {
+                let inner = {
+                    let len = u16::read(reader)?;
+                    reader.consume(0)?;
+                    let bytes = reader.consume(len as usize)?;
+                    XimString(bytes)
+                };
+                reader.pad4()?;
+                inner
+            },
+        })
+    }
+    fn write(&self, writer: &mut Writer) {
+        self.id.write(writer);
+        (self.value.0.len() as u16).write(writer);
+        writer.write(&[0u8; 0]);
+        writer.write(self.value.0);
+        writer.write_pad4();
+    }
+    fn size(&self) -> usize {
+        let mut content_size = 0;
+        content_size += self.id.size();
+        content_size += with_pad4(self.value.0.len() + 2 + 0);
         content_size
     }
 }
@@ -349,6 +672,7 @@ impl<'b> XimFormat<'b> for Extension<'b> {
             name: {
                 let inner = {
                     let len = u16::read(reader)?;
+                    reader.consume(0)?;
                     let bytes = reader.consume(len as usize)?;
                     XimString(bytes)
                 };
@@ -361,6 +685,7 @@ impl<'b> XimFormat<'b> for Extension<'b> {
         self.major_opcode.write(writer);
         self.minor_opcode.write(writer);
         (self.name.0.len() as u16).write(writer);
+        writer.write(&[0u8; 0]);
         writer.write(self.name.0);
         writer.write_pad4();
     }
@@ -368,7 +693,86 @@ impl<'b> XimFormat<'b> for Extension<'b> {
         let mut content_size = 0;
         content_size += self.major_opcode.size();
         content_size += self.minor_opcode.size();
-        content_size += with_pad4(self.name.0.len() + 2);
+        content_size += with_pad4(self.name.0.len() + 2 + 0);
+        content_size
+    }
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct StatusTextContent<'b> {
+    pub status: PreeditDrawStatus,
+    pub status_string: XimString<'b>,
+    pub feedbacks: Vec<Feedback>,
+}
+impl<'b> XimFormat<'b> for StatusTextContent<'b> {
+    fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
+        Ok(Self {
+            status: <PreeditDrawStatus as XimFormat<'b>>::read(reader)?,
+            status_string: {
+                let inner = {
+                    let len = u16::read(reader)?;
+                    reader.consume(0)?;
+                    let bytes = reader.consume(len as usize)?;
+                    XimString(bytes)
+                };
+                reader.pad4()?;
+                inner
+            },
+            feedbacks: {
+                let mut out = Vec::new();
+                let len = u16::read(reader)? as usize;
+                let end = reader.cursor() - len;
+                u16::read(reader)?;
+                while reader.cursor() > end {
+                    out.push(<Feedback as XimFormat<'b>>::read(reader)?);
+                }
+                out
+            },
+        })
+    }
+    fn write(&self, writer: &mut Writer) {
+        self.status.write(writer);
+        (self.status_string.0.len() as u16).write(writer);
+        writer.write(&[0u8; 0]);
+        writer.write(self.status_string.0);
+        writer.write_pad4();
+        ((self.feedbacks.iter().map(|e| e.size()).sum::<usize>() + 2 + 2 - 2) as u16).write(writer);
+        0u16.write(writer);
+        for elem in self.feedbacks.iter() {
+            elem.write(writer);
+        }
+    }
+    fn size(&self) -> usize {
+        let mut content_size = 0;
+        content_size += self.status.size();
+        content_size += with_pad4(self.status_string.0.len() + 2 + 0);
+        content_size += self.feedbacks.iter().map(|e| e.size()).sum::<usize>() + 2 + 2;
+        content_size
+    }
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TriggerKey {
+    pub keysym: u32,
+    pub modifier: u32,
+    pub modifier_mask: u32,
+}
+impl<'b> XimFormat<'b> for TriggerKey {
+    fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
+        Ok(Self {
+            keysym: <u32 as XimFormat<'b>>::read(reader)?,
+            modifier: <u32 as XimFormat<'b>>::read(reader)?,
+            modifier_mask: <u32 as XimFormat<'b>>::read(reader)?,
+        })
+    }
+    fn write(&self, writer: &mut Writer) {
+        self.keysym.write(writer);
+        self.modifier.write(writer);
+        self.modifier_mask.write(writer);
+    }
+    fn size(&self) -> usize {
+        let mut content_size = 0;
+        content_size += self.keysym.size();
+        content_size += self.modifier.size();
+        content_size += self.modifier_mask.size();
         content_size
     }
 }
@@ -385,7 +789,11 @@ pub enum Request<'b> {
     CloseReply {
         input_method_id: u16,
     },
-    Commit {},
+    Commit {
+        input_method_id: u16,
+        input_context_id: u16,
+        flag: CommitFlag,
+    },
     Connect {
         endian: Endian,
         client_major_protocol_version: u16,
@@ -396,21 +804,63 @@ pub enum Request<'b> {
         server_major_protocol_version: u16,
         server_minor_protocol_version: u16,
     },
-    CreateIc {},
-    CreateIcReply {},
-    DestoryIc {},
-    DestroyIcReply {},
+    CreateIc {
+        input_method_id: u16,
+        ic_attributes: Vec<Attribute<'b>>,
+    },
+    CreateIcReply {
+        input_method_id: u16,
+        input_context_id: u16,
+    },
+    DestoryIc {
+        input_method_id: u16,
+        input_context_id: u16,
+    },
+    DestroyIcReply {
+        input_method_id: u16,
+        input_context_id: u16,
+    },
     Disconnect {},
     DisconnectReply {},
-    EncodingNegotiation {},
-    EncodingNegotiationReply {},
-    Error {},
+    EncodingNegotiation {
+        input_method_id: u16,
+        encodings: Vec<XimString<'b>>,
+        encoding_infos: Vec<XimString<'b>>,
+    },
+    EncodingNegotiationReply {
+        input_method_id: u16,
+        category: u16,
+        index: u16,
+    },
+    Error {
+        input_method_id: u16,
+        input_context_id: u16,
+        flag: ErrorFlag,
+        detail: XimString<'b>,
+    },
     ForwardEvent {},
-    Geometry {},
-    GetIcValues {},
-    GetIcValuesReply {},
-    GetImValues {},
-    GetImValuesReply {},
+    Geometry {
+        input_method_id: u16,
+        input_context_id: u16,
+    },
+    GetIcValues {
+        input_method_id: u16,
+        input_context_id: u16,
+        ic_attributes: Vec<u16>,
+    },
+    GetIcValuesReply {
+        input_method_id: u16,
+        input_context_id: u16,
+        ic_attributes: Vec<Attribute<'b>>,
+    },
+    GetImValues {
+        input_method_id: u16,
+        im_attributes: Vec<u16>,
+    },
+    GetImValuesReply {
+        input_method_id: u16,
+        im_attributes: Vec<Attribute<'b>>,
+    },
     Open {
         name: XimString<'b>,
     },
@@ -419,13 +869,46 @@ pub enum Request<'b> {
         im_attrs: Vec<Attr<'b>>,
         ic_attrs: Vec<Attr<'b>>,
     },
-    PreeditCaret {},
-    PreeditCaretReply {},
-    PreeditDone {},
-    PreeditDraw {},
-    PreeditStart {},
-    PreeditStartReply {},
-    PreeditState {},
+    PreeditCaret {
+        input_method_id: u16,
+        input_context_id: u16,
+        position: i32,
+        direction: CaretDirection,
+        style: CaretStyle,
+    },
+    PreeditCaretReply {
+        input_method_id: u16,
+        input_context_id: u16,
+        position: i32,
+    },
+    PreeditDone {
+        input_method_id: u16,
+        input_context_id: u16,
+    },
+    PreeditDraw {
+        input_method_id: u16,
+        input_context_id: u16,
+        caret: i32,
+        chg_first: i32,
+        chg_length: i32,
+        status: PreeditDrawStatus,
+        preedit_string: XimString<'b>,
+        feedbacks: Vec<Feedback>,
+    },
+    PreeditStart {
+        input_method_id: u16,
+        input_context_id: u16,
+    },
+    PreeditStartReply {
+        input_method_id: u16,
+        input_context_id: u16,
+        return_value: i32,
+    },
+    PreeditState {
+        input_method_id: u16,
+        input_context_id: u16,
+        state: PreeditStateFlag,
+    },
     QueryExtension {
         input_method_id: u16,
         extensions: Vec<XimString<'b>>,
@@ -434,25 +917,84 @@ pub enum Request<'b> {
         input_method_id: u16,
         extentions: Vec<Extension<'b>>,
     },
-    RegisterTriggerKeys {},
-    ResetIc {},
-    ResetIcReply {},
-    SetEventMask {},
-    SetIcFocus {},
-    SetIcValues {},
-    SetIcValuesReply {},
-    SetImValues {},
-    SetImValuesReply {},
-    StatusDone {},
-    StatusDraw {},
-    StatusStart {},
+    RegisterTriggerKeys {
+        input_method_id: u16,
+        on_keys: Vec<TriggerKey>,
+        off_keys: Vec<TriggerKey>,
+    },
+    ResetIc {
+        input_method_id: u16,
+        input_context_id: u16,
+    },
+    ResetIcReply {
+        input_method_id: u16,
+        input_context_id: u16,
+        preedit_string: XimString<'b>,
+    },
+    SetEventMask {
+        input_method_id: u16,
+        input_context_id: u16,
+        forward_event_mask: u32,
+        synchronous_event_mask: u32,
+    },
+    SetIcFocus {
+        input_method_id: u16,
+        input_context_id: u16,
+    },
+    SetIcValues {
+        input_method_id: u16,
+        input_context_id: u16,
+        ic_attributes: Vec<Attribute<'b>>,
+    },
+    SetIcValuesReply {
+        input_method_id: u16,
+        input_context_id: u16,
+    },
+    SetImValues {
+        input_method_id: u16,
+        attributes: Vec<Attribute<'b>>,
+    },
+    SetImValuesReply {
+        input_method_id: u16,
+    },
+    StatusDone {
+        input_method_id: u16,
+        input_context_id: u16,
+    },
+    StatusDraw {
+        input_method_id: u16,
+        input_context_id: u16,
+        content: StatusContent<'b>,
+    },
+    StatusStart {
+        input_method_id: u16,
+        input_context_id: u16,
+    },
     StrConversion {},
     StrConversionReply {},
-    Sync {},
-    SyncReply {},
-    TriggerNotify {},
-    TriggerNotifyReply {},
-    UnsetIcFocus {},
+    Sync {
+        input_method_id: u16,
+        input_context_id: u16,
+    },
+    SyncReply {
+        input_method_id: u16,
+        input_context_id: u16,
+    },
+    TriggerNotify {
+        input_method_id: u16,
+        input_context_id: u16,
+        flag: TriggerNotifyFlag,
+        index: u32,
+        event_mask: u32,
+    },
+    TriggerNotifyReply {
+        input_method_id: u16,
+        input_context_id: u16,
+    },
+    UnsetIcFocus {
+        input_method_id: u16,
+        input_context_id: u16,
+    },
 }
 impl<'b> XimFormat<'b> for Request<'b> {
     fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
@@ -468,22 +1010,26 @@ impl<'b> XimFormat<'b> for Request<'b> {
             (32, _) => Ok(Request::Close {
                 input_method_id: {
                     let inner = <u16 as XimFormat<'b>>::read(reader)?;
-                    u16::read(reader)?;
+                    reader.consume(2)?;
                     inner
                 },
             }),
             (33, _) => Ok(Request::CloseReply {
                 input_method_id: {
                     let inner = <u16 as XimFormat<'b>>::read(reader)?;
-                    u16::read(reader)?;
+                    reader.consume(2)?;
                     inner
                 },
             }),
-            (63, _) => Ok(Request::Commit {}),
+            (63, _) => Ok(Request::Commit {
+                input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
+                input_context_id: <u16 as XimFormat<'b>>::read(reader)?,
+                flag: <CommitFlag as XimFormat<'b>>::read(reader)?,
+            }),
             (1, _) => Ok(Request::Connect {
                 endian: {
                     let inner = <Endian as XimFormat<'b>>::read(reader)?;
-                    u8::read(reader)?;
+                    reader.consume(1)?;
                     inner
                 },
                 client_major_protocol_version: <u16 as XimFormat<'b>>::read(reader)?,
@@ -496,6 +1042,7 @@ impl<'b> XimFormat<'b> for Request<'b> {
                         out.push({
                             let inner = {
                                 let len = u16::read(reader)?;
+                                reader.consume(0)?;
                                 let bytes = reader.consume(len as usize)?;
                                 XimString(bytes)
                             };
@@ -510,25 +1057,169 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 server_major_protocol_version: <u16 as XimFormat<'b>>::read(reader)?,
                 server_minor_protocol_version: <u16 as XimFormat<'b>>::read(reader)?,
             }),
-            (50, _) => Ok(Request::CreateIc {}),
-            (51, _) => Ok(Request::CreateIcReply {}),
-            (52, _) => Ok(Request::DestoryIc {}),
-            (53, _) => Ok(Request::DestroyIcReply {}),
+            (50, _) => Ok(Request::CreateIc {
+                input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
+                ic_attributes: {
+                    let inner = {
+                        let mut out = Vec::new();
+                        let len = u16::read(reader)? as usize;
+                        let end = reader.cursor() - len;
+                        while reader.cursor() > end {
+                            out.push(<Attribute<'b> as XimFormat<'b>>::read(reader)?);
+                        }
+                        out
+                    };
+                    reader.pad4()?;
+                    inner
+                },
+            }),
+            (51, _) => Ok(Request::CreateIcReply {
+                input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
+                input_context_id: <u16 as XimFormat<'b>>::read(reader)?,
+            }),
+            (52, _) => Ok(Request::DestoryIc {
+                input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
+                input_context_id: <u16 as XimFormat<'b>>::read(reader)?,
+            }),
+            (53, _) => Ok(Request::DestroyIcReply {
+                input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
+                input_context_id: <u16 as XimFormat<'b>>::read(reader)?,
+            }),
             (3, _) => Ok(Request::Disconnect {}),
             (4, _) => Ok(Request::DisconnectReply {}),
-            (38, _) => Ok(Request::EncodingNegotiation {}),
-            (39, _) => Ok(Request::EncodingNegotiationReply {}),
-            (20, _) => Ok(Request::Error {}),
+            (38, _) => Ok(Request::EncodingNegotiation {
+                input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
+                encodings: {
+                    let inner = {
+                        let mut out = Vec::new();
+                        let len = u16::read(reader)? as usize;
+                        let end = reader.cursor() - len;
+                        while reader.cursor() > end {
+                            out.push({
+                                let len = u8::read(reader)?;
+                                reader.consume(0)?;
+                                let bytes = reader.consume(len as usize)?;
+                                XimString(bytes)
+                            });
+                        }
+                        out
+                    };
+                    reader.pad4()?;
+                    inner
+                },
+                encoding_infos: {
+                    let mut out = Vec::new();
+                    let len = u16::read(reader)? as usize;
+                    let end = reader.cursor() - len;
+                    u16::read(reader)?;
+                    while reader.cursor() > end {
+                        out.push({
+                            let inner = {
+                                let len = u16::read(reader)?;
+                                reader.consume(0)?;
+                                let bytes = reader.consume(len as usize)?;
+                                XimString(bytes)
+                            };
+                            reader.pad4()?;
+                            inner
+                        });
+                    }
+                    out
+                },
+            }),
+            (39, _) => Ok(Request::EncodingNegotiationReply {
+                input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
+                category: <u16 as XimFormat<'b>>::read(reader)?,
+                index: {
+                    let inner = <u16 as XimFormat<'b>>::read(reader)?;
+                    reader.consume(2)?;
+                    inner
+                },
+            }),
+            (20, _) => Ok(Request::Error {
+                input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
+                input_context_id: <u16 as XimFormat<'b>>::read(reader)?,
+                flag: <ErrorFlag as XimFormat<'b>>::read(reader)?,
+                detail: {
+                    let inner = {
+                        let len = u16::read(reader)?;
+                        reader.consume(2)?;
+                        let bytes = reader.consume(len as usize)?;
+                        XimString(bytes)
+                    };
+                    reader.pad4()?;
+                    inner
+                },
+            }),
             (60, _) => Ok(Request::ForwardEvent {}),
-            (70, _) => Ok(Request::Geometry {}),
-            (56, _) => Ok(Request::GetIcValues {}),
-            (57, _) => Ok(Request::GetIcValuesReply {}),
-            (44, _) => Ok(Request::GetImValues {}),
-            (45, _) => Ok(Request::GetImValuesReply {}),
+            (70, _) => Ok(Request::Geometry {
+                input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
+                input_context_id: <u16 as XimFormat<'b>>::read(reader)?,
+            }),
+            (56, _) => Ok(Request::GetIcValues {
+                input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
+                input_context_id: <u16 as XimFormat<'b>>::read(reader)?,
+                ic_attributes: {
+                    let inner = {
+                        let mut out = Vec::new();
+                        let len = u16::read(reader)? as usize;
+                        let end = reader.cursor() - len;
+                        while reader.cursor() > end {
+                            out.push(<u16 as XimFormat<'b>>::read(reader)?);
+                        }
+                        out
+                    };
+                    reader.pad4()?;
+                    inner
+                },
+            }),
+            (57, _) => Ok(Request::GetIcValuesReply {
+                input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
+                input_context_id: <u16 as XimFormat<'b>>::read(reader)?,
+                ic_attributes: {
+                    let mut out = Vec::new();
+                    let len = u16::read(reader)? as usize;
+                    let end = reader.cursor() - len;
+                    u16::read(reader)?;
+                    while reader.cursor() > end {
+                        out.push(<Attribute<'b> as XimFormat<'b>>::read(reader)?);
+                    }
+                    out
+                },
+            }),
+            (44, _) => Ok(Request::GetImValues {
+                input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
+                im_attributes: {
+                    let inner = {
+                        let mut out = Vec::new();
+                        let len = u16::read(reader)? as usize;
+                        let end = reader.cursor() - len;
+                        while reader.cursor() > end {
+                            out.push(<u16 as XimFormat<'b>>::read(reader)?);
+                        }
+                        out
+                    };
+                    reader.pad4()?;
+                    inner
+                },
+            }),
+            (45, _) => Ok(Request::GetImValuesReply {
+                input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
+                im_attributes: {
+                    let mut out = Vec::new();
+                    let len = u16::read(reader)? as usize;
+                    let end = reader.cursor() - len;
+                    while reader.cursor() > end {
+                        out.push(<Attribute<'b> as XimFormat<'b>>::read(reader)?);
+                    }
+                    out
+                },
+            }),
             (30, _) => Ok(Request::Open {
                 name: {
                     let inner = {
                         let len = u8::read(reader)?;
+                        reader.consume(0)?;
                         let bytes = reader.consume(len as usize)?;
                         XimString(bytes)
                     };
@@ -558,13 +1249,64 @@ impl<'b> XimFormat<'b> for Request<'b> {
                     out
                 },
             }),
-            (76, _) => Ok(Request::PreeditCaret {}),
-            (77, _) => Ok(Request::PreeditCaretReply {}),
-            (78, _) => Ok(Request::PreeditDone {}),
-            (75, _) => Ok(Request::PreeditDraw {}),
-            (73, _) => Ok(Request::PreeditStart {}),
-            (74, _) => Ok(Request::PreeditStartReply {}),
-            (82, _) => Ok(Request::PreeditState {}),
+            (76, _) => Ok(Request::PreeditCaret {
+                input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
+                input_context_id: <u16 as XimFormat<'b>>::read(reader)?,
+                position: <i32 as XimFormat<'b>>::read(reader)?,
+                direction: <CaretDirection as XimFormat<'b>>::read(reader)?,
+                style: <CaretStyle as XimFormat<'b>>::read(reader)?,
+            }),
+            (77, _) => Ok(Request::PreeditCaretReply {
+                input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
+                input_context_id: <u16 as XimFormat<'b>>::read(reader)?,
+                position: <i32 as XimFormat<'b>>::read(reader)?,
+            }),
+            (78, _) => Ok(Request::PreeditDone {
+                input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
+                input_context_id: <u16 as XimFormat<'b>>::read(reader)?,
+            }),
+            (75, _) => Ok(Request::PreeditDraw {
+                input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
+                input_context_id: <u16 as XimFormat<'b>>::read(reader)?,
+                caret: <i32 as XimFormat<'b>>::read(reader)?,
+                chg_first: <i32 as XimFormat<'b>>::read(reader)?,
+                chg_length: <i32 as XimFormat<'b>>::read(reader)?,
+                status: <PreeditDrawStatus as XimFormat<'b>>::read(reader)?,
+                preedit_string: {
+                    let inner = {
+                        let len = u16::read(reader)?;
+                        reader.consume(0)?;
+                        let bytes = reader.consume(len as usize)?;
+                        XimString(bytes)
+                    };
+                    reader.pad4()?;
+                    inner
+                },
+                feedbacks: {
+                    let mut out = Vec::new();
+                    let len = u16::read(reader)? as usize;
+                    let end = reader.cursor() - len;
+                    u16::read(reader)?;
+                    while reader.cursor() > end {
+                        out.push(<Feedback as XimFormat<'b>>::read(reader)?);
+                    }
+                    out
+                },
+            }),
+            (73, _) => Ok(Request::PreeditStart {
+                input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
+                input_context_id: <u16 as XimFormat<'b>>::read(reader)?,
+            }),
+            (74, _) => Ok(Request::PreeditStartReply {
+                input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
+                input_context_id: <u16 as XimFormat<'b>>::read(reader)?,
+                return_value: <i32 as XimFormat<'b>>::read(reader)?,
+            }),
+            (82, _) => Ok(Request::PreeditState {
+                input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
+                input_context_id: <u16 as XimFormat<'b>>::read(reader)?,
+                state: <PreeditStateFlag as XimFormat<'b>>::read(reader)?,
+            }),
             (40, _) => Ok(Request::QueryExtension {
                 input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
                 extensions: {
@@ -575,6 +1317,7 @@ impl<'b> XimFormat<'b> for Request<'b> {
                         while reader.cursor() > end {
                             out.push({
                                 let len = u8::read(reader)?;
+                                reader.consume(0)?;
                                 let bytes = reader.consume(len as usize)?;
                                 XimString(bytes)
                             });
@@ -597,25 +1340,134 @@ impl<'b> XimFormat<'b> for Request<'b> {
                     out
                 },
             }),
-            (34, _) => Ok(Request::RegisterTriggerKeys {}),
-            (64, _) => Ok(Request::ResetIc {}),
-            (65, _) => Ok(Request::ResetIcReply {}),
-            (37, _) => Ok(Request::SetEventMask {}),
-            (58, _) => Ok(Request::SetIcFocus {}),
-            (54, _) => Ok(Request::SetIcValues {}),
-            (55, _) => Ok(Request::SetIcValuesReply {}),
-            (42, _) => Ok(Request::SetImValues {}),
-            (43, _) => Ok(Request::SetImValuesReply {}),
-            (81, _) => Ok(Request::StatusDone {}),
-            (80, _) => Ok(Request::StatusDraw {}),
-            (79, _) => Ok(Request::StatusStart {}),
+            (34, _) => Ok(Request::RegisterTriggerKeys {
+                input_method_id: {
+                    let inner = <u16 as XimFormat<'b>>::read(reader)?;
+                    reader.consume(2)?;
+                    inner
+                },
+                on_keys: {
+                    let mut out = Vec::new();
+                    let len = u32::read(reader)? as usize;
+                    let end = reader.cursor() - len;
+                    while reader.cursor() > end {
+                        out.push(<TriggerKey as XimFormat<'b>>::read(reader)?);
+                    }
+                    out
+                },
+                off_keys: {
+                    let mut out = Vec::new();
+                    let len = u32::read(reader)? as usize;
+                    let end = reader.cursor() - len;
+                    while reader.cursor() > end {
+                        out.push(<TriggerKey as XimFormat<'b>>::read(reader)?);
+                    }
+                    out
+                },
+            }),
+            (64, _) => Ok(Request::ResetIc {
+                input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
+                input_context_id: <u16 as XimFormat<'b>>::read(reader)?,
+            }),
+            (65, _) => Ok(Request::ResetIcReply {
+                input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
+                input_context_id: <u16 as XimFormat<'b>>::read(reader)?,
+                preedit_string: {
+                    let inner = {
+                        let len = u16::read(reader)?;
+                        reader.consume(0)?;
+                        let bytes = reader.consume(len as usize)?;
+                        XimString(bytes)
+                    };
+                    reader.pad4()?;
+                    inner
+                },
+            }),
+            (37, _) => Ok(Request::SetEventMask {
+                input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
+                input_context_id: <u16 as XimFormat<'b>>::read(reader)?,
+                forward_event_mask: <u32 as XimFormat<'b>>::read(reader)?,
+                synchronous_event_mask: <u32 as XimFormat<'b>>::read(reader)?,
+            }),
+            (58, _) => Ok(Request::SetIcFocus {
+                input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
+                input_context_id: <u16 as XimFormat<'b>>::read(reader)?,
+            }),
+            (54, _) => Ok(Request::SetIcValues {
+                input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
+                input_context_id: <u16 as XimFormat<'b>>::read(reader)?,
+                ic_attributes: {
+                    let mut out = Vec::new();
+                    let len = u16::read(reader)? as usize;
+                    let end = reader.cursor() - len;
+                    u16::read(reader)?;
+                    while reader.cursor() > end {
+                        out.push(<Attribute<'b> as XimFormat<'b>>::read(reader)?);
+                    }
+                    out
+                },
+            }),
+            (55, _) => Ok(Request::SetIcValuesReply {
+                input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
+                input_context_id: <u16 as XimFormat<'b>>::read(reader)?,
+            }),
+            (42, _) => Ok(Request::SetImValues {
+                input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
+                attributes: {
+                    let mut out = Vec::new();
+                    let len = u16::read(reader)? as usize;
+                    let end = reader.cursor() - len;
+                    while reader.cursor() > end {
+                        out.push(<Attribute<'b> as XimFormat<'b>>::read(reader)?);
+                    }
+                    out
+                },
+            }),
+            (43, _) => Ok(Request::SetImValuesReply {
+                input_method_id: {
+                    let inner = <u16 as XimFormat<'b>>::read(reader)?;
+                    reader.consume(2)?;
+                    inner
+                },
+            }),
+            (81, _) => Ok(Request::StatusDone {
+                input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
+                input_context_id: <u16 as XimFormat<'b>>::read(reader)?,
+            }),
+            (80, _) => Ok(Request::StatusDraw {
+                input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
+                input_context_id: <u16 as XimFormat<'b>>::read(reader)?,
+                content: <StatusContent<'b> as XimFormat<'b>>::read(reader)?,
+            }),
+            (79, _) => Ok(Request::StatusStart {
+                input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
+                input_context_id: <u16 as XimFormat<'b>>::read(reader)?,
+            }),
             (71, _) => Ok(Request::StrConversion {}),
             (72, _) => Ok(Request::StrConversionReply {}),
-            (61, _) => Ok(Request::Sync {}),
-            (62, _) => Ok(Request::SyncReply {}),
-            (35, _) => Ok(Request::TriggerNotify {}),
-            (36, _) => Ok(Request::TriggerNotifyReply {}),
-            (59, _) => Ok(Request::UnsetIcFocus {}),
+            (61, _) => Ok(Request::Sync {
+                input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
+                input_context_id: <u16 as XimFormat<'b>>::read(reader)?,
+            }),
+            (62, _) => Ok(Request::SyncReply {
+                input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
+                input_context_id: <u16 as XimFormat<'b>>::read(reader)?,
+            }),
+            (35, _) => Ok(Request::TriggerNotify {
+                input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
+                input_context_id: <u16 as XimFormat<'b>>::read(reader)?,
+                flag: <TriggerNotifyFlag as XimFormat<'b>>::read(reader)?,
+                index: <u32 as XimFormat<'b>>::read(reader)?,
+                event_mask: <u32 as XimFormat<'b>>::read(reader)?,
+            }),
+            (36, _) => Ok(Request::TriggerNotifyReply {
+                input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
+                input_context_id: <u16 as XimFormat<'b>>::read(reader)?,
+            }),
+            (59, _) => Ok(Request::UnsetIcFocus {
+                input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
+                input_context_id: <u16 as XimFormat<'b>>::read(reader)?,
+            }),
             _ => {
                 Err(reader.invalid_data("Opcode", format!("({}, {})", major_opcode, minor_opcode)))
             }
@@ -653,19 +1505,26 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
                 input_method_id.write(writer);
-                0u16.write(writer);
+                writer.write(&[0u8; 2]);
             }
             Request::CloseReply { input_method_id } => {
                 33u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
                 input_method_id.write(writer);
-                0u16.write(writer);
+                writer.write(&[0u8; 2]);
             }
-            Request::Commit {} => {
+            Request::Commit {
+                input_method_id,
+                input_context_id,
+                flag,
+            } => {
                 63u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                input_context_id.write(writer);
+                flag.write(writer);
             }
             Request::Connect {
                 endian,
@@ -677,12 +1536,12 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
                 endian.write(writer);
-                0u8.write(writer);
+                writer.write(&[0u8; 1]);
                 client_major_protocol_version.write(writer);
                 client_minor_protocol_version.write(writer);
                 ((client_auth_protocol_names
                     .iter()
-                    .map(|e| with_pad4(e.0.len() + 2))
+                    .map(|e| with_pad4(e.0.len() + 2 + 0))
                     .sum::<usize>()
                     + 0
                     + 2
@@ -690,6 +1549,7 @@ impl<'b> XimFormat<'b> for Request<'b> {
                     .write(writer);
                 for elem in client_auth_protocol_names.iter() {
                     (elem.0.len() as u16).write(writer);
+                    writer.write(&[0u8; 0]);
                     writer.write(elem.0);
                     writer.write_pad4();
                 }
@@ -704,25 +1564,50 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 server_major_protocol_version.write(writer);
                 server_minor_protocol_version.write(writer);
             }
-            Request::CreateIc {} => {
+            Request::CreateIc {
+                input_method_id,
+                ic_attributes,
+            } => {
                 50u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                ((ic_attributes.iter().map(|e| e.size()).sum::<usize>() + 0 + 2 - 2) as u16)
+                    .write(writer);
+                for elem in ic_attributes.iter() {
+                    elem.write(writer);
+                }
+                writer.write_pad4();
             }
-            Request::CreateIcReply {} => {
+            Request::CreateIcReply {
+                input_method_id,
+                input_context_id,
+            } => {
                 51u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                input_context_id.write(writer);
             }
-            Request::DestoryIc {} => {
+            Request::DestoryIc {
+                input_method_id,
+                input_context_id,
+            } => {
                 52u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                input_context_id.write(writer);
             }
-            Request::DestroyIcReply {} => {
+            Request::DestroyIcReply {
+                input_method_id,
+                input_context_id,
+            } => {
                 53u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                input_context_id.write(writer);
             }
             Request::Disconnect {} => {
                 3u8.write(writer);
@@ -734,56 +1619,153 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
             }
-            Request::EncodingNegotiation {} => {
+            Request::EncodingNegotiation {
+                input_method_id,
+                encodings,
+                encoding_infos,
+            } => {
                 38u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                ((encodings.iter().map(|e| e.0.len() + 1 + 0).sum::<usize>() + 0 + 2 - 2) as u16)
+                    .write(writer);
+                for elem in encodings.iter() {
+                    (elem.0.len() as u8).write(writer);
+                    writer.write(&[0u8; 0]);
+                    writer.write(elem.0);
+                }
+                writer.write_pad4();
+                ((encoding_infos
+                    .iter()
+                    .map(|e| with_pad4(e.0.len() + 2 + 0))
+                    .sum::<usize>()
+                    + 2
+                    + 2
+                    - 2) as u16)
+                    .write(writer);
+                0u16.write(writer);
+                for elem in encoding_infos.iter() {
+                    (elem.0.len() as u16).write(writer);
+                    writer.write(&[0u8; 0]);
+                    writer.write(elem.0);
+                    writer.write_pad4();
+                }
             }
-            Request::EncodingNegotiationReply {} => {
+            Request::EncodingNegotiationReply {
+                input_method_id,
+                category,
+                index,
+            } => {
                 39u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                category.write(writer);
+                index.write(writer);
+                writer.write(&[0u8; 2]);
             }
-            Request::Error {} => {
+            Request::Error {
+                input_method_id,
+                input_context_id,
+                flag,
+                detail,
+            } => {
                 20u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                input_context_id.write(writer);
+                flag.write(writer);
+                (detail.0.len() as u16).write(writer);
+                writer.write(&[0u8; 2]);
+                writer.write(detail.0);
+                writer.write_pad4();
             }
             Request::ForwardEvent {} => {
                 60u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
             }
-            Request::Geometry {} => {
+            Request::Geometry {
+                input_method_id,
+                input_context_id,
+            } => {
                 70u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                input_context_id.write(writer);
             }
-            Request::GetIcValues {} => {
+            Request::GetIcValues {
+                input_method_id,
+                input_context_id,
+                ic_attributes,
+            } => {
                 56u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                input_context_id.write(writer);
+                ((ic_attributes.iter().map(|e| e.size()).sum::<usize>() + 0 + 2 - 2) as u16)
+                    .write(writer);
+                for elem in ic_attributes.iter() {
+                    elem.write(writer);
+                }
+                writer.write_pad4();
             }
-            Request::GetIcValuesReply {} => {
+            Request::GetIcValuesReply {
+                input_method_id,
+                input_context_id,
+                ic_attributes,
+            } => {
                 57u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                input_context_id.write(writer);
+                ((ic_attributes.iter().map(|e| e.size()).sum::<usize>() + 2 + 2 - 2) as u16)
+                    .write(writer);
+                0u16.write(writer);
+                for elem in ic_attributes.iter() {
+                    elem.write(writer);
+                }
             }
-            Request::GetImValues {} => {
+            Request::GetImValues {
+                input_method_id,
+                im_attributes,
+            } => {
                 44u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                ((im_attributes.iter().map(|e| e.size()).sum::<usize>() + 0 + 2 - 2) as u16)
+                    .write(writer);
+                for elem in im_attributes.iter() {
+                    elem.write(writer);
+                }
+                writer.write_pad4();
             }
-            Request::GetImValuesReply {} => {
+            Request::GetImValuesReply {
+                input_method_id,
+                im_attributes,
+            } => {
                 45u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                ((im_attributes.iter().map(|e| e.size()).sum::<usize>() + 0 + 2 - 2) as u16)
+                    .write(writer);
+                for elem in im_attributes.iter() {
+                    elem.write(writer);
+                }
             }
             Request::Open { name } => {
                 30u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
                 (name.0.len() as u8).write(writer);
+                writer.write(&[0u8; 0]);
                 writer.write(name.0);
                 writer.write_pad4();
             }
@@ -808,40 +1790,107 @@ impl<'b> XimFormat<'b> for Request<'b> {
                     elem.write(writer);
                 }
             }
-            Request::PreeditCaret {} => {
+            Request::PreeditCaret {
+                input_method_id,
+                input_context_id,
+                position,
+                direction,
+                style,
+            } => {
                 76u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                input_context_id.write(writer);
+                position.write(writer);
+                direction.write(writer);
+                style.write(writer);
             }
-            Request::PreeditCaretReply {} => {
+            Request::PreeditCaretReply {
+                input_method_id,
+                input_context_id,
+                position,
+            } => {
                 77u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                input_context_id.write(writer);
+                position.write(writer);
             }
-            Request::PreeditDone {} => {
+            Request::PreeditDone {
+                input_method_id,
+                input_context_id,
+            } => {
                 78u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                input_context_id.write(writer);
             }
-            Request::PreeditDraw {} => {
+            Request::PreeditDraw {
+                input_method_id,
+                input_context_id,
+                caret,
+                chg_first,
+                chg_length,
+                status,
+                preedit_string,
+                feedbacks,
+            } => {
                 75u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                input_context_id.write(writer);
+                caret.write(writer);
+                chg_first.write(writer);
+                chg_length.write(writer);
+                status.write(writer);
+                (preedit_string.0.len() as u16).write(writer);
+                writer.write(&[0u8; 0]);
+                writer.write(preedit_string.0);
+                writer.write_pad4();
+                ((feedbacks.iter().map(|e| e.size()).sum::<usize>() + 2 + 2 - 2) as u16)
+                    .write(writer);
+                0u16.write(writer);
+                for elem in feedbacks.iter() {
+                    elem.write(writer);
+                }
             }
-            Request::PreeditStart {} => {
+            Request::PreeditStart {
+                input_method_id,
+                input_context_id,
+            } => {
                 73u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                input_context_id.write(writer);
             }
-            Request::PreeditStartReply {} => {
+            Request::PreeditStartReply {
+                input_method_id,
+                input_context_id,
+                return_value,
+            } => {
                 74u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                input_context_id.write(writer);
+                return_value.write(writer);
             }
-            Request::PreeditState {} => {
+            Request::PreeditState {
+                input_method_id,
+                input_context_id,
+                state,
+            } => {
                 82u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                input_context_id.write(writer);
+                state.write(writer);
             }
             Request::QueryExtension {
                 input_method_id,
@@ -851,10 +1900,11 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
                 input_method_id.write(writer);
-                ((extensions.iter().map(|e| e.0.len() + 1).sum::<usize>() + 0 + 2 - 2) as u16)
+                ((extensions.iter().map(|e| e.0.len() + 1 + 0).sum::<usize>() + 0 + 2 - 2) as u16)
                     .write(writer);
                 for elem in extensions.iter() {
                     (elem.0.len() as u8).write(writer);
+                    writer.write(&[0u8; 0]);
                     writer.write(elem.0);
                 }
                 writer.write_pad4();
@@ -873,65 +1923,155 @@ impl<'b> XimFormat<'b> for Request<'b> {
                     elem.write(writer);
                 }
             }
-            Request::RegisterTriggerKeys {} => {
+            Request::RegisterTriggerKeys {
+                input_method_id,
+                on_keys,
+                off_keys,
+            } => {
                 34u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                writer.write(&[0u8; 2]);
+                ((on_keys.iter().map(|e| e.size()).sum::<usize>() + 0 + 4 - 4) as u32)
+                    .write(writer);
+                for elem in on_keys.iter() {
+                    elem.write(writer);
+                }
+                ((off_keys.iter().map(|e| e.size()).sum::<usize>() + 0 + 4 - 4) as u32)
+                    .write(writer);
+                for elem in off_keys.iter() {
+                    elem.write(writer);
+                }
             }
-            Request::ResetIc {} => {
+            Request::ResetIc {
+                input_method_id,
+                input_context_id,
+            } => {
                 64u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                input_context_id.write(writer);
             }
-            Request::ResetIcReply {} => {
+            Request::ResetIcReply {
+                input_method_id,
+                input_context_id,
+                preedit_string,
+            } => {
                 65u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                input_context_id.write(writer);
+                (preedit_string.0.len() as u16).write(writer);
+                writer.write(&[0u8; 0]);
+                writer.write(preedit_string.0);
+                writer.write_pad4();
             }
-            Request::SetEventMask {} => {
+            Request::SetEventMask {
+                input_method_id,
+                input_context_id,
+                forward_event_mask,
+                synchronous_event_mask,
+            } => {
                 37u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                input_context_id.write(writer);
+                forward_event_mask.write(writer);
+                synchronous_event_mask.write(writer);
             }
-            Request::SetIcFocus {} => {
+            Request::SetIcFocus {
+                input_method_id,
+                input_context_id,
+            } => {
                 58u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                input_context_id.write(writer);
             }
-            Request::SetIcValues {} => {
+            Request::SetIcValues {
+                input_method_id,
+                input_context_id,
+                ic_attributes,
+            } => {
                 54u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                input_context_id.write(writer);
+                ((ic_attributes.iter().map(|e| e.size()).sum::<usize>() + 2 + 2 - 2) as u16)
+                    .write(writer);
+                0u16.write(writer);
+                for elem in ic_attributes.iter() {
+                    elem.write(writer);
+                }
             }
-            Request::SetIcValuesReply {} => {
+            Request::SetIcValuesReply {
+                input_method_id,
+                input_context_id,
+            } => {
                 55u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                input_context_id.write(writer);
             }
-            Request::SetImValues {} => {
+            Request::SetImValues {
+                input_method_id,
+                attributes,
+            } => {
                 42u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                ((attributes.iter().map(|e| e.size()).sum::<usize>() + 0 + 2 - 2) as u16)
+                    .write(writer);
+                for elem in attributes.iter() {
+                    elem.write(writer);
+                }
             }
-            Request::SetImValuesReply {} => {
+            Request::SetImValuesReply { input_method_id } => {
                 43u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                writer.write(&[0u8; 2]);
             }
-            Request::StatusDone {} => {
+            Request::StatusDone {
+                input_method_id,
+                input_context_id,
+            } => {
                 81u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                input_context_id.write(writer);
             }
-            Request::StatusDraw {} => {
+            Request::StatusDraw {
+                input_method_id,
+                input_context_id,
+                content,
+            } => {
                 80u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                input_context_id.write(writer);
+                content.write(writer);
             }
-            Request::StatusStart {} => {
+            Request::StatusStart {
+                input_method_id,
+                input_context_id,
+            } => {
                 79u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                input_context_id.write(writer);
             }
             Request::StrConversion {} => {
                 71u8.write(writer);
@@ -943,30 +2083,61 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
             }
-            Request::Sync {} => {
+            Request::Sync {
+                input_method_id,
+                input_context_id,
+            } => {
                 61u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                input_context_id.write(writer);
             }
-            Request::SyncReply {} => {
+            Request::SyncReply {
+                input_method_id,
+                input_context_id,
+            } => {
                 62u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                input_context_id.write(writer);
             }
-            Request::TriggerNotify {} => {
+            Request::TriggerNotify {
+                input_method_id,
+                input_context_id,
+                flag,
+                index,
+                event_mask,
+            } => {
                 35u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                input_context_id.write(writer);
+                flag.write(writer);
+                index.write(writer);
+                event_mask.write(writer);
             }
-            Request::TriggerNotifyReply {} => {
+            Request::TriggerNotifyReply {
+                input_method_id,
+                input_context_id,
+            } => {
                 36u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                input_context_id.write(writer);
             }
-            Request::UnsetIcFocus {} => {
+            Request::UnsetIcFocus {
+                input_method_id,
+                input_context_id,
+            } => {
                 59u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                input_context_id.write(writer);
             }
         }
     }
@@ -984,7 +2155,15 @@ impl<'b> XimFormat<'b> for Request<'b> {
             Request::CloseReply { input_method_id } => {
                 content_size += input_method_id.size() + 2;
             }
-            Request::Commit {} => {}
+            Request::Commit {
+                input_method_id,
+                input_context_id,
+                flag,
+            } => {
+                content_size += input_method_id.size();
+                content_size += input_context_id.size();
+                content_size += flag.size();
+            }
             Request::Connect {
                 endian,
                 client_major_protocol_version,
@@ -996,7 +2175,7 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 content_size += client_minor_protocol_version.size();
                 content_size += client_auth_protocol_names
                     .iter()
-                    .map(|e| with_pad4(e.0.len() + 2))
+                    .map(|e| with_pad4(e.0.len() + 2 + 0))
                     .sum::<usize>()
                     + 0
                     + 2;
@@ -1008,23 +2187,116 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 content_size += server_major_protocol_version.size();
                 content_size += server_minor_protocol_version.size();
             }
-            Request::CreateIc {} => {}
-            Request::CreateIcReply {} => {}
-            Request::DestoryIc {} => {}
-            Request::DestroyIcReply {} => {}
+            Request::CreateIc {
+                input_method_id,
+                ic_attributes,
+            } => {
+                content_size += input_method_id.size();
+                content_size +=
+                    with_pad4(ic_attributes.iter().map(|e| e.size()).sum::<usize>() + 0 + 2);
+            }
+            Request::CreateIcReply {
+                input_method_id,
+                input_context_id,
+            } => {
+                content_size += input_method_id.size();
+                content_size += input_context_id.size();
+            }
+            Request::DestoryIc {
+                input_method_id,
+                input_context_id,
+            } => {
+                content_size += input_method_id.size();
+                content_size += input_context_id.size();
+            }
+            Request::DestroyIcReply {
+                input_method_id,
+                input_context_id,
+            } => {
+                content_size += input_method_id.size();
+                content_size += input_context_id.size();
+            }
             Request::Disconnect {} => {}
             Request::DisconnectReply {} => {}
-            Request::EncodingNegotiation {} => {}
-            Request::EncodingNegotiationReply {} => {}
-            Request::Error {} => {}
+            Request::EncodingNegotiation {
+                input_method_id,
+                encodings,
+                encoding_infos,
+            } => {
+                content_size += input_method_id.size();
+                content_size +=
+                    with_pad4(encodings.iter().map(|e| e.0.len() + 1 + 0).sum::<usize>() + 0 + 2);
+                content_size += encoding_infos
+                    .iter()
+                    .map(|e| with_pad4(e.0.len() + 2 + 0))
+                    .sum::<usize>()
+                    + 2
+                    + 2;
+            }
+            Request::EncodingNegotiationReply {
+                input_method_id,
+                category,
+                index,
+            } => {
+                content_size += input_method_id.size();
+                content_size += category.size();
+                content_size += index.size() + 2;
+            }
+            Request::Error {
+                input_method_id,
+                input_context_id,
+                flag,
+                detail,
+            } => {
+                content_size += input_method_id.size();
+                content_size += input_context_id.size();
+                content_size += flag.size();
+                content_size += with_pad4(detail.0.len() + 2 + 2);
+            }
             Request::ForwardEvent {} => {}
-            Request::Geometry {} => {}
-            Request::GetIcValues {} => {}
-            Request::GetIcValuesReply {} => {}
-            Request::GetImValues {} => {}
-            Request::GetImValuesReply {} => {}
+            Request::Geometry {
+                input_method_id,
+                input_context_id,
+            } => {
+                content_size += input_method_id.size();
+                content_size += input_context_id.size();
+            }
+            Request::GetIcValues {
+                input_method_id,
+                input_context_id,
+                ic_attributes,
+            } => {
+                content_size += input_method_id.size();
+                content_size += input_context_id.size();
+                content_size +=
+                    with_pad4(ic_attributes.iter().map(|e| e.size()).sum::<usize>() + 0 + 2);
+            }
+            Request::GetIcValuesReply {
+                input_method_id,
+                input_context_id,
+                ic_attributes,
+            } => {
+                content_size += input_method_id.size();
+                content_size += input_context_id.size();
+                content_size += ic_attributes.iter().map(|e| e.size()).sum::<usize>() + 2 + 2;
+            }
+            Request::GetImValues {
+                input_method_id,
+                im_attributes,
+            } => {
+                content_size += input_method_id.size();
+                content_size +=
+                    with_pad4(im_attributes.iter().map(|e| e.size()).sum::<usize>() + 0 + 2);
+            }
+            Request::GetImValuesReply {
+                input_method_id,
+                im_attributes,
+            } => {
+                content_size += input_method_id.size();
+                content_size += im_attributes.iter().map(|e| e.size()).sum::<usize>() + 0 + 2;
+            }
             Request::Open { name } => {
-                content_size += with_pad4(name.0.len() + 1);
+                content_size += with_pad4(name.0.len() + 1 + 0);
             }
             Request::OpenReply {
                 input_method_id,
@@ -1035,20 +2307,86 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 content_size += im_attrs.iter().map(|e| e.size()).sum::<usize>() + 0 + 2;
                 content_size += ic_attrs.iter().map(|e| e.size()).sum::<usize>() + 2 + 2;
             }
-            Request::PreeditCaret {} => {}
-            Request::PreeditCaretReply {} => {}
-            Request::PreeditDone {} => {}
-            Request::PreeditDraw {} => {}
-            Request::PreeditStart {} => {}
-            Request::PreeditStartReply {} => {}
-            Request::PreeditState {} => {}
+            Request::PreeditCaret {
+                input_method_id,
+                input_context_id,
+                position,
+                direction,
+                style,
+            } => {
+                content_size += input_method_id.size();
+                content_size += input_context_id.size();
+                content_size += position.size();
+                content_size += direction.size();
+                content_size += style.size();
+            }
+            Request::PreeditCaretReply {
+                input_method_id,
+                input_context_id,
+                position,
+            } => {
+                content_size += input_method_id.size();
+                content_size += input_context_id.size();
+                content_size += position.size();
+            }
+            Request::PreeditDone {
+                input_method_id,
+                input_context_id,
+            } => {
+                content_size += input_method_id.size();
+                content_size += input_context_id.size();
+            }
+            Request::PreeditDraw {
+                input_method_id,
+                input_context_id,
+                caret,
+                chg_first,
+                chg_length,
+                status,
+                preedit_string,
+                feedbacks,
+            } => {
+                content_size += input_method_id.size();
+                content_size += input_context_id.size();
+                content_size += caret.size();
+                content_size += chg_first.size();
+                content_size += chg_length.size();
+                content_size += status.size();
+                content_size += with_pad4(preedit_string.0.len() + 2 + 0);
+                content_size += feedbacks.iter().map(|e| e.size()).sum::<usize>() + 2 + 2;
+            }
+            Request::PreeditStart {
+                input_method_id,
+                input_context_id,
+            } => {
+                content_size += input_method_id.size();
+                content_size += input_context_id.size();
+            }
+            Request::PreeditStartReply {
+                input_method_id,
+                input_context_id,
+                return_value,
+            } => {
+                content_size += input_method_id.size();
+                content_size += input_context_id.size();
+                content_size += return_value.size();
+            }
+            Request::PreeditState {
+                input_method_id,
+                input_context_id,
+                state,
+            } => {
+                content_size += input_method_id.size();
+                content_size += input_context_id.size();
+                content_size += state.size();
+            }
             Request::QueryExtension {
                 input_method_id,
                 extensions,
             } => {
                 content_size += input_method_id.size();
                 content_size +=
-                    with_pad4(extensions.iter().map(|e| e.0.len() + 1).sum::<usize>() + 0 + 2);
+                    with_pad4(extensions.iter().map(|e| e.0.len() + 1 + 0).sum::<usize>() + 0 + 2);
             }
             Request::QueryExtensionReply {
                 input_method_id,
@@ -1057,25 +2395,141 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 content_size += input_method_id.size();
                 content_size += extentions.iter().map(|e| e.size()).sum::<usize>() + 0 + 2;
             }
-            Request::RegisterTriggerKeys {} => {}
-            Request::ResetIc {} => {}
-            Request::ResetIcReply {} => {}
-            Request::SetEventMask {} => {}
-            Request::SetIcFocus {} => {}
-            Request::SetIcValues {} => {}
-            Request::SetIcValuesReply {} => {}
-            Request::SetImValues {} => {}
-            Request::SetImValuesReply {} => {}
-            Request::StatusDone {} => {}
-            Request::StatusDraw {} => {}
-            Request::StatusStart {} => {}
+            Request::RegisterTriggerKeys {
+                input_method_id,
+                on_keys,
+                off_keys,
+            } => {
+                content_size += input_method_id.size() + 2;
+                content_size += on_keys.iter().map(|e| e.size()).sum::<usize>() + 0 + 4;
+                content_size += off_keys.iter().map(|e| e.size()).sum::<usize>() + 0 + 4;
+            }
+            Request::ResetIc {
+                input_method_id,
+                input_context_id,
+            } => {
+                content_size += input_method_id.size();
+                content_size += input_context_id.size();
+            }
+            Request::ResetIcReply {
+                input_method_id,
+                input_context_id,
+                preedit_string,
+            } => {
+                content_size += input_method_id.size();
+                content_size += input_context_id.size();
+                content_size += with_pad4(preedit_string.0.len() + 2 + 0);
+            }
+            Request::SetEventMask {
+                input_method_id,
+                input_context_id,
+                forward_event_mask,
+                synchronous_event_mask,
+            } => {
+                content_size += input_method_id.size();
+                content_size += input_context_id.size();
+                content_size += forward_event_mask.size();
+                content_size += synchronous_event_mask.size();
+            }
+            Request::SetIcFocus {
+                input_method_id,
+                input_context_id,
+            } => {
+                content_size += input_method_id.size();
+                content_size += input_context_id.size();
+            }
+            Request::SetIcValues {
+                input_method_id,
+                input_context_id,
+                ic_attributes,
+            } => {
+                content_size += input_method_id.size();
+                content_size += input_context_id.size();
+                content_size += ic_attributes.iter().map(|e| e.size()).sum::<usize>() + 2 + 2;
+            }
+            Request::SetIcValuesReply {
+                input_method_id,
+                input_context_id,
+            } => {
+                content_size += input_method_id.size();
+                content_size += input_context_id.size();
+            }
+            Request::SetImValues {
+                input_method_id,
+                attributes,
+            } => {
+                content_size += input_method_id.size();
+                content_size += attributes.iter().map(|e| e.size()).sum::<usize>() + 0 + 2;
+            }
+            Request::SetImValuesReply { input_method_id } => {
+                content_size += input_method_id.size() + 2;
+            }
+            Request::StatusDone {
+                input_method_id,
+                input_context_id,
+            } => {
+                content_size += input_method_id.size();
+                content_size += input_context_id.size();
+            }
+            Request::StatusDraw {
+                input_method_id,
+                input_context_id,
+                content,
+            } => {
+                content_size += input_method_id.size();
+                content_size += input_context_id.size();
+                content_size += content.size();
+            }
+            Request::StatusStart {
+                input_method_id,
+                input_context_id,
+            } => {
+                content_size += input_method_id.size();
+                content_size += input_context_id.size();
+            }
             Request::StrConversion {} => {}
             Request::StrConversionReply {} => {}
-            Request::Sync {} => {}
-            Request::SyncReply {} => {}
-            Request::TriggerNotify {} => {}
-            Request::TriggerNotifyReply {} => {}
-            Request::UnsetIcFocus {} => {}
+            Request::Sync {
+                input_method_id,
+                input_context_id,
+            } => {
+                content_size += input_method_id.size();
+                content_size += input_context_id.size();
+            }
+            Request::SyncReply {
+                input_method_id,
+                input_context_id,
+            } => {
+                content_size += input_method_id.size();
+                content_size += input_context_id.size();
+            }
+            Request::TriggerNotify {
+                input_method_id,
+                input_context_id,
+                flag,
+                index,
+                event_mask,
+            } => {
+                content_size += input_method_id.size();
+                content_size += input_context_id.size();
+                content_size += flag.size();
+                content_size += index.size();
+                content_size += event_mask.size();
+            }
+            Request::TriggerNotifyReply {
+                input_method_id,
+                input_context_id,
+            } => {
+                content_size += input_method_id.size();
+                content_size += input_context_id.size();
+            }
+            Request::UnsetIcFocus {
+                input_method_id,
+                input_context_id,
+            } => {
+                content_size += input_method_id.size();
+                content_size += input_context_id.size();
+            }
         }
         content_size + 4
     }

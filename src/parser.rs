@@ -6,12 +6,12 @@
 use std::convert::TryInto;
 use std::fmt;
 
-pub fn read<'a, T: XimFormat<'a>>(b: &'a [u8]) -> Result<T, ReadError> {
-    T::read(&mut Reader::new(b))
+pub fn read(b: &[u8]) -> Result<Request, ReadError> {
+    Request::read(&mut Reader::new(b))
 }
 
-pub fn write<'a, T: XimFormat<'a>>(data: &T, out: &mut Vec<u8>) {
-    data.write(&mut Writer::new(out));
+pub fn write(req: &Request, out: &mut Vec<u8>) {
+    req.write(&mut Writer::new(out));
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -33,6 +33,10 @@ pub enum ReadError {
 
 fn pad4(len: usize) -> usize {
     (4 - (len % 4)) % 4
+}
+
+fn with_pad4(len: usize) -> usize {
+    len + pad4(len)
 }
 
 pub struct Reader<'b> {
@@ -296,9 +300,9 @@ impl<'b> XimFormat<'b> for CaretStyle {
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Attr<'b> {
-    id: u16,
-    ty: AttrType,
-    name: XimString<'b>,
+    pub id: u16,
+    pub ty: AttrType,
+    pub name: XimString<'b>,
 }
 impl<'b> XimFormat<'b> for Attr<'b> {
     fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
@@ -327,7 +331,7 @@ impl<'b> XimFormat<'b> for Attr<'b> {
         let mut content_size = 0;
         content_size += self.id.size();
         content_size += self.ty.size();
-        content_size += pad4(self.name.0.len() + 2);
+        content_size += with_pad4(self.name.0.len() + 2);
         content_size
     }
 }
@@ -467,7 +471,7 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 client_minor_protocol_version.write(writer);
                 ((client_auth_protocol_names
                     .iter()
-                    .map(|e| pad4(e.0.len() + 2))
+                    .map(|e| with_pad4(e.0.len() + 2))
                     .sum::<usize>()
                     + 0
                     + 2
@@ -550,7 +554,7 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 content_size += client_minor_protocol_version.size();
                 content_size += client_auth_protocol_names
                     .iter()
-                    .map(|e| pad4(e.0.len() + 2))
+                    .map(|e| with_pad4(e.0.len() + 2))
                     .sum::<usize>()
                     + 0
                     + 2;
@@ -563,7 +567,7 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 content_size += server_minor_protocol_version.size();
             }
             Request::Open { name } => {
-                content_size += pad4(name.0.len() + 1);
+                content_size += with_pad4(name.0.len() + 1);
             }
             Request::OpenReply {
                 input_method_id,
@@ -580,7 +584,7 @@ impl<'b> XimFormat<'b> for Request<'b> {
             } => {
                 content_size += input_method_id.size();
                 content_size +=
-                    pad4(extensions.iter().map(|e| e.0.len() + 1).sum::<usize>() + 0 + 2);
+                    with_pad4(extensions.iter().map(|e| e.0.len() + 1).sum::<usize>() + 0 + 2);
             }
         }
         content_size + 4

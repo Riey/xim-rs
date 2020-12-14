@@ -115,7 +115,7 @@ impl FormatType {
                 write!(out, ").sum::<usize>() + {} + {}", prefix, len)
             }
             FormatType::Pad(inner) => {
-                write!(out, "pad4(")?;
+                write!(out, "with_pad4(")?;
                 inner.size(this, out)?;
                 write!(out, ")")
             }

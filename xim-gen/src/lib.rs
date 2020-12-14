@@ -99,7 +99,7 @@ impl StructFormat {
         writeln!(out, "{{")?;
 
         for field in self.body.iter() {
-            writeln!(out, "{}: {},", field.name, field.ty)?;
+            writeln!(out, "pub {}: {},", field.name, field.ty)?;
         }
 
         writeln!(out, "}}")?;

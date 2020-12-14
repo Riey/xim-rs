@@ -6,12 +6,12 @@
 use std::convert::TryInto;
 use std::fmt;
 
-pub fn read<'a, T: XimFormat<'a>>(b: &'a [u8]) -> Result<T, ReadError> {
-    T::read(&mut Reader::new(b))
+pub fn read(b: &[u8]) -> Result<Request, ReadError> {
+    Request::read(&mut Reader::new(b))
 }
 
-pub fn write<'a, T: XimFormat<'a>>(data: &T, out: &mut Vec<u8>) {
-    data.write(&mut Writer::new(out));
+pub fn write(req: &Request, out: &mut Vec<u8>) {
+    req.write(&mut Writer::new(out));
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -33,6 +33,10 @@ pub enum ReadError {
 
 fn pad4(len: usize) -> usize {
     (4 - (len % 4)) % 4
+}
+
+fn with_pad4(len: usize) -> usize {
+    len + pad4(len)
 }
 
 pub struct Reader<'b> {

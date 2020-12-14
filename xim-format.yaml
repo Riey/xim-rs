@@ -39,3 +39,10 @@ Requests:
     minor_opcode: ~
     body:
       - 'name @pad string8'
+
+  QueryExtension:
+    major_opcode: 40
+    minor_opcode: ~
+    body:
+      - 'input_method_id u16'
+      - 'extensions @pad @list string8'

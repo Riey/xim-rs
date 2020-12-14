@@ -29,6 +29,10 @@ Structs:
     - "id u16"
     - "ty AttrType"
     - "name @pad string"
+  Extension:
+    - "major_opcode u8"
+    - "minor_opcode u8"
+    - "name @pad string"
 
 Requests:
   Connect:
@@ -47,6 +51,46 @@ Requests:
       - "server_major_protocol_version u16"
       - "server_minor_protocol_version u16"
 
+  Disconnect:
+    major_opcode: 3
+    minor_opcode: ~
+    body: []
+
+  DisconnectReply:
+    major_opcode: 4
+    minor_opcode: ~
+    body: []
+
+  AuthRequired:
+    major_opcode: 10
+    minor_opcode: ~
+    body: []
+
+  AuthReply:
+    major_opcode: 11
+    minor_opcode: ~
+    body: []
+
+  AuthNext:
+    major_opcode: 12
+    minor_opcode: ~
+    body: []
+
+  AuthSetup:
+    major_opcode: 13
+    minor_opcode: ~
+    body: []
+
+  AuthNg:
+    major_opcode: 14
+    minor_opcode: ~
+    body: []
+
+  Error:
+    major_opcode: 20
+    minor_opcode: ~
+    body: []
+
   Open:
     major_opcode: 30
     minor_opcode: ~
@@ -61,9 +105,223 @@ Requests:
       - "im_attrs @list Attr<'b>"
       - "ic_attrs @list22 Attr<'b>"
 
+  Close:
+    major_opcode: 32
+    minor_opcode: ~
+    body:
+      - "input_method_id @append2 u16"
+
+  CloseReply:
+    major_opcode: 33
+    minor_opcode: ~
+    body:
+      - "input_method_id @append2 u16"
+
+  RegisterTriggerKeys:
+    major_opcode: 34
+    minor_opcode: ~
+    body: []
+
+  TriggerNotify:
+    major_opcode: 35
+    minor_opcode: ~
+    body: []
+
+  TriggerNotifyReply:
+    major_opcode: 36
+    minor_opcode: ~
+    body: []
+
+  SetEventMask:
+    major_opcode: 37
+    minor_opcode: ~
+    body: []
+
+  EncodingNegotiation:
+    major_opcode: 38
+    minor_opcode: ~
+    body: []
+
+  EncodingNegotiationReply:
+    major_opcode: 39
+    minor_opcode: ~
+    body: []
+
   QueryExtension:
     major_opcode: 40
     minor_opcode: ~
     body:
       - "input_method_id u16"
       - "extensions @pad @list string1"
+
+  QueryExtensionReply:
+    major_opcode: 41
+    minor_opcode: ~
+    body:
+      - "input_method_id u16"
+      - "extentions @list Extension<'b>"
+
+  SetImValues:
+    major_opcode: 42
+    minor_opcode: ~
+    body: []
+
+  SetImValuesReply:
+    major_opcode: 43
+    minor_opcode: ~
+    body: []
+
+  GetImValues:
+    major_opcode: 44
+    minor_opcode: ~
+    body: []
+
+  GetImValuesReply:
+    major_opcode: 45
+    minor_opcode: ~
+    body: []
+
+  CreateIc:
+    major_opcode: 50
+    minor_opcode: ~
+    body: []
+
+  CreateIcReply:
+    major_opcode: 51
+    minor_opcode: ~
+    body: []
+
+  DestoryIc:
+    major_opcode: 52
+    minor_opcode: ~
+    body: []
+
+  DestroyIcReply:
+    major_opcode: 53
+    minor_opcode: ~
+    body: []
+
+  SetIcValues:
+    major_opcode: 54
+    minor_opcode: ~
+    body: []
+
+  SetIcValuesReply:
+    major_opcode: 55
+    minor_opcode: ~
+    body: []
+
+  GetIcValues:
+    major_opcode: 56
+    minor_opcode: ~
+    body: []
+
+  GetIcValuesReply:
+    major_opcode: 57
+    minor_opcode: ~
+    body: []
+
+  SetIcFocus:
+    major_opcode: 58
+    minor_opcode: ~
+    body: []
+
+  UnsetIcFocus:
+    major_opcode: 59
+    minor_opcode: ~
+    body: []
+
+  ForwardEvent:
+    major_opcode: 60
+    minor_opcode: ~
+    body: []
+
+  Sync:
+    major_opcode: 61
+    minor_opcode: ~
+    body: []
+
+  SyncReply:
+    major_opcode: 62
+    minor_opcode: ~
+    body: []
+
+  Commit:
+    major_opcode: 63
+    minor_opcode: ~
+    body: []
+
+  ResetIc:
+    major_opcode: 64
+    minor_opcode: ~
+    body: []
+
+  ResetIcReply:
+    major_opcode: 65
+    minor_opcode: ~
+    body: []
+
+  Geometry:
+    major_opcode: 70
+    minor_opcode: ~
+    body: []
+
+  StrConversion:
+    major_opcode: 71
+    minor_opcode: ~
+    body: []
+
+  StrConversionReply:
+    major_opcode: 72
+    minor_opcode: ~
+    body: []
+
+  PreeditStart:
+    major_opcode: 73
+    minor_opcode: ~
+    body: []
+
+  PreeditStartReply:
+    major_opcode: 74
+    minor_opcode: ~
+    body: []
+
+  PreeditDraw:
+    major_opcode: 75
+    minor_opcode: ~
+    body: []
+
+  PreeditCaret:
+    major_opcode: 76
+    minor_opcode: ~
+    body: []
+
+  PreeditCaretReply:
+    major_opcode: 77
+    minor_opcode: ~
+    body: []
+
+  PreeditDone:
+    major_opcode: 78
+    minor_opcode: ~
+    body: []
+
+  StatusStart:
+    major_opcode: 79
+    minor_opcode: ~
+    body: []
+
+  StatusDraw:
+    major_opcode: 80
+    minor_opcode: ~
+    body: []
+
+  StatusDone:
+    major_opcode: 81
+    minor_opcode: ~
+    body: []
+
+  PreeditState:
+    major_opcode: 82
+    minor_opcode: ~
+    body: []

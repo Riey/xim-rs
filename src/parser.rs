@@ -335,8 +335,57 @@ impl<'b> XimFormat<'b> for Attr<'b> {
         content_size
     }
 }
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Extension<'b> {
+    pub major_opcode: u8,
+    pub minor_opcode: u8,
+    pub name: XimString<'b>,
+}
+impl<'b> XimFormat<'b> for Extension<'b> {
+    fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
+        Ok(Self {
+            major_opcode: <u8 as XimFormat<'b>>::read(reader)?,
+            minor_opcode: <u8 as XimFormat<'b>>::read(reader)?,
+            name: {
+                let inner = {
+                    let len = u16::read(reader)?;
+                    let bytes = reader.consume(len as usize)?;
+                    XimString(bytes)
+                };
+                reader.pad4()?;
+                inner
+            },
+        })
+    }
+    fn write(&self, writer: &mut Writer) {
+        self.major_opcode.write(writer);
+        self.minor_opcode.write(writer);
+        (self.name.0.len() as u16).write(writer);
+        writer.write(self.name.0);
+        writer.write_pad4();
+    }
+    fn size(&self) -> usize {
+        let mut content_size = 0;
+        content_size += self.major_opcode.size();
+        content_size += self.minor_opcode.size();
+        content_size += with_pad4(self.name.0.len() + 2);
+        content_size
+    }
+}
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Request<'b> {
+    AuthNext {},
+    AuthNg {},
+    AuthReply {},
+    AuthRequired {},
+    AuthSetup {},
+    Close {
+        input_method_id: u16,
+    },
+    CloseReply {
+        input_method_id: u16,
+    },
+    Commit {},
     Connect {
         endian: Endian,
         client_major_protocol_version: u16,
@@ -347,6 +396,21 @@ pub enum Request<'b> {
         server_major_protocol_version: u16,
         server_minor_protocol_version: u16,
     },
+    CreateIc {},
+    CreateIcReply {},
+    DestoryIc {},
+    DestroyIcReply {},
+    Disconnect {},
+    DisconnectReply {},
+    EncodingNegotiation {},
+    EncodingNegotiationReply {},
+    Error {},
+    ForwardEvent {},
+    Geometry {},
+    GetIcValues {},
+    GetIcValuesReply {},
+    GetImValues {},
+    GetImValuesReply {},
     Open {
         name: XimString<'b>,
     },
@@ -355,10 +419,40 @@ pub enum Request<'b> {
         im_attrs: Vec<Attr<'b>>,
         ic_attrs: Vec<Attr<'b>>,
     },
+    PreeditCaret {},
+    PreeditCaretReply {},
+    PreeditDone {},
+    PreeditDraw {},
+    PreeditStart {},
+    PreeditStartReply {},
+    PreeditState {},
     QueryExtension {
         input_method_id: u16,
         extensions: Vec<XimString<'b>>,
     },
+    QueryExtensionReply {
+        input_method_id: u16,
+        extentions: Vec<Extension<'b>>,
+    },
+    RegisterTriggerKeys {},
+    ResetIc {},
+    ResetIcReply {},
+    SetEventMask {},
+    SetIcFocus {},
+    SetIcValues {},
+    SetIcValuesReply {},
+    SetImValues {},
+    SetImValuesReply {},
+    StatusDone {},
+    StatusDraw {},
+    StatusStart {},
+    StrConversion {},
+    StrConversionReply {},
+    Sync {},
+    SyncReply {},
+    TriggerNotify {},
+    TriggerNotifyReply {},
+    UnsetIcFocus {},
 }
 impl<'b> XimFormat<'b> for Request<'b> {
     fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
@@ -366,6 +460,26 @@ impl<'b> XimFormat<'b> for Request<'b> {
         let minor_opcode = reader.u8()?;
         let _length = reader.u16()?;
         match (major_opcode, minor_opcode) {
+            (12, _) => Ok(Request::AuthNext {}),
+            (14, _) => Ok(Request::AuthNg {}),
+            (11, _) => Ok(Request::AuthReply {}),
+            (10, _) => Ok(Request::AuthRequired {}),
+            (13, _) => Ok(Request::AuthSetup {}),
+            (32, _) => Ok(Request::Close {
+                input_method_id: {
+                    let inner = <u16 as XimFormat<'b>>::read(reader)?;
+                    u16::read(reader)?;
+                    inner
+                },
+            }),
+            (33, _) => Ok(Request::CloseReply {
+                input_method_id: {
+                    let inner = <u16 as XimFormat<'b>>::read(reader)?;
+                    u16::read(reader)?;
+                    inner
+                },
+            }),
+            (63, _) => Ok(Request::Commit {}),
             (1, _) => Ok(Request::Connect {
                 endian: {
                     let inner = <Endian as XimFormat<'b>>::read(reader)?;
@@ -396,6 +510,21 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 server_major_protocol_version: <u16 as XimFormat<'b>>::read(reader)?,
                 server_minor_protocol_version: <u16 as XimFormat<'b>>::read(reader)?,
             }),
+            (50, _) => Ok(Request::CreateIc {}),
+            (51, _) => Ok(Request::CreateIcReply {}),
+            (52, _) => Ok(Request::DestoryIc {}),
+            (53, _) => Ok(Request::DestroyIcReply {}),
+            (3, _) => Ok(Request::Disconnect {}),
+            (4, _) => Ok(Request::DisconnectReply {}),
+            (38, _) => Ok(Request::EncodingNegotiation {}),
+            (39, _) => Ok(Request::EncodingNegotiationReply {}),
+            (20, _) => Ok(Request::Error {}),
+            (60, _) => Ok(Request::ForwardEvent {}),
+            (70, _) => Ok(Request::Geometry {}),
+            (56, _) => Ok(Request::GetIcValues {}),
+            (57, _) => Ok(Request::GetIcValuesReply {}),
+            (44, _) => Ok(Request::GetImValues {}),
+            (45, _) => Ok(Request::GetImValuesReply {}),
             (30, _) => Ok(Request::Open {
                 name: {
                     let inner = {
@@ -429,6 +558,13 @@ impl<'b> XimFormat<'b> for Request<'b> {
                     out
                 },
             }),
+            (76, _) => Ok(Request::PreeditCaret {}),
+            (77, _) => Ok(Request::PreeditCaretReply {}),
+            (78, _) => Ok(Request::PreeditDone {}),
+            (75, _) => Ok(Request::PreeditDraw {}),
+            (73, _) => Ok(Request::PreeditStart {}),
+            (74, _) => Ok(Request::PreeditStartReply {}),
+            (82, _) => Ok(Request::PreeditState {}),
             (40, _) => Ok(Request::QueryExtension {
                 input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
                 extensions: {
@@ -449,6 +585,37 @@ impl<'b> XimFormat<'b> for Request<'b> {
                     inner
                 },
             }),
+            (41, _) => Ok(Request::QueryExtensionReply {
+                input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
+                extentions: {
+                    let mut out = Vec::new();
+                    let len = u16::read(reader)? as usize;
+                    let end = reader.cursor() - len;
+                    while reader.cursor() > end {
+                        out.push(<Extension<'b> as XimFormat<'b>>::read(reader)?);
+                    }
+                    out
+                },
+            }),
+            (34, _) => Ok(Request::RegisterTriggerKeys {}),
+            (64, _) => Ok(Request::ResetIc {}),
+            (65, _) => Ok(Request::ResetIcReply {}),
+            (37, _) => Ok(Request::SetEventMask {}),
+            (58, _) => Ok(Request::SetIcFocus {}),
+            (54, _) => Ok(Request::SetIcValues {}),
+            (55, _) => Ok(Request::SetIcValuesReply {}),
+            (42, _) => Ok(Request::SetImValues {}),
+            (43, _) => Ok(Request::SetImValuesReply {}),
+            (81, _) => Ok(Request::StatusDone {}),
+            (80, _) => Ok(Request::StatusDraw {}),
+            (79, _) => Ok(Request::StatusStart {}),
+            (71, _) => Ok(Request::StrConversion {}),
+            (72, _) => Ok(Request::StrConversionReply {}),
+            (61, _) => Ok(Request::Sync {}),
+            (62, _) => Ok(Request::SyncReply {}),
+            (35, _) => Ok(Request::TriggerNotify {}),
+            (36, _) => Ok(Request::TriggerNotifyReply {}),
+            (59, _) => Ok(Request::UnsetIcFocus {}),
             _ => {
                 Err(reader.invalid_data("Opcode", format!("({}, {})", major_opcode, minor_opcode)))
             }
@@ -456,6 +623,50 @@ impl<'b> XimFormat<'b> for Request<'b> {
     }
     fn write(&self, writer: &mut Writer) {
         match self {
+            Request::AuthNext {} => {
+                12u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::AuthNg {} => {
+                14u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::AuthReply {} => {
+                11u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::AuthRequired {} => {
+                10u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::AuthSetup {} => {
+                13u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::Close { input_method_id } => {
+                32u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                0u16.write(writer);
+            }
+            Request::CloseReply { input_method_id } => {
+                33u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                0u16.write(writer);
+            }
+            Request::Commit {} => {
+                63u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
             Request::Connect {
                 endian,
                 client_major_protocol_version,
@@ -493,6 +704,81 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 server_major_protocol_version.write(writer);
                 server_minor_protocol_version.write(writer);
             }
+            Request::CreateIc {} => {
+                50u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::CreateIcReply {} => {
+                51u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::DestoryIc {} => {
+                52u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::DestroyIcReply {} => {
+                53u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::Disconnect {} => {
+                3u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::DisconnectReply {} => {
+                4u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::EncodingNegotiation {} => {
+                38u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::EncodingNegotiationReply {} => {
+                39u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::Error {} => {
+                20u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::ForwardEvent {} => {
+                60u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::Geometry {} => {
+                70u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::GetIcValues {} => {
+                56u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::GetIcValuesReply {} => {
+                57u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::GetImValues {} => {
+                44u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::GetImValuesReply {} => {
+                45u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
             Request::Open { name } => {
                 30u8.write(writer);
                 0u8.write(writer);
@@ -522,6 +808,41 @@ impl<'b> XimFormat<'b> for Request<'b> {
                     elem.write(writer);
                 }
             }
+            Request::PreeditCaret {} => {
+                76u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::PreeditCaretReply {} => {
+                77u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::PreeditDone {} => {
+                78u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::PreeditDraw {} => {
+                75u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::PreeditStart {} => {
+                73u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::PreeditStartReply {} => {
+                74u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::PreeditState {} => {
+                82u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
             Request::QueryExtension {
                 input_method_id,
                 extensions,
@@ -538,11 +859,132 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 }
                 writer.write_pad4();
             }
+            Request::QueryExtensionReply {
+                input_method_id,
+                extentions,
+            } => {
+                41u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                ((extentions.iter().map(|e| e.size()).sum::<usize>() + 0 + 2 - 2) as u16)
+                    .write(writer);
+                for elem in extentions.iter() {
+                    elem.write(writer);
+                }
+            }
+            Request::RegisterTriggerKeys {} => {
+                34u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::ResetIc {} => {
+                64u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::ResetIcReply {} => {
+                65u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::SetEventMask {} => {
+                37u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::SetIcFocus {} => {
+                58u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::SetIcValues {} => {
+                54u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::SetIcValuesReply {} => {
+                55u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::SetImValues {} => {
+                42u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::SetImValuesReply {} => {
+                43u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::StatusDone {} => {
+                81u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::StatusDraw {} => {
+                80u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::StatusStart {} => {
+                79u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::StrConversion {} => {
+                71u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::StrConversionReply {} => {
+                72u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::Sync {} => {
+                61u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::SyncReply {} => {
+                62u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::TriggerNotify {} => {
+                35u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::TriggerNotifyReply {} => {
+                36u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
+            Request::UnsetIcFocus {} => {
+                59u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+            }
         }
     }
     fn size(&self) -> usize {
         let mut content_size = 0;
         match self {
+            Request::AuthNext {} => {}
+            Request::AuthNg {} => {}
+            Request::AuthReply {} => {}
+            Request::AuthRequired {} => {}
+            Request::AuthSetup {} => {}
+            Request::Close { input_method_id } => {
+                content_size += input_method_id.size() + 2;
+            }
+            Request::CloseReply { input_method_id } => {
+                content_size += input_method_id.size() + 2;
+            }
+            Request::Commit {} => {}
             Request::Connect {
                 endian,
                 client_major_protocol_version,
@@ -566,6 +1008,21 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 content_size += server_major_protocol_version.size();
                 content_size += server_minor_protocol_version.size();
             }
+            Request::CreateIc {} => {}
+            Request::CreateIcReply {} => {}
+            Request::DestoryIc {} => {}
+            Request::DestroyIcReply {} => {}
+            Request::Disconnect {} => {}
+            Request::DisconnectReply {} => {}
+            Request::EncodingNegotiation {} => {}
+            Request::EncodingNegotiationReply {} => {}
+            Request::Error {} => {}
+            Request::ForwardEvent {} => {}
+            Request::Geometry {} => {}
+            Request::GetIcValues {} => {}
+            Request::GetIcValuesReply {} => {}
+            Request::GetImValues {} => {}
+            Request::GetImValuesReply {} => {}
             Request::Open { name } => {
                 content_size += with_pad4(name.0.len() + 1);
             }
@@ -578,6 +1035,13 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 content_size += im_attrs.iter().map(|e| e.size()).sum::<usize>() + 0 + 2;
                 content_size += ic_attrs.iter().map(|e| e.size()).sum::<usize>() + 2 + 2;
             }
+            Request::PreeditCaret {} => {}
+            Request::PreeditCaretReply {} => {}
+            Request::PreeditDone {} => {}
+            Request::PreeditDraw {} => {}
+            Request::PreeditStart {} => {}
+            Request::PreeditStartReply {} => {}
+            Request::PreeditState {} => {}
             Request::QueryExtension {
                 input_method_id,
                 extensions,
@@ -586,6 +1050,32 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 content_size +=
                     with_pad4(extensions.iter().map(|e| e.0.len() + 1).sum::<usize>() + 0 + 2);
             }
+            Request::QueryExtensionReply {
+                input_method_id,
+                extentions,
+            } => {
+                content_size += input_method_id.size();
+                content_size += extentions.iter().map(|e| e.size()).sum::<usize>() + 0 + 2;
+            }
+            Request::RegisterTriggerKeys {} => {}
+            Request::ResetIc {} => {}
+            Request::ResetIcReply {} => {}
+            Request::SetEventMask {} => {}
+            Request::SetIcFocus {} => {}
+            Request::SetIcValues {} => {}
+            Request::SetIcValuesReply {} => {}
+            Request::SetImValues {} => {}
+            Request::SetImValuesReply {} => {}
+            Request::StatusDone {} => {}
+            Request::StatusDraw {} => {}
+            Request::StatusStart {} => {}
+            Request::StrConversion {} => {}
+            Request::StrConversionReply {} => {}
+            Request::Sync {} => {}
+            Request::SyncReply {} => {}
+            Request::TriggerNotify {} => {}
+            Request::TriggerNotifyReply {} => {}
+            Request::UnsetIcFocus {} => {}
         }
         content_size + 4
     }

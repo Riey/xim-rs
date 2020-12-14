@@ -21,9 +21,9 @@ pub enum FormatType {
 impl FormatType {
     pub fn has_lifetime(&self) -> bool {
         match self {
-            FormatType::Append(inner, ..) |
-            FormatType::Pad(inner) |
-            FormatType::List(inner, ..) => inner.has_lifetime(),
+            FormatType::Append(inner, ..)
+            | FormatType::Pad(inner)
+            | FormatType::List(inner, ..) => inner.has_lifetime(),
             FormatType::String(_) => true,
             FormatType::Normal(name) => name.contains("'"),
         }
@@ -76,12 +76,7 @@ impl FormatType {
             FormatType::List(inner, prefix, len) => {
                 write!(out, "((")?;
                 self.size(this, out)?;
-                writeln!(
-                    out,
-                    " - {}) as u{}).write(writer);",
-                    len,
-                    len * 8,
-                )?;
+                writeln!(out, " - {}) as u{}).write(writer);", len, len * 8,)?;
 
                 if *prefix > 0 {
                     writeln!(out, "0u{}.write(writer);", prefix * 8)?;
@@ -112,7 +107,7 @@ impl FormatType {
                 write!(out, "+ {}", size)
             }
             FormatType::String(len) => {
-                write!(out, "{}.0.len() + {}", this, len )
+                write!(out, "{}.0.len() + {}", this, len)
             }
             FormatType::List(inner, prefix, len) => {
                 write!(out, "{}.iter().map(|e| ", this)?;

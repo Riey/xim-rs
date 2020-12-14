@@ -110,7 +110,10 @@ impl StructFormat {
         }
         writeln!(out, "{{")?;
 
-        writeln!(out, "fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {{")?;
+        writeln!(
+            out,
+            "fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {{"
+        )?;
 
         writeln!(out, "Ok(Self {{")?;
         for field in self.body.iter() {
@@ -122,7 +125,6 @@ impl StructFormat {
 
         // end fn read
         writeln!(out, "}}")?;
-
 
         writeln!(out, "fn write(&self, writer: &mut Writer) {{")?;
         for field in self.body.iter() {
@@ -144,8 +146,6 @@ impl StructFormat {
 
         // fn size
         writeln!(out, "}}")?;
-
-
 
         // end impl
         writeln!(out, "}}")?;

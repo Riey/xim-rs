@@ -39,7 +39,7 @@ mod tests {
         let req: Request = read(&[
             40, 0, 5, 0, 0, 0, 13, 0, 12, 88, 73, 77, 95, 69, 88, 84, 95, 77, 79, 86, 69, 0, 0, 0,
         ])
-            .unwrap();
+        .unwrap();
         assert_eq!(
             req,
             Request::QueryExtension {
@@ -47,5 +47,17 @@ mod tests {
                 extensions: vec![XimString(b"XIM_EXT_MOVE"),],
             }
         );
+    }
+
+    #[test]
+    fn write_connect_reply() {
+        let reply = Request::ConnectReply {
+            server_minor_protocol_version: 0,
+            server_major_protocol_version: 1,
+        };
+        let mut out = Vec::new();
+        write(&reply, &mut out);
+
+        assert_eq!(out, b"\x02\x00\x01\x00\x01\x00\x00\x00");
     }
 }

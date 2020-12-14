@@ -1,0 +1,34 @@
+Enums:
+  AttrType:
+    repr: u16
+    variants:
+      Separator: 0
+      Byte: 1
+      Word: 2
+      Long: 3
+      Char: 4
+      Window: 5
+      Style: 10
+      XRectangle: 11
+      XPoint: 12
+      XFontSet: 13
+      HotkeyTriggers: 15
+      StringConversion: 17
+      PreeditState: 18
+      ResetState: 19
+      NestedList: 0x7fff
+  CaretStyle:
+    repr: u32
+    variants:
+      Invisible: 0
+      Primary: 1
+      Secondary: 2
+
+Requests:
+  Connect:
+    major_opcode: 1
+    minor_opcode: ~
+    body:
+      client_major_protocol_version: u16
+      client_minor_protocol_version: u16
+      client_auth_protocol_names: XimVec<Pad4<XimString<'b, u16>>, u16>

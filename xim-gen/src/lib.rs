@@ -1,6 +1,6 @@
 use crate::format_type::Field;
 use serde::Deserialize;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::io::{self, Write};
 use std::path::Path;
 
@@ -10,16 +10,20 @@ mod format_type;
 #[cfg_attr(debug_assertions, derive(Debug, Eq, PartialEq))]
 struct EnumFormat {
     repr: String,
-    variants: HashMap<String, usize>,
+    variants: BTreeMap<String, usize>,
 }
 
 impl EnumFormat {
     pub fn write(&self, name: &str, out: &mut impl Write) -> io::Result<()> {
+        // reorder variants for variant value
+        let mut variants = self.variants.iter().collect::<Vec<_>>();
+        variants.sort_unstable_by(|l, r| l.1.cmp(&r.1));
+
         writeln!(out, "#[derive(Clone, Copy, Debug, Eq, PartialEq)]")?;
         writeln!(out, "#[repr({})]", self.repr)?;
         writeln!(out, "pub enum {} {{", name)?;
 
-        for (name, variant) in self.variants.iter() {
+        for (name, variant) in variants.iter() {
             writeln!(out, "{} = {},", name, variant)?;
         }
 
@@ -35,7 +39,7 @@ impl EnumFormat {
             repr = self.repr
         )?;
 
-        for (name, variants) in self.variants.iter() {
+        for (name, variants) in variants.iter() {
             writeln!(out, "{v} => Ok(Self::{n}),", v = variants, n = name)?;
         }
 
@@ -80,9 +84,9 @@ struct RequestFormat {
 #[cfg_attr(debug_assertions, derive(Debug, Eq, PartialEq))]
 struct XimFormat {
     #[serde(rename = "Enums")]
-    enums: HashMap<String, EnumFormat>,
+    enums: BTreeMap<String, EnumFormat>,
     #[serde(rename = "Requests")]
-    requests: HashMap<String, RequestFormat>,
+    requests: BTreeMap<String, RequestFormat>,
 }
 
 impl XimFormat {

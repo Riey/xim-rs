@@ -188,15 +188,9 @@ impl<'b> XimFormat<'b> for StatusContent<'b> {
         let ty = u32::read(reader)?;
 
         match ty {
-            0 => {
-                Ok(Self::Text(XimFormat::read(reader)?))
-            }
-            1 => {
-                Ok(Self::Pixmap(XimFormat::read(reader)?))
-            }
-            _ => {
-                Err(reader.invalid_data("StatusContentType", ty))
-            }
+            0 => Ok(Self::Text(XimFormat::read(reader)?)),
+            1 => Ok(Self::Pixmap(XimFormat::read(reader)?)),
+            _ => Err(reader.invalid_data("StatusContentType", ty)),
         }
     }
 
@@ -215,12 +209,8 @@ impl<'b> XimFormat<'b> for StatusContent<'b> {
 
     fn size(&self) -> usize {
         let size = match self {
-            StatusContent::Text(content) => {
-                content.size()
-            }
-            StatusContent::Pixmap(pixmap) => {
-                std::mem::size_of_val(pixmap)
-            }
+            StatusContent::Text(content) => content.size(),
+            StatusContent::Pixmap(pixmap) => std::mem::size_of_val(pixmap),
         };
 
         size + 4

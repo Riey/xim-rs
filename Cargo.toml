@@ -20,4 +20,9 @@ num-traits = "0.2.14"
 xim-gen = { path = "./xim-gen" }
 
 [dev-dependencies]
+criterion = "0.3.3"
 pretty_assertions = "0.6.1"
+
+[[bench]]
+name = "rw"
+harness = false

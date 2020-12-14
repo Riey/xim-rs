@@ -24,25 +24,46 @@ Enums:
       Primary: 1
       Secondary: 2
 
+Structs:
+  Attr:
+    - "id u16"
+    - "ty AttrType"
+    - "name @pad string"
+
 Requests:
   Connect:
     major_opcode: 1
     minor_opcode: ~
     body:
-      - 'endian @append8 Endian'
-      - 'client_major_protocol_version u16'
-      - 'client_minor_protocol_version u16'
-      - 'client_auth_protocol_names @list @pad string'
+      - "endian @append1 Endian"
+      - "client_major_protocol_version u16"
+      - "client_minor_protocol_version u16"
+      - "client_auth_protocol_names @list @pad string"
+
+  ConnectReply:
+    major_opcode: 2
+    minor_opcode: ~
+    body:
+      - "server_major_protocol_version u16"
+      - "server_minor_protocol_version u16"
 
   Open:
     major_opcode: 30
     minor_opcode: ~
     body:
-      - 'name @pad string8'
+      - "name @pad string1"
+
+  OpenReply:
+    major_opcode: 31
+    minor_opcode: ~
+    body:
+      - "input_method_id u16"
+      - "im_attrs @list Attr<'b>"
+      - "ic_attrs @list22 Attr<'b>"
 
   QueryExtension:
     major_opcode: 40
     minor_opcode: ~
     body:
-      - 'input_method_id u16'
-      - 'extensions @pad @list string8'
+      - "input_method_id u16"
+      - "extensions @pad @list string1"

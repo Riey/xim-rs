@@ -82,9 +82,85 @@ struct RequestFormat {
 
 #[derive(Deserialize)]
 #[cfg_attr(debug_assertions, derive(Debug, Eq, PartialEq))]
+#[serde(transparent)]
+struct StructFormat {
+    body: Vec<Field>,
+}
+
+impl StructFormat {
+    pub fn write(&self, name: &str, out: &mut impl Write) -> io::Result<()> {
+        let has_lifetime = self.body.iter().any(|f| f.ty.has_lifetime());
+
+        writeln!(out, "#[derive(Clone, Debug, Eq, PartialEq)]")?;
+        write!(out, "pub struct {}", name)?;
+        if has_lifetime {
+            write!(out, "<'b>")?;
+        }
+        writeln!(out, "{{")?;
+
+        for field in self.body.iter() {
+            writeln!(out, "{}: {},", field.name, field.ty)?;
+        }
+
+        writeln!(out, "}}")?;
+
+        writeln!(out, "impl<'b> XimFormat<'b> for {}", name)?;
+        if has_lifetime {
+            write!(out, "<'b>")?;
+        }
+        writeln!(out, "{{")?;
+
+        writeln!(out, "fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {{")?;
+
+        writeln!(out, "Ok(Self {{")?;
+        for field in self.body.iter() {
+            write!(out, "{}: ", field.name)?;
+            field.ty.read(out)?;
+            write!(out, ",")?;
+        }
+        writeln!(out, "}})")?;
+
+        // end fn read
+        writeln!(out, "}}")?;
+
+
+        writeln!(out, "fn write(&self, writer: &mut Writer) {{")?;
+        for field in self.body.iter() {
+            field.ty.write(&format!("self.{}", field.name), out)?;
+        }
+        // fn write
+        writeln!(out, "}}")?;
+
+        writeln!(out, "fn size(&self) -> usize {{")?;
+        writeln!(out, "let mut content_size = 0;")?;
+
+        for field in self.body.iter() {
+            write!(out, "content_size += ")?;
+            field.ty.size(&format!("self.{}", field.name), out)?;
+            writeln!(out, ";")?;
+        }
+
+        writeln!(out, "content_size")?;
+
+        // fn size
+        writeln!(out, "}}")?;
+
+
+
+        // end impl
+        writeln!(out, "}}")?;
+
+        Ok(())
+    }
+}
+
+#[derive(Deserialize)]
+#[cfg_attr(debug_assertions, derive(Debug, Eq, PartialEq))]
 struct XimFormat {
     #[serde(rename = "Enums")]
     enums: BTreeMap<String, EnumFormat>,
+    #[serde(rename = "Structs")]
+    structs: BTreeMap<String, StructFormat>,
     #[serde(rename = "Requests")]
     requests: BTreeMap<String, RequestFormat>,
 }
@@ -93,6 +169,10 @@ impl XimFormat {
     pub fn write(&self, out: &mut impl Write) -> io::Result<()> {
         for (name, em) in self.enums.iter() {
             em.write(name, out)?;
+        }
+
+        for (name, st) in self.structs.iter() {
+            st.write(name, out)?;
         }
 
         writeln!(out, "#[derive(Debug, Clone, Eq, PartialEq)]")?;

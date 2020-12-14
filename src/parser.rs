@@ -294,6 +294,43 @@ impl<'b> XimFormat<'b> for CaretStyle {
         std::mem::size_of::<u32>()
     }
 }
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Attr<'b> {
+    id: u16,
+    ty: AttrType,
+    name: XimString<'b>,
+}
+impl<'b> XimFormat<'b> for Attr<'b> {
+    fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
+        Ok(Self {
+            id: <u16 as XimFormat<'b>>::read(reader)?,
+            ty: <AttrType as XimFormat<'b>>::read(reader)?,
+            name: {
+                let inner = {
+                    let len = u16::read(reader)?;
+                    let bytes = reader.consume(len as usize)?;
+                    XimString(bytes)
+                };
+                reader.pad4()?;
+                inner
+            },
+        })
+    }
+    fn write(&self, writer: &mut Writer) {
+        self.id.write(writer);
+        self.ty.write(writer);
+        (self.name.0.len() as u16).write(writer);
+        writer.write(self.name.0);
+        writer.write_pad4();
+    }
+    fn size(&self) -> usize {
+        let mut content_size = 0;
+        content_size += self.id.size();
+        content_size += self.ty.size();
+        content_size += pad4(self.name.0.len() + 2);
+        content_size
+    }
+}
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Request<'b> {
     Connect {
@@ -302,8 +339,17 @@ pub enum Request<'b> {
         client_minor_protocol_version: u16,
         client_auth_protocol_names: Vec<XimString<'b>>,
     },
+    ConnectReply {
+        server_major_protocol_version: u16,
+        server_minor_protocol_version: u16,
+    },
     Open {
         name: XimString<'b>,
+    },
+    OpenReply {
+        input_method_id: u16,
+        im_attrs: Vec<Attr<'b>>,
+        ic_attrs: Vec<Attr<'b>>,
     },
     QueryExtension {
         input_method_id: u16,
@@ -318,12 +364,12 @@ impl<'b> XimFormat<'b> for Request<'b> {
         match (major_opcode, minor_opcode) {
             (1, _) => Ok(Request::Connect {
                 endian: {
-                    let inner = Endian::read(reader)?;
+                    let inner = <Endian as XimFormat<'b>>::read(reader)?;
                     u8::read(reader)?;
                     inner
                 },
-                client_major_protocol_version: u16::read(reader)?,
-                client_minor_protocol_version: u16::read(reader)?,
+                client_major_protocol_version: <u16 as XimFormat<'b>>::read(reader)?,
+                client_minor_protocol_version: <u16 as XimFormat<'b>>::read(reader)?,
                 client_auth_protocol_names: {
                     let mut out = Vec::new();
                     let len = u16::read(reader)? as usize;
@@ -342,6 +388,10 @@ impl<'b> XimFormat<'b> for Request<'b> {
                     out
                 },
             }),
+            (2, _) => Ok(Request::ConnectReply {
+                server_major_protocol_version: <u16 as XimFormat<'b>>::read(reader)?,
+                server_minor_protocol_version: <u16 as XimFormat<'b>>::read(reader)?,
+            }),
             (30, _) => Ok(Request::Open {
                 name: {
                     let inner = {
@@ -353,8 +403,30 @@ impl<'b> XimFormat<'b> for Request<'b> {
                     inner
                 },
             }),
+            (31, _) => Ok(Request::OpenReply {
+                input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
+                im_attrs: {
+                    let mut out = Vec::new();
+                    let len = u16::read(reader)? as usize;
+                    let end = reader.cursor() - len;
+                    while reader.cursor() > end {
+                        out.push(<Attr<'b> as XimFormat<'b>>::read(reader)?);
+                    }
+                    out
+                },
+                ic_attrs: {
+                    let mut out = Vec::new();
+                    let len = u16::read(reader)? as usize;
+                    let end = reader.cursor() - len;
+                    u16::read(reader)?;
+                    while reader.cursor() > end {
+                        out.push(<Attr<'b> as XimFormat<'b>>::read(reader)?);
+                    }
+                    out
+                },
+            }),
             (40, _) => Ok(Request::QueryExtension {
-                input_method_id: u16::read(reader)?,
+                input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
                 extensions: {
                     let inner = {
                         let mut out = Vec::new();
@@ -397,6 +469,7 @@ impl<'b> XimFormat<'b> for Request<'b> {
                     .iter()
                     .map(|e| pad4(e.0.len() + 2))
                     .sum::<usize>()
+                    + 0
                     + 2
                     - 2) as u16)
                     .write(writer);
@@ -406,6 +479,16 @@ impl<'b> XimFormat<'b> for Request<'b> {
                     writer.write_pad4();
                 }
             }
+            Request::ConnectReply {
+                server_major_protocol_version,
+                server_minor_protocol_version,
+            } => {
+                2u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+                server_major_protocol_version.write(writer);
+                server_minor_protocol_version.write(writer);
+            }
             Request::Open { name } => {
                 30u8.write(writer);
                 0u8.write(writer);
@@ -413,6 +496,27 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 (name.0.len() as u8).write(writer);
                 writer.write(name.0);
                 writer.write_pad4();
+            }
+            Request::OpenReply {
+                input_method_id,
+                im_attrs,
+                ic_attrs,
+            } => {
+                31u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                ((im_attrs.iter().map(|e| e.size()).sum::<usize>() + 0 + 2 - 2) as u16)
+                    .write(writer);
+                for elem in im_attrs.iter() {
+                    elem.write(writer);
+                }
+                ((ic_attrs.iter().map(|e| e.size()).sum::<usize>() + 2 + 2 - 2) as u16)
+                    .write(writer);
+                0u16.write(writer);
+                for elem in ic_attrs.iter() {
+                    elem.write(writer);
+                }
             }
             Request::QueryExtension {
                 input_method_id,
@@ -422,7 +526,7 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
                 input_method_id.write(writer);
-                ((extensions.iter().map(|e| e.0.len() + 1).sum::<usize>() + 2 - 2) as u16)
+                ((extensions.iter().map(|e| e.0.len() + 1).sum::<usize>() + 0 + 2 - 2) as u16)
                     .write(writer);
                 for elem in extensions.iter() {
                     (elem.0.len() as u8).write(writer);
@@ -448,17 +552,35 @@ impl<'b> XimFormat<'b> for Request<'b> {
                     .iter()
                     .map(|e| pad4(e.0.len() + 2))
                     .sum::<usize>()
+                    + 0
                     + 2;
+            }
+            Request::ConnectReply {
+                server_major_protocol_version,
+                server_minor_protocol_version,
+            } => {
+                content_size += server_major_protocol_version.size();
+                content_size += server_minor_protocol_version.size();
             }
             Request::Open { name } => {
                 content_size += pad4(name.0.len() + 1);
+            }
+            Request::OpenReply {
+                input_method_id,
+                im_attrs,
+                ic_attrs,
+            } => {
+                content_size += input_method_id.size();
+                content_size += im_attrs.iter().map(|e| e.size()).sum::<usize>() + 0 + 2;
+                content_size += ic_attrs.iter().map(|e| e.size()).sum::<usize>() + 2 + 2;
             }
             Request::QueryExtension {
                 input_method_id,
                 extensions,
             } => {
                 content_size += input_method_id.size();
-                content_size += pad4(extensions.iter().map(|e| e.0.len() + 1).sum::<usize>() + 2);
+                content_size +=
+                    pad4(extensions.iter().map(|e| e.0.len() + 1).sum::<usize>() + 0 + 2);
             }
         }
         content_size + 4

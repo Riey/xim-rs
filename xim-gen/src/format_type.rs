@@ -14,10 +14,7 @@ pub enum FormatType {
     Append(Box<Self>, usize),
     Pad(Box<Self>),
     List(Box<Self>, usize, usize),
-    String {
-        between_unused: usize,
-        len: usize,
-    },
+    String { between_unused: usize, len: usize },
     Normal(String),
 }
 
@@ -56,7 +53,10 @@ impl FormatType {
                 write!(out, "}}")?;
                 write!(out, "out }}")?;
             }
-            FormatType::String { len, between_unused } => {
+            FormatType::String {
+                len,
+                between_unused,
+            } => {
                 writeln!(out, "{{ let len = u{}::read(reader)?;", len * 8)?;
                 writeln!(out, "reader.consume({})?;", between_unused)?;
                 writeln!(
@@ -94,7 +94,10 @@ impl FormatType {
                 inner.write(this, out)?;
                 writeln!(out, "writer.write_pad4();")?;
             }
-            FormatType::String { len, between_unused } => {
+            FormatType::String {
+                len,
+                between_unused,
+            } => {
                 writeln!(out, "({}.0.len() as u{}).write(writer);", this, len * 8)?;
                 writeln!(out, "writer.write(&[0u8; {}]);", between_unused)?;
                 writeln!(out, "writer.write({}.0);", this)?;
@@ -111,8 +114,10 @@ impl FormatType {
                 inner.size(this, out)?;
                 write!(out, "+ {}", size)
             }
-            FormatType::String {len
-            ,between_unused} => {
+            FormatType::String {
+                len,
+                between_unused,
+            } => {
                 write!(out, "{}.0.len() + {} + {}", this, len, between_unused)
             }
             FormatType::List(inner, prefix, len) => {
@@ -188,11 +193,20 @@ impl std::str::FromStr for FormatType {
                 n.parse().or_else(|_| Err("@append need number!"))?,
             ))
         } else if s.starts_with("err_string") {
-            Ok(Self::String { len: 2, between_unused: 2 })
+            Ok(Self::String {
+                len: 2,
+                between_unused: 2,
+            })
         } else if s.starts_with("string1") {
-            Ok(Self::String { len: 1, between_unused: 0 })
+            Ok(Self::String {
+                len: 1,
+                between_unused: 0,
+            })
         } else if s.starts_with("string") {
-            Ok(Self::String { len: 2, between_unused: 0 })
+            Ok(Self::String {
+                len: 2,
+                between_unused: 0,
+            })
         } else {
             if s.starts_with("@") {
                 Err("Invalid format command")

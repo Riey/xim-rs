@@ -24,7 +24,7 @@ pub enum Endian {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum StatusContent<'b> {
     Text(StatusTextContent<'b>),
-    Pixmap(std::os::raw::c_ulong),
+    Pixmap(u32),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -93,11 +93,6 @@ impl<'b> Reader<'b> {
     pub fn u32(&mut self) -> Result<u32, ReadError> {
         let bytes = self.consume(4)?.try_into().unwrap();
         Ok(u32::from_ne_bytes(bytes))
-    }
-
-    pub fn u64(&mut self) -> Result<u64, ReadError> {
-        let bytes = self.consume(4)?.try_into().unwrap();
-        Ok(u64::from_ne_bytes(bytes))
     }
 
     pub fn i32(&mut self) -> Result<i32, ReadError> {
@@ -259,19 +254,6 @@ impl<'b> XimFormat<'b> for u32 {
     }
 }
 
-impl<'b> XimFormat<'b> for u64 {
-    fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
-        reader.u64()
-    }
-
-    fn write(&self, writer: &mut Writer) {
-        writer.write(&self.to_ne_bytes())
-    }
-
-    fn size(&self) -> usize {
-        8
-    }
-}
 impl<'b> XimFormat<'b> for i32 {
     fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
         reader.i32()

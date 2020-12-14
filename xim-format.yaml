@@ -15,6 +15,14 @@ Enums:
       InputMethodIdValid: 1
       InputContextIdValid: 2
 
+  ForwardEventFlag:
+    repr: u16
+    bitflag: true
+    variants:
+      Synchronous: 1
+      RequestFiltering: 2
+      RequestLoopUpstring: 4
+
   PreeditDrawStatus:
     repr: u32
     bitflag: true
@@ -389,7 +397,11 @@ Requests:
   ForwardEvent:
     major_opcode: 60
     minor_opcode: ~
-    body: []
+    body:
+      - "input_method_id u16"
+      - "input_context_id u16"
+      - "flag ForwardEventFlag"
+      - "serial_number u16"
 
   Sync:
     major_opcode: 61

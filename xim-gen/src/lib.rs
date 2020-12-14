@@ -49,7 +49,11 @@ impl EnumFormat {
             "fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {{ let repr = {}::read(reader)?;", self.repr)?;
 
         if self.bitflag {
-            writeln!(out, "Self::from_bits(repr).ok_or(reader.invalid_data(\"{}\", repr))", name)?;
+            writeln!(
+                out,
+                "Self::from_bits(repr).ok_or(reader.invalid_data(\"{}\", repr))",
+                name
+            )?;
         } else {
             writeln!(out, "match repr {{")?;
             for (name, variants) in variants.iter() {
@@ -67,16 +71,13 @@ impl EnumFormat {
 
         writeln!(out, "}}")?;
 
-        writeln!(
-            out,
-            "fn write(&self, writer: &mut Writer) {{")?;
+        writeln!(out, "fn write(&self, writer: &mut Writer) {{")?;
 
         if self.bitflag {
             writeln!(out, "self.bits().write(writer);")?;
         } else {
-            writeln!(out, "(*self as {}).write(writer);",self.repr)?;
+            writeln!(out, "(*self as {}).write(writer);", self.repr)?;
         }
-
 
         writeln!(out, "}}")?;
 

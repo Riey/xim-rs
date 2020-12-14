@@ -24,7 +24,7 @@ pub enum Endian {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum StatusContent<'b> {
     Text(StatusTextContent<'b>),
-    Pixmap(std::os::raw::c_ulong),
+    Pixmap(u32),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -93,11 +93,6 @@ impl<'b> Reader<'b> {
     pub fn u32(&mut self) -> Result<u32, ReadError> {
         let bytes = self.consume(4)?.try_into().unwrap();
         Ok(u32::from_ne_bytes(bytes))
-    }
-
-    pub fn u64(&mut self) -> Result<u64, ReadError> {
-        let bytes = self.consume(4)?.try_into().unwrap();
-        Ok(u64::from_ne_bytes(bytes))
     }
 
     pub fn i32(&mut self) -> Result<i32, ReadError> {
@@ -259,19 +254,6 @@ impl<'b> XimFormat<'b> for u32 {
     }
 }
 
-impl<'b> XimFormat<'b> for u64 {
-    fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
-        reader.u64()
-    }
-
-    fn write(&self, writer: &mut Writer) {
-        writer.write(&self.to_ne_bytes())
-    }
-
-    fn size(&self) -> usize {
-        8
-    }
-}
 impl<'b> XimFormat<'b> for i32 {
     fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
         reader.i32()
@@ -523,6 +505,25 @@ impl<'b> XimFormat<'b> for Feedback {
     }
     fn size(&self) -> usize {
         std::mem::size_of::<u32>()
+    }
+}
+bitflags::bitflags! {
+pub struct ForwardEventFlag: u16 {
+const SYNCHRONOUS = 1;
+const REQUESTFILTERING = 2;
+const REQUESTLOOPUPSTRING = 4;
+}
+}
+impl<'b> XimFormat<'b> for ForwardEventFlag {
+    fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
+        let repr = u16::read(reader)?;
+        Self::from_bits(repr).ok_or(reader.invalid_data("ForwardEventFlag", repr))
+    }
+    fn write(&self, writer: &mut Writer) {
+        self.bits().write(writer);
+    }
+    fn size(&self) -> usize {
+        std::mem::size_of::<u16>()
     }
 }
 bitflags::bitflags! {
@@ -838,7 +839,12 @@ pub enum Request<'b> {
         flag: ErrorFlag,
         detail: XimString<'b>,
     },
-    ForwardEvent {},
+    ForwardEvent {
+        input_method_id: u16,
+        input_context_id: u16,
+        flag: ForwardEventFlag,
+        serial_number: u16,
+    },
     Geometry {
         input_method_id: u16,
         input_context_id: u16,
@@ -1151,7 +1157,12 @@ impl<'b> XimFormat<'b> for Request<'b> {
                     inner
                 },
             }),
-            (60, _) => Ok(Request::ForwardEvent {}),
+            (60, _) => Ok(Request::ForwardEvent {
+                input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
+                input_context_id: <u16 as XimFormat<'b>>::read(reader)?,
+                flag: <ForwardEventFlag as XimFormat<'b>>::read(reader)?,
+                serial_number: <u16 as XimFormat<'b>>::read(reader)?,
+            }),
             (70, _) => Ok(Request::Geometry {
                 input_method_id: <u16 as XimFormat<'b>>::read(reader)?,
                 input_context_id: <u16 as XimFormat<'b>>::read(reader)?,
@@ -1682,10 +1693,19 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 writer.write(detail.0);
                 writer.write_pad4();
             }
-            Request::ForwardEvent {} => {
+            Request::ForwardEvent {
+                input_method_id,
+                input_context_id,
+                flag,
+                serial_number,
+            } => {
                 60u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
+                input_method_id.write(writer);
+                input_context_id.write(writer);
+                flag.write(writer);
+                serial_number.write(writer);
             }
             Request::Geometry {
                 input_method_id,
@@ -2253,7 +2273,17 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 content_size += flag.size();
                 content_size += with_pad4(detail.0.len() + 2 + 2);
             }
-            Request::ForwardEvent {} => {}
+            Request::ForwardEvent {
+                input_method_id,
+                input_context_id,
+                flag,
+                serial_number,
+            } => {
+                content_size += input_method_id.size();
+                content_size += input_context_id.size();
+                content_size += flag.size();
+                content_size += serial_number.size();
+            }
             Request::Geometry {
                 input_method_id,
                 input_context_id,

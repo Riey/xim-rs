@@ -1,7 +1,10 @@
+use crate::format_type::Field;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::io::{self, Write};
 use std::path::Path;
+
+mod format_type;
 
 #[derive(Deserialize)]
 #[cfg_attr(debug_assertions, derive(Debug, Eq, PartialEq))]
@@ -12,7 +15,7 @@ struct EnumFormat {
 
 impl EnumFormat {
     pub fn write(&self, name: &str, out: &mut impl Write) -> io::Result<()> {
-        writeln!(out, "#[derive(Clone, Copy, Debug)]")?;
+        writeln!(out, "#[derive(Clone, Copy, Debug, Eq, PartialEq)]")?;
         writeln!(out, "#[repr({})]", self.repr)?;
         writeln!(out, "pub enum {} {{", name)?;
 
@@ -70,7 +73,7 @@ impl EnumFormat {
 struct RequestFormat {
     major_opcode: u8,
     minor_opcode: Option<u8>,
-    body: HashMap<String, String>,
+    body: Vec<Field>,
 }
 
 #[derive(Deserialize)]
@@ -93,8 +96,8 @@ impl XimFormat {
 
         for (name, req) in self.requests.iter() {
             writeln!(out, "{} {{", name)?;
-            for (field, ty) in req.body.iter() {
-                writeln!(out, "{}: {},", field, ty)?;
+            for field in req.body.iter() {
+                writeln!(out, "{}: {},", field.name, field.ty)?;
             }
             writeln!(out, "}},")?;
         }
@@ -125,8 +128,10 @@ impl XimFormat {
             }
 
             writeln!(out, ") => Ok(Request::{} {{", name)?;
-            for (field, _ty) in req.body.iter() {
-                writeln!(out, "{}: XimFormat::read(reader)?,", field)?;
+            for field in req.body.iter() {
+                write!(out, "{}: ", field.name)?;
+                field.ty.read(out)?;
+                write!(out, ",")?;
             }
             writeln!(out, "}}),")?;
         }
@@ -145,8 +150,8 @@ impl XimFormat {
 
         for (name, req) in self.requests.iter() {
             writeln!(out, "Request::{} {{", name)?;
-            for (field, _ty) in req.body.iter() {
-                write!(out, "{}, ", field)?;
+            for field in req.body.iter() {
+                write!(out, "{}, ", field.name)?;
             }
             writeln!(out, "}} => {{")?;
 
@@ -154,8 +159,8 @@ impl XimFormat {
             writeln!(out, "{}u8.write(writer);", req.minor_opcode.unwrap_or(0))?;
             writeln!(out, "(((self.size() - 4) / 4) as u16).write(writer);")?;
 
-            for (field, _ty) in req.body.iter() {
-                writeln!(out, "{}.write(writer);", field)?;
+            for field in req.body.iter() {
+                field.ty.write(&field.name, out)?;
             }
 
             writeln!(out, "}}")?;
@@ -174,13 +179,15 @@ impl XimFormat {
 
         for (name, req) in self.requests.iter() {
             writeln!(out, "Request::{} {{", name)?;
-            for (field, _ty) in req.body.iter() {
-                write!(out, "{}, ", field)?;
+            for field in req.body.iter() {
+                write!(out, "{}, ", field.name)?;
             }
             writeln!(out, "}} => {{")?;
 
-            for (field, _ty) in req.body.iter() {
-                writeln!(out, "content_size += {}.size();", field)?;
+            for field in req.body.iter() {
+                write!(out, "content_size += ")?;
+                field.ty.size(&field.name, out)?;
+                writeln!(out, ";")?;
             }
 
             writeln!(out, "}}")?;

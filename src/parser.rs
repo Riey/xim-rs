@@ -1,8 +1,13 @@
 #![allow(unused)]
 
-use num_traits::{cast, NumCast, Zero};
 use std::convert::TryInto;
-use std::marker::PhantomData;
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[repr(u8)]
+pub enum Endian {
+    Big = 0x42,
+    Little = 0x6c,
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum ReadError {
@@ -10,6 +15,8 @@ pub enum ReadError {
     EndOfStream,
     #[error("Invalid Data {0}: {1}")]
     InvalidData(&'static str, String),
+    #[error("Not a native endian")]
+    NotNativeEndian,
 }
 
 fn pad4(len: usize) -> usize {
@@ -105,27 +112,6 @@ impl<'b> Writer<'b> {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct XimVec<T, Length>(pub Vec<T>, PhantomData<Length>);
-
-impl<T, Length> XimVec<T, Length> {
-    pub fn new(v: Vec<T>) -> Self {
-        Self(v, PhantomData)
-    }
-}
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub struct Pad4<T>(pub T);
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub struct XimString<'b, Length>(pub &'b [u8], PhantomData<Length>);
-
-impl<'b, Length> XimString<'b, Length> {
-    pub fn new(b: &'b [u8]) -> Self {
-        Self(b, PhantomData)
-    }
-}
-
 pub trait XimFormat<'b>: Sized {
     fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError>;
     fn write(&self, writer: &mut Writer);
@@ -133,76 +119,28 @@ pub trait XimFormat<'b>: Sized {
     fn size(&self) -> usize;
 }
 
-impl<'b, T> XimFormat<'b> for Pad4<T>
-where
-    T: XimFormat<'b>,
-{
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub struct XimString<'b>(pub &'b [u8]);
+
+impl<'b> XimFormat<'b> for Endian {
     fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
-        let inner = T::read(reader)?;
-        reader.pad4()?;
+        let n = u8::read(reader)?;
 
-        Ok(Self(inner))
-    }
-
-    fn write(&self, writer: &mut Writer) {
-        self.0.write(writer);
-        writer.write_pad4();
-    }
-
-    fn size(&self) -> usize {
-        let inner_size = self.0.size();
-        inner_size + pad4(inner_size)
-    }
-}
-
-impl<'b, T, Length> XimFormat<'b> for XimVec<T, Length>
-where
-    Length: XimFormat<'b> + NumCast + Zero,
-    T: XimFormat<'b>,
-{
-    fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
-        let len: usize = cast(Length::read(reader)?).unwrap();
-        let end = reader.cursor() - len;
-        let mut out = Vec::new();
-
-        while reader.cursor() > end {
-            out.push(T::read(reader)?);
-        }
-
-        Ok(Self::new(out))
-    }
-
-    fn write(&self, writer: &mut Writer) {
-        let len: Length = cast(self.0.iter().map(XimFormat::size).sum::<usize>()).unwrap();
-        len.write(writer);
-        for elem in self.0.iter() {
-            elem.write(writer);
+        if n == Endian::Little as u8 && cfg!(target_endian = "little") {
+            Ok(Self::Little)
+        } else if n == Endian::Big as u8 && cfg!(target_endian = "big") {
+            Ok(Self::Big)
+        } else {
+            Err(ReadError::NotNativeEndian)
         }
     }
 
-    fn size(&self) -> usize {
-        self.0.iter().map(XimFormat::size).sum::<usize>() + Length::zero().size()
-    }
-}
-
-impl<'b, Length> XimFormat<'b> for XimString<'b, Length>
-where
-    Length: XimFormat<'b> + NumCast + Zero,
-{
-    fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
-        let len = cast(Length::read(reader)?).unwrap();
-        let bytes = reader.consume(len)?;
-        Ok(Self::new(bytes))
-    }
-
     fn write(&self, writer: &mut Writer) {
-        let len: Length = cast(self.0.len()).unwrap();
-        len.write(writer);
-        writer.write(self.0);
+        (*self as u8).write(writer);
     }
 
     fn size(&self) -> usize {
-        self.0.len() + Length::zero().size()
+        1
     }
 }
 
@@ -260,7 +198,55 @@ impl<'b> XimFormat<'b> for i32 {
         4
     }
 }
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u16)]
+pub enum AttrType {
+    PreeditState = 18,
+    Separator = 0,
+    Long = 3,
+    XFontSet = 13,
+    XRectangle = 11,
+    NestedList = 32767,
+    XPoint = 12,
+    Style = 10,
+    StringConversion = 17,
+    ResetState = 19,
+    HotkeyTriggers = 15,
+    Window = 5,
+    Byte = 1,
+    Word = 2,
+    Char = 4,
+}
+impl<'b> XimFormat<'b> for AttrType {
+    fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
+        let repr = u16::read(reader)?;
+        match repr {
+            18 => Ok(Self::PreeditState),
+            0 => Ok(Self::Separator),
+            3 => Ok(Self::Long),
+            13 => Ok(Self::XFontSet),
+            11 => Ok(Self::XRectangle),
+            32767 => Ok(Self::NestedList),
+            12 => Ok(Self::XPoint),
+            10 => Ok(Self::Style),
+            17 => Ok(Self::StringConversion),
+            19 => Ok(Self::ResetState),
+            15 => Ok(Self::HotkeyTriggers),
+            5 => Ok(Self::Window),
+            1 => Ok(Self::Byte),
+            2 => Ok(Self::Word),
+            4 => Ok(Self::Char),
+            _ => Err(reader.invalid_data("AttrType", repr)),
+        }
+    }
+    fn write(&self, writer: &mut Writer) {
+        (*self as u16).write(writer);
+    }
+    fn size(&self) -> usize {
+        std::mem::size_of::<u16>()
+    }
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(u32)]
 pub enum CaretStyle {
     Invisible = 0,
@@ -284,60 +270,13 @@ impl<'b> XimFormat<'b> for CaretStyle {
         std::mem::size_of::<u32>()
     }
 }
-#[derive(Clone, Copy, Debug)]
-#[repr(u16)]
-pub enum AttrType {
-    Window = 5,
-    Byte = 1,
-    HotkeyTriggers = 15,
-    Word = 2,
-    ResetState = 19,
-    XRectangle = 11,
-    XPoint = 12,
-    StringConversion = 17,
-    XFontSet = 13,
-    Char = 4,
-    PreeditState = 18,
-    Separator = 0,
-    Style = 10,
-    NestedList = 32767,
-    Long = 3,
-}
-impl<'b> XimFormat<'b> for AttrType {
-    fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
-        let repr = u16::read(reader)?;
-        match repr {
-            5 => Ok(Self::Window),
-            1 => Ok(Self::Byte),
-            15 => Ok(Self::HotkeyTriggers),
-            2 => Ok(Self::Word),
-            19 => Ok(Self::ResetState),
-            11 => Ok(Self::XRectangle),
-            12 => Ok(Self::XPoint),
-            17 => Ok(Self::StringConversion),
-            13 => Ok(Self::XFontSet),
-            4 => Ok(Self::Char),
-            18 => Ok(Self::PreeditState),
-            0 => Ok(Self::Separator),
-            10 => Ok(Self::Style),
-            32767 => Ok(Self::NestedList),
-            3 => Ok(Self::Long),
-            _ => Err(reader.invalid_data("AttrType", repr)),
-        }
-    }
-    fn write(&self, writer: &mut Writer) {
-        (*self as u16).write(writer);
-    }
-    fn size(&self) -> usize {
-        std::mem::size_of::<u16>()
-    }
-}
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Request<'b> {
     Connect {
-        client_auth_protocol_names: XimVec<Pad4<XimString<'b, u16>>, u16>,
+        endian: Endian,
         client_major_protocol_version: u16,
         client_minor_protocol_version: u16,
+        client_auth_protocol_names: Vec<XimString<'b>>,
     },
 }
 impl<'b> XimFormat<'b> for Request<'b> {
@@ -346,9 +285,30 @@ impl<'b> XimFormat<'b> for Request<'b> {
         let minor_opcode = reader.u16()?;
         match (major_opcode, minor_opcode) {
             (1, _) => Ok(Request::Connect {
-                client_auth_protocol_names: XimFormat::read(reader)?,
-                client_major_protocol_version: XimFormat::read(reader)?,
-                client_minor_protocol_version: XimFormat::read(reader)?,
+                endian: {
+                    let inner = Endian::read(reader)?;
+                    u8::read(reader)?;
+                    inner
+                },
+                client_major_protocol_version: u16::read(reader)?,
+                client_minor_protocol_version: u16::read(reader)?,
+                client_auth_protocol_names: {
+                    let mut out = Vec::new();
+                    let len = u16::read(reader)? as usize;
+                    let end = reader.cursor() - len;
+                    while reader.cursor() > end {
+                        out.push({
+                            let inner = {
+                                let len = u16::read(reader)?;
+                                let bytes = reader.consume(len as usize)?;
+                                XimString(bytes)
+                            };
+                            reader.pad4()?;
+                            inner
+                        });
+                    }
+                    out
+                },
             }),
             _ => {
                 Err(reader.invalid_data("Opcode", format!("({}, {})", major_opcode, minor_opcode)))
@@ -358,16 +318,30 @@ impl<'b> XimFormat<'b> for Request<'b> {
     fn write(&self, writer: &mut Writer) {
         match self {
             Request::Connect {
-                client_auth_protocol_names,
+                endian,
                 client_major_protocol_version,
                 client_minor_protocol_version,
+                client_auth_protocol_names,
             } => {
                 1u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
-                client_auth_protocol_names.write(writer);
+                endian.write(writer);
+                0u8.write(writer);
                 client_major_protocol_version.write(writer);
                 client_minor_protocol_version.write(writer);
+                ((client_auth_protocol_names
+                    .iter()
+                    .map(|e| pad4(e.0.len() + 2))
+                    .sum::<usize>()
+                    + 2
+                    - 2) as u16)
+                    .write(writer);
+                for elem in client_auth_protocol_names.iter() {
+                    (elem.0.len() as u16).write(writer);
+                    writer.write(elem.0);
+                    writer.write_pad4();
+                }
             }
         }
     }
@@ -375,13 +349,19 @@ impl<'b> XimFormat<'b> for Request<'b> {
         let mut content_size = 0;
         match self {
             Request::Connect {
-                client_auth_protocol_names,
+                endian,
                 client_major_protocol_version,
                 client_minor_protocol_version,
+                client_auth_protocol_names,
             } => {
-                content_size += client_auth_protocol_names.size();
+                content_size += endian.size() + 1;
                 content_size += client_major_protocol_version.size();
                 content_size += client_minor_protocol_version.size();
+                content_size += client_auth_protocol_names
+                    .iter()
+                    .map(|e| pad4(e.0.len() + 2))
+                    .sum::<usize>()
+                    + 2;
             }
         }
         content_size + 4

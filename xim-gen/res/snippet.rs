@@ -1,8 +1,13 @@
 #![allow(unused)]
 
-use num_traits::{cast, NumCast, Zero};
 use std::convert::TryInto;
-use std::marker::PhantomData;
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[repr(u8)]
+pub enum Endian {
+    Big = 0x42,
+    Little = 0x6c,
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum ReadError {
@@ -10,6 +15,8 @@ pub enum ReadError {
     EndOfStream,
     #[error("Invalid Data {0}: {1}")]
     InvalidData(&'static str, String),
+    #[error("Not a native endian")]
+    NotNativeEndian,
 }
 
 fn pad4(len: usize) -> usize {
@@ -105,27 +112,6 @@ impl<'b> Writer<'b> {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct XimVec<T, Length>(pub Vec<T>, PhantomData<Length>);
-
-impl<T, Length> XimVec<T, Length> {
-    pub fn new(v: Vec<T>) -> Self {
-        Self(v, PhantomData)
-    }
-}
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub struct Pad4<T>(pub T);
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub struct XimString<'b, Length>(pub &'b [u8], PhantomData<Length>);
-
-impl<'b, Length> XimString<'b, Length> {
-    pub fn new(b: &'b [u8]) -> Self {
-        Self(b, PhantomData)
-    }
-}
-
 pub trait XimFormat<'b>: Sized {
     fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError>;
     fn write(&self, writer: &mut Writer);
@@ -133,76 +119,28 @@ pub trait XimFormat<'b>: Sized {
     fn size(&self) -> usize;
 }
 
-impl<'b, T> XimFormat<'b> for Pad4<T>
-where
-    T: XimFormat<'b>,
-{
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub struct XimString<'b>(pub &'b [u8]);
+
+impl<'b> XimFormat<'b> for Endian {
     fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
-        let inner = T::read(reader)?;
-        reader.pad4()?;
+        let n = u8::read(reader)?;
 
-        Ok(Self(inner))
-    }
-
-    fn write(&self, writer: &mut Writer) {
-        self.0.write(writer);
-        writer.write_pad4();
-    }
-
-    fn size(&self) -> usize {
-        let inner_size = self.0.size();
-        inner_size + pad4(inner_size)
-    }
-}
-
-impl<'b, T, Length> XimFormat<'b> for XimVec<T, Length>
-where
-    Length: XimFormat<'b> + NumCast + Zero,
-    T: XimFormat<'b>,
-{
-    fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
-        let len: usize = cast(Length::read(reader)?).unwrap();
-        let end = reader.cursor() - len;
-        let mut out = Vec::new();
-
-        while reader.cursor() > end {
-            out.push(T::read(reader)?);
-        }
-
-        Ok(Self::new(out))
-    }
-
-    fn write(&self, writer: &mut Writer) {
-        let len: Length = cast(self.0.iter().map(XimFormat::size).sum::<usize>()).unwrap();
-        len.write(writer);
-        for elem in self.0.iter() {
-            elem.write(writer);
+        if n == Endian::Little as u8 && cfg!(target_endian = "little") {
+            Ok(Self::Little)
+        } else if n == Endian::Big as u8 && cfg!(target_endian = "big") {
+            Ok(Self::Big)
+        } else {
+            Err(ReadError::NotNativeEndian)
         }
     }
 
-    fn size(&self) -> usize {
-        self.0.iter().map(XimFormat::size).sum::<usize>() + Length::zero().size()
-    }
-}
-
-impl<'b, Length> XimFormat<'b> for XimString<'b, Length>
-where
-    Length: XimFormat<'b> + NumCast + Zero,
-{
-    fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
-        let len = cast(Length::read(reader)?).unwrap();
-        let bytes = reader.consume(len)?;
-        Ok(Self::new(bytes))
-    }
-
     fn write(&self, writer: &mut Writer) {
-        let len: Length = cast(self.0.len()).unwrap();
-        len.write(writer);
-        writer.write(self.0);
+        (*self as u8).write(writer);
     }
 
     fn size(&self) -> usize {
-        self.0.len() + Length::zero().size()
+        1
     }
 }
 

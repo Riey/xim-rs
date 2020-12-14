@@ -29,6 +29,7 @@ Requests:
     major_opcode: 1
     minor_opcode: ~
     body:
-      client_major_protocol_version: u16
-      client_minor_protocol_version: u16
-      client_auth_protocol_names: XimVec<Pad4<XimString<'b, u16>>, u16>
+      - 'endian @append8 Endian'
+      - 'client_major_protocol_version u16'
+      - 'client_minor_protocol_version u16'
+      - 'client_auth_protocol_names @list @pad string'

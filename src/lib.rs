@@ -3,6 +3,7 @@ mod parser;
 #[cfg(test)]
 mod tests {
     use crate::parser::*;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn read_connect_req() {
@@ -12,7 +13,8 @@ mod tests {
         assert_eq!(
             req,
             Request::Connect {
-                client_auth_protocol_names: XimVec::new(vec![]),
+                endian: Endian::Little,
+                client_auth_protocol_names: vec![],
                 client_minor_protocol_version: 0,
                 client_major_protocol_version: 0,
             }

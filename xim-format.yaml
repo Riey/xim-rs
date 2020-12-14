@@ -33,3 +33,9 @@ Requests:
       - 'client_major_protocol_version u16'
       - 'client_minor_protocol_version u16'
       - 'client_auth_protocol_names @list @pad string'
+
+  Open:
+    major_opcode: 30
+    minor_opcode: ~
+    body:
+      - 'name @pad string8'

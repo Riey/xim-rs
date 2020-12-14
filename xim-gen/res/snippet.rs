@@ -1,6 +1,15 @@
 #![allow(unused)]
 
 use std::convert::TryInto;
+use std::fmt;
+
+pub fn read<'a, T: XimFormat<'a>>(b: &'a [u8]) -> Result<T, ReadError> {
+    T::read(&mut Reader::new(b))
+}
+
+pub fn write<'a, T: XimFormat<'a>>(data: &T, out: &mut Vec<u8>) {
+    data.write(&mut Writer::new(out));
+}
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(u8)]
@@ -119,8 +128,20 @@ pub trait XimFormat<'b>: Sized {
     fn size(&self) -> usize;
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub struct XimString<'b>(pub &'b [u8]);
+
+impl<'a> fmt::Display for XimString<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str(std::str::from_utf8(self.0).unwrap_or("NOT_UTF8"))
+    }
+}
+
+impl<'a> fmt::Debug for XimString<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str(std::str::from_utf8(self.0).unwrap_or("NOT_UTF8"))
+    }
+}
 
 impl<'b> XimFormat<'b> for Endian {
     fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {

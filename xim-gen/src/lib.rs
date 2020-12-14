@@ -113,7 +113,7 @@ impl XimFormat {
 
         writeln!(
             out,
-            "let major_opcode = reader.u16()?; let minor_opcode = reader.u16()?;"
+            "let major_opcode = reader.u8()?; let minor_opcode = reader.u8()?; let _length = reader.u16()?;"
         )?;
 
         writeln!(out, "match (major_opcode, minor_opcode) {{")?;

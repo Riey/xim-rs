@@ -152,6 +152,8 @@ impl std::str::FromStr for FormatType {
             Ok(Self::List(Box::new(left.parse()?), 16))
         } else if let Some(left) = s.strip_prefix("@append8") {
             Ok(Self::Append(Box::new(left.parse()?), 8))
+        } else if s.starts_with("string8") {
+            Ok(Self::String(8))
         } else if s.starts_with("string") {
             Ok(Self::String(16))
         } else {

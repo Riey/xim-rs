@@ -1,6 +1,15 @@
 #![allow(unused)]
 
 use std::convert::TryInto;
+use std::fmt;
+
+pub fn read<'a, T: XimFormat<'a>>(b: &'a [u8]) -> Result<T, ReadError> {
+    T::read(&mut Reader::new(b))
+}
+
+pub fn write<'a, T: XimFormat<'a>>(data: &T, out: &mut Vec<u8>) {
+    data.write(&mut Writer::new(out));
+}
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(u8)]
@@ -119,8 +128,20 @@ pub trait XimFormat<'b>: Sized {
     fn size(&self) -> usize;
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub struct XimString<'b>(pub &'b [u8]);
+
+impl<'a> fmt::Display for XimString<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str(std::str::from_utf8(self.0).unwrap_or("NOT_UTF8"))
+    }
+}
+
+impl<'a> fmt::Debug for XimString<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str(std::str::from_utf8(self.0).unwrap_or("NOT_UTF8"))
+    }
+}
 
 impl<'b> XimFormat<'b> for Endian {
     fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
@@ -199,54 +220,6 @@ impl<'b> XimFormat<'b> for i32 {
     }
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-#[repr(u16)]
-pub enum AttrType {
-    PreeditState = 18,
-    Separator = 0,
-    Long = 3,
-    XFontSet = 13,
-    XRectangle = 11,
-    NestedList = 32767,
-    XPoint = 12,
-    Style = 10,
-    StringConversion = 17,
-    ResetState = 19,
-    HotkeyTriggers = 15,
-    Window = 5,
-    Byte = 1,
-    Word = 2,
-    Char = 4,
-}
-impl<'b> XimFormat<'b> for AttrType {
-    fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
-        let repr = u16::read(reader)?;
-        match repr {
-            18 => Ok(Self::PreeditState),
-            0 => Ok(Self::Separator),
-            3 => Ok(Self::Long),
-            13 => Ok(Self::XFontSet),
-            11 => Ok(Self::XRectangle),
-            32767 => Ok(Self::NestedList),
-            12 => Ok(Self::XPoint),
-            10 => Ok(Self::Style),
-            17 => Ok(Self::StringConversion),
-            19 => Ok(Self::ResetState),
-            15 => Ok(Self::HotkeyTriggers),
-            5 => Ok(Self::Window),
-            1 => Ok(Self::Byte),
-            2 => Ok(Self::Word),
-            4 => Ok(Self::Char),
-            _ => Err(reader.invalid_data("AttrType", repr)),
-        }
-    }
-    fn write(&self, writer: &mut Writer) {
-        (*self as u16).write(writer);
-    }
-    fn size(&self) -> usize {
-        std::mem::size_of::<u16>()
-    }
-}
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(u32)]
 pub enum CaretStyle {
     Invisible = 0,
@@ -270,8 +243,59 @@ impl<'b> XimFormat<'b> for CaretStyle {
         std::mem::size_of::<u32>()
     }
 }
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u16)]
+pub enum AttrType {
+    Byte = 1,
+    Long = 3,
+    Style = 10,
+    Char = 4,
+    ResetState = 19,
+    StringConversion = 17,
+    XFontSet = 13,
+    Separator = 0,
+    NestedList = 32767,
+    XRectangle = 11,
+    Word = 2,
+    Window = 5,
+    XPoint = 12,
+    HotkeyTriggers = 15,
+    PreeditState = 18,
+}
+impl<'b> XimFormat<'b> for AttrType {
+    fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
+        let repr = u16::read(reader)?;
+        match repr {
+            1 => Ok(Self::Byte),
+            3 => Ok(Self::Long),
+            10 => Ok(Self::Style),
+            4 => Ok(Self::Char),
+            19 => Ok(Self::ResetState),
+            17 => Ok(Self::StringConversion),
+            13 => Ok(Self::XFontSet),
+            0 => Ok(Self::Separator),
+            32767 => Ok(Self::NestedList),
+            11 => Ok(Self::XRectangle),
+            2 => Ok(Self::Word),
+            5 => Ok(Self::Window),
+            12 => Ok(Self::XPoint),
+            15 => Ok(Self::HotkeyTriggers),
+            18 => Ok(Self::PreeditState),
+            _ => Err(reader.invalid_data("AttrType", repr)),
+        }
+    }
+    fn write(&self, writer: &mut Writer) {
+        (*self as u16).write(writer);
+    }
+    fn size(&self) -> usize {
+        std::mem::size_of::<u16>()
+    }
+}
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Request<'b> {
+    Open {
+        name: XimString<'b>,
+    },
     Connect {
         endian: Endian,
         client_major_protocol_version: u16,
@@ -281,9 +305,21 @@ pub enum Request<'b> {
 }
 impl<'b> XimFormat<'b> for Request<'b> {
     fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
-        let major_opcode = reader.u16()?;
-        let minor_opcode = reader.u16()?;
+        let major_opcode = reader.u8()?;
+        let minor_opcode = reader.u8()?;
+        let _length = reader.u16()?;
         match (major_opcode, minor_opcode) {
+            (30, _) => Ok(Request::Open {
+                name: {
+                    let inner = {
+                        let len = u8::read(reader)?;
+                        let bytes = reader.consume(len as usize)?;
+                        XimString(bytes)
+                    };
+                    reader.pad4()?;
+                    inner
+                },
+            }),
             (1, _) => Ok(Request::Connect {
                 endian: {
                     let inner = Endian::read(reader)?;
@@ -317,6 +353,14 @@ impl<'b> XimFormat<'b> for Request<'b> {
     }
     fn write(&self, writer: &mut Writer) {
         match self {
+            Request::Open { name } => {
+                30u8.write(writer);
+                0u8.write(writer);
+                (((self.size() - 4) / 4) as u16).write(writer);
+                (name.0.len() as u8).write(writer);
+                writer.write(name.0);
+                writer.write_pad4();
+            }
             Request::Connect {
                 endian,
                 client_major_protocol_version,
@@ -348,6 +392,9 @@ impl<'b> XimFormat<'b> for Request<'b> {
     fn size(&self) -> usize {
         let mut content_size = 0;
         match self {
+            Request::Open { name } => {
+                content_size += pad4(name.0.len() + 1);
+            }
             Request::Connect {
                 endian,
                 client_major_protocol_version,

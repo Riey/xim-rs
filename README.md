@@ -1,9 +1,16 @@
 # xim-rs
 
-## xim-gen
+## features
 
-code generator for xim protocol parser
+### parser
 
-## xim-parser
+- [x] Server message
+- [x] Client message
+- [x] Basic protocol
+- [ ] Extension protocol
 
-xim protocl parser generated from xim-gen
+### binding for X client
+
+- [ ] xcb
+- [ ] xlib
+- [ ] x11rb

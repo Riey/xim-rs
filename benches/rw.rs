@@ -5,28 +5,28 @@ static OPEN_REPLY: &[u8] = b"\x1f\x00\x59\x00\x01\x00\x18\x00\x00\x00\x0a\x00\x0
 
 fn read_request(c: &mut Criterion) {
     c.bench_function("read connect", |b| {
-        b.iter(|| black_box(xim::read(CONNECT).unwrap()))
+        b.iter(|| black_box(xim_parser::read(CONNECT).unwrap()))
     })
     .bench_function("read open_reply", |b| {
-        b.iter(|| black_box(xim::read(OPEN_REPLY).unwrap()))
+        b.iter(|| black_box(xim_parser::read(OPEN_REPLY).unwrap()))
     });
 }
 
 fn write_request(c: &mut Criterion) {
-    let connect = xim::read(CONNECT).unwrap();
-    let open_reply = xim::read(OPEN_REPLY).unwrap();
+    let connect = xim_parser::read(CONNECT).unwrap();
+    let open_reply = xim_parser::read(OPEN_REPLY).unwrap();
 
     let mut buf = Vec::with_capacity(8196);
 
     c.bench_function("write connect", |b| {
         b.iter(|| {
-            xim::write(&connect, &mut buf);
+            xim_parser::write(&connect, &mut buf);
             buf.clear();
         });
     })
     .bench_function("write open_reply", |b| {
         b.iter(|| {
-            xim::write(&open_reply, &mut buf);
+            xim_parser::write(&open_reply, &mut buf);
             buf.clear();
         });
     });

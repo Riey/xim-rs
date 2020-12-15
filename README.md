@@ -1,11 +1,9 @@
 # xim-rs
 
-XIM protocol parser in Rust
+## xim-gen
 
-## features
+code generator for xim protocol parser
 
-- [x] Server
-- [x] Client
-- [x] Basic protocol
-- [ ] Extension protocol
-- [ ] Binding for X client
+## xim-parser
+
+xim protocl parser generated from xim-gen

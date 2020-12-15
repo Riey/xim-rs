@@ -179,7 +179,7 @@ mod tests {
         let value = open_reply_value();
         write(&value, &mut out);
         assert_eq!(OPEN_REPLY.len(), out.len());
-        // assert_eq!(OPEN_REPLY, out);
+        assert_eq!(OPEN_REPLY, out);
         let new: Request = read(&out).unwrap();
         assert_eq!(value, new);
     }

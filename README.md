@@ -11,6 +11,5 @@
 
 ### binding for X client
 
-- [ ] xcb
 - [ ] xlib
 - [ ] x11rb

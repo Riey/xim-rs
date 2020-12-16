@@ -27,7 +27,7 @@ mod tests {
         let req = read(&[
             30, 0, 2, 0, 5, 101, 110, 95, 85, 83, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         ])
-            .unwrap();
+        .unwrap();
         assert_eq!(
             req,
             Request::Open {
@@ -41,7 +41,7 @@ mod tests {
         let req = read(&[
             40, 0, 5, 0, 0, 0, 13, 0, 12, 88, 73, 77, 95, 69, 88, 84, 95, 77, 79, 86, 69, 0, 0, 0,
         ])
-            .unwrap();
+        .unwrap();
         assert_eq!(
             req,
             Request::QueryExtension {

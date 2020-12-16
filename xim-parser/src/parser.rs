@@ -599,7 +599,6 @@ impl<'b> XimFormat<'b> for Attr<'b> {
             name: {
                 let inner = {
                     let len = u16::read(reader)?;
-                    reader.consume(0)?;
                     let bytes = reader.consume(len as usize)?;
                     XimString(bytes)
                 };
@@ -612,7 +611,6 @@ impl<'b> XimFormat<'b> for Attr<'b> {
         self.id.write(writer);
         self.ty.write(writer);
         (self.name.0.len() as u16).write(writer);
-        writer.write(&[0u8; 0]);
         writer.write(self.name.0);
         writer.write_pad4();
     }
@@ -636,7 +634,6 @@ impl<'b> XimFormat<'b> for Attribute<'b> {
             value: {
                 let inner = {
                     let len = u16::read(reader)?;
-                    reader.consume(0)?;
                     let bytes = reader.consume(len as usize)?;
                     XimString(bytes)
                 };
@@ -648,7 +645,6 @@ impl<'b> XimFormat<'b> for Attribute<'b> {
     fn write(&self, writer: &mut Writer) {
         self.id.write(writer);
         (self.value.0.len() as u16).write(writer);
-        writer.write(&[0u8; 0]);
         writer.write(self.value.0);
         writer.write_pad4();
     }
@@ -673,7 +669,6 @@ impl<'b> XimFormat<'b> for Extension<'b> {
             name: {
                 let inner = {
                     let len = u16::read(reader)?;
-                    reader.consume(0)?;
                     let bytes = reader.consume(len as usize)?;
                     XimString(bytes)
                 };
@@ -686,7 +681,6 @@ impl<'b> XimFormat<'b> for Extension<'b> {
         self.major_opcode.write(writer);
         self.minor_opcode.write(writer);
         (self.name.0.len() as u16).write(writer);
-        writer.write(&[0u8; 0]);
         writer.write(self.name.0);
         writer.write_pad4();
     }
@@ -711,7 +705,6 @@ impl<'b> XimFormat<'b> for StatusTextContent<'b> {
             status_string: {
                 let inner = {
                     let len = u16::read(reader)?;
-                    reader.consume(0)?;
                     let bytes = reader.consume(len as usize)?;
                     XimString(bytes)
                 };
@@ -733,10 +726,10 @@ impl<'b> XimFormat<'b> for StatusTextContent<'b> {
     fn write(&self, writer: &mut Writer) {
         self.status.write(writer);
         (self.status_string.0.len() as u16).write(writer);
-        writer.write(&[0u8; 0]);
         writer.write(self.status_string.0);
         writer.write_pad4();
-        ((self.feedbacks.iter().map(|e| e.size()).sum::<usize>() + 2 + 2 - 2) as u16).write(writer);
+        ((self.feedbacks.iter().map(|e| e.size()).sum::<usize>() + 2 + 2 - 2 - 2) as u16)
+            .write(writer);
         0u16.write(writer);
         for elem in self.feedbacks.iter() {
             elem.write(writer);
@@ -1048,7 +1041,6 @@ impl<'b> XimFormat<'b> for Request<'b> {
                         out.push({
                             let inner = {
                                 let len = u16::read(reader)?;
-                                reader.consume(0)?;
                                 let bytes = reader.consume(len as usize)?;
                                 XimString(bytes)
                             };
@@ -1103,7 +1095,6 @@ impl<'b> XimFormat<'b> for Request<'b> {
                         while reader.cursor() > end {
                             out.push({
                                 let len = u8::read(reader)?;
-                                reader.consume(0)?;
                                 let bytes = reader.consume(len as usize)?;
                                 XimString(bytes)
                             });
@@ -1122,7 +1113,6 @@ impl<'b> XimFormat<'b> for Request<'b> {
                         out.push({
                             let inner = {
                                 let len = u16::read(reader)?;
-                                reader.consume(0)?;
                                 let bytes = reader.consume(len as usize)?;
                                 XimString(bytes)
                             };
@@ -1230,7 +1220,6 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 name: {
                     let inner = {
                         let len = u8::read(reader)?;
-                        reader.consume(0)?;
                         let bytes = reader.consume(len as usize)?;
                         XimString(bytes)
                     };
@@ -1286,7 +1275,6 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 preedit_string: {
                     let inner = {
                         let len = u16::read(reader)?;
-                        reader.consume(0)?;
                         let bytes = reader.consume(len as usize)?;
                         XimString(bytes)
                     };
@@ -1328,7 +1316,6 @@ impl<'b> XimFormat<'b> for Request<'b> {
                         while reader.cursor() > end {
                             out.push({
                                 let len = u8::read(reader)?;
-                                reader.consume(0)?;
                                 let bytes = reader.consume(len as usize)?;
                                 XimString(bytes)
                             });
@@ -1386,7 +1373,6 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 preedit_string: {
                     let inner = {
                         let len = u16::read(reader)?;
-                        reader.consume(0)?;
                         let bytes = reader.consume(len as usize)?;
                         XimString(bytes)
                     };
@@ -1556,11 +1542,11 @@ impl<'b> XimFormat<'b> for Request<'b> {
                     .sum::<usize>()
                     + 0
                     + 2
-                    - 2) as u16)
+                    - 2
+                    - 0) as u16)
                     .write(writer);
                 for elem in client_auth_protocol_names.iter() {
                     (elem.0.len() as u16).write(writer);
-                    writer.write(&[0u8; 0]);
                     writer.write(elem.0);
                     writer.write_pad4();
                 }
@@ -1583,7 +1569,7 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
                 input_method_id.write(writer);
-                ((ic_attributes.iter().map(|e| e.size()).sum::<usize>() + 0 + 2 - 2) as u16)
+                ((ic_attributes.iter().map(|e| e.size()).sum::<usize>() + 0 + 2 - 2 - 0) as u16)
                     .write(writer);
                 for elem in ic_attributes.iter() {
                     elem.write(writer);
@@ -1639,11 +1625,11 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
                 input_method_id.write(writer);
-                ((encodings.iter().map(|e| e.0.len() + 1 + 0).sum::<usize>() + 0 + 2 - 2) as u16)
+                ((encodings.iter().map(|e| e.0.len() + 1 + 0).sum::<usize>() + 0 + 2 - 2 - 0)
+                    as u16)
                     .write(writer);
                 for elem in encodings.iter() {
                     (elem.0.len() as u8).write(writer);
-                    writer.write(&[0u8; 0]);
                     writer.write(elem.0);
                 }
                 writer.write_pad4();
@@ -1653,12 +1639,12 @@ impl<'b> XimFormat<'b> for Request<'b> {
                     .sum::<usize>()
                     + 2
                     + 2
+                    - 2
                     - 2) as u16)
                     .write(writer);
                 0u16.write(writer);
                 for elem in encoding_infos.iter() {
                     (elem.0.len() as u16).write(writer);
-                    writer.write(&[0u8; 0]);
                     writer.write(elem.0);
                     writer.write_pad4();
                 }
@@ -1727,7 +1713,7 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 (((self.size() - 4) / 4) as u16).write(writer);
                 input_method_id.write(writer);
                 input_context_id.write(writer);
-                ((ic_attributes.iter().map(|e| e.size()).sum::<usize>() + 0 + 2 - 2) as u16)
+                ((ic_attributes.iter().map(|e| e.size()).sum::<usize>() + 0 + 2 - 2 - 0) as u16)
                     .write(writer);
                 for elem in ic_attributes.iter() {
                     elem.write(writer);
@@ -1744,7 +1730,7 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 (((self.size() - 4) / 4) as u16).write(writer);
                 input_method_id.write(writer);
                 input_context_id.write(writer);
-                ((ic_attributes.iter().map(|e| e.size()).sum::<usize>() + 2 + 2 - 2) as u16)
+                ((ic_attributes.iter().map(|e| e.size()).sum::<usize>() + 2 + 2 - 2 - 2) as u16)
                     .write(writer);
                 0u16.write(writer);
                 for elem in ic_attributes.iter() {
@@ -1759,7 +1745,7 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
                 input_method_id.write(writer);
-                ((im_attributes.iter().map(|e| e.size()).sum::<usize>() + 0 + 2 - 2) as u16)
+                ((im_attributes.iter().map(|e| e.size()).sum::<usize>() + 0 + 2 - 2 - 0) as u16)
                     .write(writer);
                 for elem in im_attributes.iter() {
                     elem.write(writer);
@@ -1774,7 +1760,7 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
                 input_method_id.write(writer);
-                ((im_attributes.iter().map(|e| e.size()).sum::<usize>() + 0 + 2 - 2) as u16)
+                ((im_attributes.iter().map(|e| e.size()).sum::<usize>() + 0 + 2 - 2 - 0) as u16)
                     .write(writer);
                 for elem in im_attributes.iter() {
                     elem.write(writer);
@@ -1785,7 +1771,6 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
                 (name.0.len() as u8).write(writer);
-                writer.write(&[0u8; 0]);
                 writer.write(name.0);
                 writer.write_pad4();
             }
@@ -1798,12 +1783,12 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
                 input_method_id.write(writer);
-                ((im_attrs.iter().map(|e| e.size()).sum::<usize>() + 0 + 2 - 2) as u16)
+                ((im_attrs.iter().map(|e| e.size()).sum::<usize>() + 0 + 2 - 2 - 0) as u16)
                     .write(writer);
                 for elem in im_attrs.iter() {
                     elem.write(writer);
                 }
-                ((ic_attrs.iter().map(|e| e.size()).sum::<usize>() + 2 + 2 - 2) as u16)
+                ((ic_attrs.iter().map(|e| e.size()).sum::<usize>() + 2 + 2 - 2 - 2) as u16)
                     .write(writer);
                 0u16.write(writer);
                 for elem in ic_attrs.iter() {
@@ -1868,10 +1853,9 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 chg_length.write(writer);
                 status.write(writer);
                 (preedit_string.0.len() as u16).write(writer);
-                writer.write(&[0u8; 0]);
                 writer.write(preedit_string.0);
                 writer.write_pad4();
-                ((feedbacks.iter().map(|e| e.size()).sum::<usize>() + 2 + 2 - 2) as u16)
+                ((feedbacks.iter().map(|e| e.size()).sum::<usize>() + 2 + 2 - 2 - 2) as u16)
                     .write(writer);
                 0u16.write(writer);
                 for elem in feedbacks.iter() {
@@ -1920,11 +1904,11 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
                 input_method_id.write(writer);
-                ((extensions.iter().map(|e| e.0.len() + 1 + 0).sum::<usize>() + 0 + 2 - 2) as u16)
+                ((extensions.iter().map(|e| e.0.len() + 1 + 0).sum::<usize>() + 0 + 2 - 2 - 0)
+                    as u16)
                     .write(writer);
                 for elem in extensions.iter() {
                     (elem.0.len() as u8).write(writer);
-                    writer.write(&[0u8; 0]);
                     writer.write(elem.0);
                 }
                 writer.write_pad4();
@@ -1937,7 +1921,7 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
                 input_method_id.write(writer);
-                ((extentions.iter().map(|e| e.size()).sum::<usize>() + 0 + 2 - 2) as u16)
+                ((extentions.iter().map(|e| e.size()).sum::<usize>() + 0 + 2 - 2 - 0) as u16)
                     .write(writer);
                 for elem in extentions.iter() {
                     elem.write(writer);
@@ -1953,12 +1937,12 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 (((self.size() - 4) / 4) as u16).write(writer);
                 input_method_id.write(writer);
                 writer.write(&[0u8; 2]);
-                ((on_keys.iter().map(|e| e.size()).sum::<usize>() + 0 + 4 - 4) as u32)
+                ((on_keys.iter().map(|e| e.size()).sum::<usize>() + 0 + 4 - 4 - 0) as u32)
                     .write(writer);
                 for elem in on_keys.iter() {
                     elem.write(writer);
                 }
-                ((off_keys.iter().map(|e| e.size()).sum::<usize>() + 0 + 4 - 4) as u32)
+                ((off_keys.iter().map(|e| e.size()).sum::<usize>() + 0 + 4 - 4 - 0) as u32)
                     .write(writer);
                 for elem in off_keys.iter() {
                     elem.write(writer);
@@ -1985,7 +1969,6 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 input_method_id.write(writer);
                 input_context_id.write(writer);
                 (preedit_string.0.len() as u16).write(writer);
-                writer.write(&[0u8; 0]);
                 writer.write(preedit_string.0);
                 writer.write_pad4();
             }
@@ -2023,7 +2006,7 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 (((self.size() - 4) / 4) as u16).write(writer);
                 input_method_id.write(writer);
                 input_context_id.write(writer);
-                ((ic_attributes.iter().map(|e| e.size()).sum::<usize>() + 2 + 2 - 2) as u16)
+                ((ic_attributes.iter().map(|e| e.size()).sum::<usize>() + 2 + 2 - 2 - 2) as u16)
                     .write(writer);
                 0u16.write(writer);
                 for elem in ic_attributes.iter() {
@@ -2048,7 +2031,7 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
                 input_method_id.write(writer);
-                ((attributes.iter().map(|e| e.size()).sum::<usize>() + 0 + 2 - 2) as u16)
+                ((attributes.iter().map(|e| e.size()).sum::<usize>() + 0 + 2 - 2 - 0) as u16)
                     .write(writer);
                 for elem in attributes.iter() {
                     elem.write(writer);

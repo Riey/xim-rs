@@ -58,7 +58,9 @@ impl FormatType {
                 between_unused,
             } => {
                 writeln!(out, "{{ let len = u{}::read(reader)?;", len * 8)?;
-                writeln!(out, "reader.consume({})?;", between_unused)?;
+                if *between_unused > 0 {
+                    writeln!(out, "reader.consume({})?;", between_unused)?;
+                }
                 writeln!(
                     out,
                     "let bytes = reader.consume(len as usize)?; XimString(bytes)"
@@ -80,7 +82,13 @@ impl FormatType {
             FormatType::List(inner, prefix, len) => {
                 write!(out, "((")?;
                 self.size(this, out)?;
-                writeln!(out, " - {}) as u{}).write(writer);", len, len * 8,)?;
+                writeln!(
+                    out,
+                    " - {} - {}) as u{}).write(writer);",
+                    len,
+                    prefix,
+                    len * 8,
+                )?;
 
                 if *prefix > 0 {
                     writeln!(out, "0u{}.write(writer);", prefix * 8)?;
@@ -99,7 +107,9 @@ impl FormatType {
                 between_unused,
             } => {
                 writeln!(out, "({}.0.len() as u{}).write(writer);", this, len * 8)?;
-                writeln!(out, "writer.write(&[0u8; {}]);", between_unused)?;
+                if *between_unused > 0 {
+                    writeln!(out, "writer.write(&[0u8; {}]);", between_unused)?;
+                }
                 writeln!(out, "writer.write({}.0);", this)?;
             }
             FormatType::Normal(_name) => write!(out, "{}.write(writer);", this)?,

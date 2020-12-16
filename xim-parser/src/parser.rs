@@ -17,8 +17,12 @@ pub fn write(req: &Request, out: &mut Vec<u8>) {
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(u8)]
 pub enum Endian {
-    Big = 0x42,
-    Little = 0x6c,
+    #[cfg(target_endian = "little")]
+    Native = 0x6c,
+    #[cfg(target_endian = "big")]
+    Native = 0x42,
+    // Big = 0x42,
+    // Little = 0x6c,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -160,10 +164,8 @@ impl<'b> XimFormat<'b> for Endian {
     fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
         let n = u8::read(reader)?;
 
-        if n == Endian::Little as u8 && cfg!(target_endian = "little") {
-            Ok(Self::Little)
-        } else if n == Endian::Big as u8 && cfg!(target_endian = "big") {
-            Ok(Self::Big)
+        if n == Endian::Native as u8 {
+            Ok(Self::Native)
         } else {
             Err(ReadError::NotNativeEndian)
         }

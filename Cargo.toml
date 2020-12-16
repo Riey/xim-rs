@@ -16,10 +16,12 @@ edition = "2018"
 [dependencies]
 xim-parser = { path = "./xim-parser" }
 thiserror = "1.0.22"
-x11rb = "0.7.0"
+x11rb = { version = "0.7.0", features = ["allow-unsafe-code"] }
+log = "0.4.11"
 
 [dev-dependencies]
 criterion = "0.3.3"
+simplelog = "0.8.0"
 
 [[bench]]
 name = "rw"

@@ -13,17 +13,22 @@ use x11rb::{
     CURRENT_TIME,
 };
 use xim_parser as parser;
+use xim_parser::Request;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ClientError {
     #[error("Connect error: {0}")]
-    ConnectError(#[from] x11rb::errors::ConnectError),
+    Connect(#[from] x11rb::errors::ConnectError),
     #[error("Reply error: {0}")]
-    ReplyError(#[from] x11rb::errors::ReplyError),
+    Reply(#[from] x11rb::errors::ReplyError),
     #[error("Connection error: {0}")]
-    ConnectionError(#[from] x11rb::errors::ConnectionError),
+    Connection(#[from] x11rb::errors::ConnectionError),
     #[error("ReplyOrId error: {0}")]
-    ReplyOrIdError(#[from] x11rb::errors::ReplyOrIdError),
+    ReplyOrId(#[from] x11rb::errors::ReplyOrIdError),
+    #[error("Can't read xim message {0}")]
+    ReadProtocol(#[from] parser::ReadError),
+    #[error("Server Transport is not supported")]
+    UnsupportedTransport,
     #[error("Invalid reply from server")]
     InvalidReply,
     #[error("Can't connect xim server")]
@@ -32,10 +37,11 @@ pub enum ClientError {
 
 pub struct Client<'x, C: Connection + ConnectionExt> {
     conn: &'x C,
-    screen: &'x Screen,
     server_atom: Atom,
     atoms: Atoms<Atom>,
+    server_owner_window: u32,
     im_window: u32,
+    transport_max: usize,
     client_window: u32,
     buf: Vec<u8>,
 }
@@ -78,22 +84,23 @@ impl<'x, C: Connection + ConnectionExt> Client<'x, C> {
 
                 if let Some(name) = name.strip_prefix("@server=") {
                     if name == im_name {
-                        // conn.convert_selection(
-                        //     window,
-                        //     server_atom,
-                        //     atoms.TRANSPORT,
-                        //     atoms.TRANSPORT,
-                        //     CURRENT_TIME,
-                        // )?;
+                        conn.convert_selection(
+                            window,
+                            server_atom,
+                            atoms.TRANSPORT,
+                            atoms.TRANSPORT,
+                            CURRENT_TIME,
+                        )?;
 
-                        // conn.flush()?;
+                        conn.flush()?;
 
                         return Ok(Self {
                             conn,
-                            screen,
                             atoms,
                             server_atom,
-                            im_window: server_owner,
+                            server_owner_window: server_owner,
+                            im_window: x11rb::NONE,
+                            transport_max: 20,
                             client_window: window,
                             buf: Vec::with_capacity(1024),
                         });
@@ -105,18 +112,69 @@ impl<'x, C: Connection + ConnectionExt> Client<'x, C> {
         }
     }
 
-    fn send_cm(&mut self, req: parser::Request) -> Result<(), ClientError> {
+    fn handle_xim_protocol(&mut self, msg: &ClientMessageEvent) -> Result<(), ClientError> {
+        if msg.format == 32 {
+            todo!("receive by property")
+        } else if msg.format == 8 {
+            let data = msg.data.as_data8();
+            let req = parser::read(&data)?;
+            log::trace!("Get XIM message {:?}", req);
+            match req {
+                Request::ConnectReply {
+                    server_major_protocol_version,
+                    server_minor_protocol_version,
+                } => {
+                    log::info!(
+                        "Connected im_win: {}, protocol: {}.{}",
+                        self.im_window,
+                        server_major_protocol_version,
+                        server_minor_protocol_version
+                    );
+                }
+
+                // server don't send those requests
+                Request::Connect { .. } => return Err(ClientError::InvalidReply),
+
+                _ => todo!("{:?}", req),
+            }
+        }
+        Ok(())
+    }
+
+    fn send_req(&mut self, req: Request) -> Result<(), ClientError> {
         parser::write(&req, &mut self.buf);
-        let buf: [u8; 20] = self.buf.as_slice().try_into().unwrap();
-        let mut data = ClientMessageData::from(buf);
+
+        if self.buf.len() < self.transport_max {
+            if self.buf.len() > 20 {
+                todo!("multi-CM");
+            }
+            self.buf.resize(20, 0);
+            let buf: [u8; 20] = self.buf.as_slice().try_into().unwrap();
+            self.conn.send_event(
+                false,
+                self.im_window,
+                0u32,
+                ClientMessageEvent {
+                    response_type: CLIENT_MESSAGE_EVENT,
+                    data: buf.into(),
+                    format: 8,
+                    sequence: 0,
+                    type_: self.atoms.XIM_PROTOCOL,
+                    window: self.im_window,
+                },
+            )?;
+        } else {
+            todo!("Property");
+        }
+        self.conn.flush()?;
         self.buf.clear();
         Ok(())
     }
 
-    pub fn connect(&mut self) -> Result<(), ClientError> {
+    fn xconnect(&mut self) -> Result<(), ClientError> {
         self.conn.send_event(
             false,
-            self.im_window,
+            self.server_owner_window,
             0u32,
             ClientMessageEvent {
                 data: ClientMessageData::from([self.client_window, 0, 0, 0, 0]),
@@ -124,7 +182,7 @@ impl<'x, C: Connection + ConnectionExt> Client<'x, C> {
                 response_type: CLIENT_MESSAGE_EVENT,
                 sequence: 0,
                 type_: self.atoms.XIM_XCONNECT,
-                window: self.client_window,
+                window: self.server_owner_window,
             },
         )?;
 
@@ -135,15 +193,29 @@ impl<'x, C: Connection + ConnectionExt> Client<'x, C> {
 
     pub fn filter_event(&mut self, e: &Event) -> Result<bool, ClientError> {
         match e {
-            Event::SelectionNotify(e) => {
+            Event::SelectionNotify(e) if e.requestor == self.client_window => {
                 if e.property == self.atoms.LOCALES {
                     // TODO: set locale
 
-                    self.connect()?;
+                    self.xconnect()?;
 
                     Ok(true)
                 } else if e.property == self.atoms.TRANSPORT {
-                    // TODO: set transport
+                    let transport = self
+                        .conn
+                        .get_property(
+                            true,
+                            self.client_window,
+                            self.atoms.TRANSPORT,
+                            self.atoms.TRANSPORT,
+                            0,
+                            100000,
+                        )?
+                        .reply()?;
+
+                    if !transport.value.starts_with(b"@transport=X/") {
+                        return Err(ClientError::UnsupportedTransport);
+                    }
 
                     self.conn.convert_selection(
                         self.client_window,
@@ -155,6 +227,32 @@ impl<'x, C: Connection + ConnectionExt> Client<'x, C> {
 
                     self.conn.flush()?;
 
+                    Ok(true)
+                } else {
+                    Ok(false)
+                }
+            }
+            Event::ClientMessage(msg) if msg.window == self.client_window => {
+                if msg.type_ == self.atoms.XIM_XCONNECT {
+                    let [im_window, major, minor, max, _] = msg.data.as_data32();
+                    log::info!(
+                        "XConnected server on {}, transport version: {}.{}, TRANSPORT_MAX: {}",
+                        im_window,
+                        major,
+                        minor,
+                        max
+                    );
+                    self.im_window = im_window;
+                    self.transport_max = max as usize;
+                    self.send_req(Request::Connect {
+                        client_major_protocol_version: 1,
+                        client_minor_protocol_version: 0,
+                        endian: parser::Endian::Native,
+                        client_auth_protocol_names: Vec::new(),
+                    })?;
+                    Ok(true)
+                } else if msg.type_ == self.atoms.XIM_PROTOCOL {
+                    self.handle_xim_protocol(msg)?;
                     Ok(true)
                 } else {
                     Ok(false)

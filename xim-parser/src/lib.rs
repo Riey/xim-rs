@@ -7,6 +7,7 @@ mod tests {
     use crate::parser::*;
     use pretty_assertions::assert_eq;
 
+    #[cfg(target_endian = "little")]
     #[test]
     fn read_connect_req() {
         let req: Request = read(b"\x01\x00\x00\x00\x6c\x00\x00\x00\x00\x00\x00\x00").unwrap();
@@ -14,7 +15,7 @@ mod tests {
         assert_eq!(
             req,
             Request::Connect {
-                endian: Endian::Little,
+                endian: Endian::Native,
                 client_auth_protocol_names: vec![],
                 client_minor_protocol_version: 0,
                 client_major_protocol_version: 0,

@@ -1,6 +1,7 @@
 use x11rb::protocol::xproto::*;
 use x11rb::{connection::Connection, COPY_DEPTH_FROM_PARENT};
-use xim::x11rb::Client;
+use xim::x11rb::{Client, ClientError};
+use xim_parser::{Request, XimString};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     simplelog::TermLogger::init(
@@ -12,32 +13,32 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let (conn, screen_num) = x11rb::connect(None).expect("Connect X");
     let screen = &conn.setup().roots[screen_num];
-    let window = conn.generate_id()?;
-    conn.create_window(
-        COPY_DEPTH_FROM_PARENT,
-        window,
-        screen.root,
-        0,
-        0,
-        400,
-        400,
-        4,
-        WindowClass::CopyFromParent,
-        screen.root_visual,
-        &Default::default(),
-    )?;
 
-    let mut client = Client::init(&conn, screen, window, None)?;
+    let mut client = Client::init(&conn, screen, None)?;
 
     log::info!("Start event loop");
 
-    loop {
+    let mut end = false;
+
+    while !end {
         let e = conn.wait_for_event()?;
 
         log::debug!("Get event: {:?}", e);
 
-        if client.filter_event(&e)? {
+        if client.filter_event(&e, |client, req| match req {
+            Request::ConnectReply {
+                server_major_protocol_version: _,
+                server_minor_protocol_version: _,
+            } => client.send_req(Request::Disconnect {}),
+            Request::DisconnectReply {} => {
+                end = true;
+                Ok(())
+            }
+            _ => Err(ClientError::InvalidReply),
+        })? {
             log::trace!("event consumed");
         }
     }
+
+    Ok(())
 }

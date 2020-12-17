@@ -32,7 +32,7 @@ mod tests {
         assert_eq!(
             req,
             Request::Open {
-                locale: XimString(b"en_US".to_vec()),
+                locale: "en_US".into(),
             }
         );
     }
@@ -47,7 +47,7 @@ mod tests {
             req,
             Request::QueryExtension {
                 input_method_id: 0,
-                extensions: vec![XimString(b"XIM_EXT_MOVE".to_vec()),],
+                extensions: vec!["XIM_EXT_MOVE".into(),],
             }
         );
     }
@@ -85,93 +85,93 @@ mod tests {
             im_attrs: vec![Attr {
                 id: 0,
                 ty: AttrType::Style,
-                name: XimString(b"queryInputStyle".to_vec()),
+                name: "queryInputStyle".into(),
             }],
             ic_attrs: vec![
                 Attr {
                     id: 1,
                     ty: AttrType::Long,
-                    name: XimString(b"inputStyle".to_vec()),
+                    name: "inputStyle".into(),
                 },
                 Attr {
                     id: 2,
                     ty: AttrType::Window,
-                    name: XimString(b"clientWindow".to_vec()),
+                    name: "clientWindow".into(),
                 },
                 Attr {
                     id: 3,
                     ty: AttrType::Window,
-                    name: XimString(b"focusWindow".to_vec()),
+                    name: "focusWindow".into(),
                 },
                 Attr {
                     id: 4,
                     ty: AttrType::Long,
-                    name: XimString(b"filterEvents".to_vec()),
+                    name: "filterEvents".into(),
                 },
                 Attr {
                     id: 5,
                     ty: AttrType::NestedList,
-                    name: XimString(b"preeditAttributes".to_vec()),
+                    name: "preeditAttributes".into(),
                 },
                 Attr {
                     id: 6,
                     ty: AttrType::NestedList,
-                    name: XimString(b"statusAttributes".to_vec()),
+                    name: "statusAttributes".into(),
                 },
                 Attr {
                     id: 7,
                     ty: AttrType::XFontSet,
-                    name: XimString(b"fontSet".to_vec()),
+                    name: "fontSet".into(),
                 },
                 Attr {
                     id: 8,
                     ty: AttrType::XRectangle,
-                    name: XimString(b"area".to_vec()),
+                    name: "area".into(),
                 },
                 Attr {
                     id: 9,
                     ty: AttrType::XRectangle,
-                    name: XimString(b"areaNeeded".to_vec()),
+                    name: "areaNeeded".into(),
                 },
                 Attr {
                     id: 10,
                     ty: AttrType::Long,
-                    name: XimString(b"colorMap".to_vec()),
+                    name: "colorMap".into(),
                 },
                 Attr {
                     id: 11,
                     ty: AttrType::Long,
-                    name: XimString(b"stdColorMap".to_vec()),
+                    name: "stdColorMap".into(),
                 },
                 Attr {
                     id: 12,
                     ty: AttrType::Long,
-                    name: XimString(b"foreground".to_vec()),
+                    name: "foreground".into(),
                 },
                 Attr {
                     id: 13,
                     ty: AttrType::Long,
-                    name: XimString(b"background".to_vec()),
+                    name: "background".into(),
                 },
                 Attr {
                     id: 14,
                     ty: AttrType::Long,
-                    name: XimString(b"backgroundPixmap".to_vec()),
+                    name: "backgroundPixmap".into(),
                 },
                 Attr {
                     id: 15,
                     ty: AttrType::XPoint,
-                    name: XimString(b"spotLocation".to_vec()),
+                    name: "spotLocation".into(),
                 },
                 Attr {
                     id: 16,
                     ty: AttrType::Long,
-                    name: XimString(b"lineSpace".to_vec()),
+                    name: "lineSpace".into(),
                 },
                 Attr {
                     id: 17,
                     ty: AttrType::Separator,
-                    name: XimString(b"separatorofNestedList".to_vec()),
+                    name: "separatorofNestedList".into(),
                 },
             ],
         }

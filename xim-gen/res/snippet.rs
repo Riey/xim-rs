@@ -32,6 +32,21 @@ pub enum StatusContent {
     Pixmap(u32),
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum CommitData {
+    Synchronous,
+    Keysym {
+        keysym: u32,
+    },
+    Chars {
+        commited: Vec<u8>,
+    },
+    Both {
+        keysym: u32,
+        commited: Vec<u8>,
+    },
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum ReadError {
     #[error("End of Stream")]
@@ -40,6 +55,8 @@ pub enum ReadError {
     InvalidData(&'static str, String),
     #[error("Not a native endian")]
     NotNativeEndian,
+    #[error("Not a utf8 string")]
+    Utf8Error(#[from] std::string::FromUtf8Error),
 }
 
 fn pad4(len: usize) -> usize {
@@ -146,52 +163,6 @@ pub trait XimFormat: Sized {
     fn size(&self) -> usize;
 }
 
-#[derive(Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
-#[repr(transparent)]
-pub struct XimString(pub Vec<u8>);
-
-impl XimString {
-    pub fn from_utf8(s: &str) -> Self {
-        Self(s.as_bytes().to_vec())
-    }
-}
-
-impl Borrow<[u8]> for XimString {
-    fn borrow(&self) -> &[u8] {
-        &self.0
-    }
-}
-
-impl From<Vec<u8>> for XimString {
-    fn from(b: Vec<u8>) -> Self {
-        Self(b)
-    }
-}
-
-impl<'b> From<&'b str> for XimString {
-    fn from(s: &'b str) -> Self {
-        Self::from_utf8(s)
-    }
-}
-
-impl<'b> From<&'b [u8]> for XimString {
-    fn from(b: &'b [u8]) -> Self {
-        Self(b.to_vec())
-    }
-}
-
-impl fmt::Display for XimString {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str(std::str::from_utf8(&self.0).unwrap_or("NOT_UTF8"))
-    }
-}
-
-impl fmt::Debug for XimString {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str(std::str::from_utf8(&self.0).unwrap_or("NOT_UTF8"))
-    }
-}
-
 impl XimFormat for Endian {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
         let n = u8::read(reader)?;
@@ -243,6 +214,72 @@ impl XimFormat for StatusContent {
         };
 
         size + 4
+    }
+}
+
+impl XimFormat for CommitData {
+    fn read(reader: &mut Reader) -> Result<Self, ReadError> {
+        let ty = reader.u16()?;
+
+        match ty {
+            1 => {
+                Ok(Self::Synchronous)
+            }
+            2 => {
+                reader.consume(2)?;
+                let keysym = reader.u32()?;
+                Ok(Self::Keysym { keysym })
+            }
+            4 => {
+                let len = reader.u16()?;
+                let bytes = reader.consume(len as usize)?;
+                reader.pad4()?;
+                Ok(Self::Chars { commited: bytes.to_vec() })
+            }
+            6 => {
+                reader.consume(2)?;
+                let keysym = reader.u32()?;
+                let len = reader.u16()?;
+                let bytes = reader.consume(len as usize)?;
+                reader.pad4()?;
+                Ok(Self::Both { keysym, commited: bytes.to_vec() })
+            }
+            _ => Err(reader.invalid_data("CommitDataType", ty)),
+        }
+    }
+
+    fn write(&self, writer: &mut Writer) {
+        match self {
+            Self::Synchronous => 1u16.write(writer),
+            Self::Keysym { keysym } => {
+                2u16.write(writer);
+                0u16.write(writer);
+                keysym.write(writer);
+            }
+            Self::Chars { commited } => {
+                4u16.write(writer);
+                (commited.len() as u16).write(writer);
+                writer.write(&commited);
+                writer.write_pad4();
+            }
+            Self::Both { keysym, commited } => {
+                6u16.write(writer);
+                0u16.write(writer);
+                keysym.write(writer);
+                (commited.len() as u16).write(writer);
+                writer.write(&commited);
+                writer.write_pad4();
+            }
+        }
+    }
+
+    fn size(&self) -> usize {
+        match self {
+            Self::Synchronous => 2,
+            Self::Keysym { .. } => 6,
+            Self::Chars { commited } => with_pad4(commited.len() + 2),
+            Self::Both { commited, .. } => with_pad4(commited.len() + 2) + 6,
+        }
     }
 }
 

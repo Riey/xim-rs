@@ -53,7 +53,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 } => {
                     client.set_attrs(im_attrs, ic_attrs);
                     client.send_req(Request::EncodingNegotiation {
-                        encodings: vec![b"UTF8_STRING\0".to_vec().into(), b"COMPOUND_TEXT\0".to_vec().into()],
+                        encodings: vec!["COMPOUND_TEXT".into()],
                         encoding_infos: vec![],
                         input_method_id,
                     })
@@ -76,7 +76,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         input_context_id
                     );
                     let ic_attributes = client
-                        .get_ic_attr(b"preeditAttributes")
+                        .get_ic_attr("preeditAttributes")
                         .into_iter()
                         .collect();
                     client.send_req(Request::GetIcValues {

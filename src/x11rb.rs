@@ -15,7 +15,7 @@ use x11rb::{
     COPY_DEPTH_FROM_PARENT, CURRENT_TIME,
 };
 use xim_parser as parser;
-use xim_parser::{Request, XimString};
+use xim_parser::Request;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ClientError {
@@ -48,8 +48,8 @@ pub struct Client<'x, C: Connection + ConnectionExt> {
     atoms: Atoms<Atom>,
     transport_max: usize,
     client_window: u32,
-    im_attributes: HashMap<XimString, u16>,
-    ic_attributes: HashMap<XimString, u16>,
+    im_attributes: HashMap<String, u16>,
+    ic_attributes: HashMap<String, u16>,
     forward_event_mask: u32,
     synchronous_event_mask: u32,
     buf: Vec<u8>,
@@ -159,11 +159,11 @@ impl<'x, C: Connection + ConnectionExt> Client<'x, C> {
         }
     }
 
-    pub fn get_im_attr(&self, name: &[u8]) -> Option<u16> {
+    pub fn get_im_attr(&self, name: &str) -> Option<u16> {
         self.im_attributes.get(name).copied()
     }
 
-    pub fn get_ic_attr(&self, name: &[u8]) -> Option<u16> {
+    pub fn get_ic_attr(&self, name: &str) -> Option<u16> {
         self.ic_attributes.get(name).copied()
     }
 

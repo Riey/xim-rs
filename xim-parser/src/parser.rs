@@ -32,6 +32,14 @@ pub enum StatusContent {
     Pixmap(u32),
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum CommitData {
+    Synchronous,
+    Keysym { keysym: u32 },
+    Chars { commited: Vec<u8> },
+    Both { keysym: u32, commited: Vec<u8> },
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum ReadError {
     #[error("End of Stream")]
@@ -40,6 +48,8 @@ pub enum ReadError {
     InvalidData(&'static str, String),
     #[error("Not a native endian")]
     NotNativeEndian,
+    #[error("Not a utf8 string")]
+    Utf8Error(#[from] std::string::FromUtf8Error),
 }
 
 fn pad4(len: usize) -> usize {
@@ -146,52 +156,6 @@ pub trait XimFormat: Sized {
     fn size(&self) -> usize;
 }
 
-#[derive(Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
-#[repr(transparent)]
-pub struct XimString(pub Vec<u8>);
-
-impl XimString {
-    pub fn from_utf8(s: &str) -> Self {
-        Self(s.as_bytes().to_vec())
-    }
-}
-
-impl Borrow<[u8]> for XimString {
-    fn borrow(&self) -> &[u8] {
-        &self.0
-    }
-}
-
-impl From<Vec<u8>> for XimString {
-    fn from(b: Vec<u8>) -> Self {
-        Self(b)
-    }
-}
-
-impl<'b> From<&'b str> for XimString {
-    fn from(s: &'b str) -> Self {
-        Self::from_utf8(s)
-    }
-}
-
-impl<'b> From<&'b [u8]> for XimString {
-    fn from(b: &'b [u8]) -> Self {
-        Self(b.to_vec())
-    }
-}
-
-impl fmt::Display for XimString {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str(std::str::from_utf8(&self.0).unwrap_or("NOT_UTF8"))
-    }
-}
-
-impl fmt::Debug for XimString {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str(std::str::from_utf8(&self.0).unwrap_or("NOT_UTF8"))
-    }
-}
-
 impl XimFormat for Endian {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
         let n = u8::read(reader)?;
@@ -243,6 +207,75 @@ impl XimFormat for StatusContent {
         };
 
         size + 4
+    }
+}
+
+impl XimFormat for CommitData {
+    fn read(reader: &mut Reader) -> Result<Self, ReadError> {
+        let ty = reader.u16()?;
+
+        match ty {
+            1 => Ok(Self::Synchronous),
+            2 => {
+                reader.consume(2)?;
+                let keysym = reader.u32()?;
+                Ok(Self::Keysym { keysym })
+            }
+            4 => {
+                let len = reader.u16()?;
+                let bytes = reader.consume(len as usize)?;
+                reader.pad4()?;
+                Ok(Self::Chars {
+                    commited: bytes.to_vec(),
+                })
+            }
+            6 => {
+                reader.consume(2)?;
+                let keysym = reader.u32()?;
+                let len = reader.u16()?;
+                let bytes = reader.consume(len as usize)?;
+                reader.pad4()?;
+                Ok(Self::Both {
+                    keysym,
+                    commited: bytes.to_vec(),
+                })
+            }
+            _ => Err(reader.invalid_data("CommitDataType", ty)),
+        }
+    }
+
+    fn write(&self, writer: &mut Writer) {
+        match self {
+            Self::Synchronous => 1u16.write(writer),
+            Self::Keysym { keysym } => {
+                2u16.write(writer);
+                0u16.write(writer);
+                keysym.write(writer);
+            }
+            Self::Chars { commited } => {
+                4u16.write(writer);
+                (commited.len() as u16).write(writer);
+                writer.write(&commited);
+                writer.write_pad4();
+            }
+            Self::Both { keysym, commited } => {
+                6u16.write(writer);
+                0u16.write(writer);
+                keysym.write(writer);
+                (commited.len() as u16).write(writer);
+                writer.write(&commited);
+                writer.write_pad4();
+            }
+        }
+    }
+
+    fn size(&self) -> usize {
+        match self {
+            Self::Synchronous => 2,
+            Self::Keysym { .. } => 6,
+            Self::Chars { commited } => with_pad4(commited.len() + 2),
+            Self::Both { commited, .. } => with_pad4(commited.len() + 2) + 6,
+        }
     }
 }
 
@@ -413,26 +446,6 @@ impl XimFormat for CaretStyle {
     }
     fn size(&self) -> usize {
         std::mem::size_of::<u32>()
-    }
-}
-bitflags::bitflags! {
-pub struct CommitFlag: u16 {
-const SYNCHRONOUS = 1;
-const LOOKUPCHARS = 2;
-const LOOKUPKEYSYM = 4;
-const LOOPUPBOTH = 6;
-}
-}
-impl XimFormat for CommitFlag {
-    fn read(reader: &mut Reader) -> Result<Self, ReadError> {
-        let repr = u16::read(reader)?;
-        Self::from_bits(repr).ok_or(reader.invalid_data("CommitFlag", repr))
-    }
-    fn write(&self, writer: &mut Writer) {
-        self.bits().write(writer);
-    }
-    fn size(&self) -> usize {
-        std::mem::size_of::<u16>()
     }
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -623,7 +636,7 @@ impl XimFormat for TriggerNotifyFlag {
 pub struct Attr {
     pub id: u16,
     pub ty: AttrType,
-    pub name: XimString,
+    pub name: String,
 }
 impl XimFormat for Attr {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
@@ -633,12 +646,7 @@ impl XimFormat for Attr {
             name: {
                 let inner = {
                     let len = u16::read(reader)?;
-                    let mut bytes = reader.consume(len as usize)?;
-                    match bytes.split_last() {
-                        Some((b, left)) if *b == 0 => bytes = left,
-                        _ => {}
-                    }
-                    XimString(bytes.to_vec())
+                    String::from_utf8(reader.consume(len as usize)?.to_vec())?
                 };
                 reader.pad4()?;
                 inner
@@ -648,22 +656,22 @@ impl XimFormat for Attr {
     fn write(&self, writer: &mut Writer) {
         self.id.write(writer);
         self.ty.write(writer);
-        (self.name.0.len() as u16).write(writer);
-        writer.write(&self.name.0);
+        (self.name.len() as u16).write(writer);
+        writer.write(self.name.as_bytes());
         writer.write_pad4();
     }
     fn size(&self) -> usize {
         let mut content_size = 0;
         content_size += self.id.size();
         content_size += self.ty.size();
-        content_size += with_pad4(self.name.0.len() + 2 + 0);
+        content_size += with_pad4(self.name.len() + 2 + 0);
         content_size
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Attribute {
     pub id: u16,
-    pub value: XimString,
+    pub value: String,
 }
 impl XimFormat for Attribute {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
@@ -672,12 +680,7 @@ impl XimFormat for Attribute {
             value: {
                 let inner = {
                     let len = u16::read(reader)?;
-                    let mut bytes = reader.consume(len as usize)?;
-                    match bytes.split_last() {
-                        Some((b, left)) if *b == 0 => bytes = left,
-                        _ => {}
-                    }
-                    XimString(bytes.to_vec())
+                    String::from_utf8(reader.consume(len as usize)?.to_vec())?
                 };
                 reader.pad4()?;
                 inner
@@ -686,14 +689,14 @@ impl XimFormat for Attribute {
     }
     fn write(&self, writer: &mut Writer) {
         self.id.write(writer);
-        (self.value.0.len() as u16).write(writer);
-        writer.write(&self.value.0);
+        (self.value.len() as u16).write(writer);
+        writer.write(self.value.as_bytes());
         writer.write_pad4();
     }
     fn size(&self) -> usize {
         let mut content_size = 0;
         content_size += self.id.size();
-        content_size += with_pad4(self.value.0.len() + 2 + 0);
+        content_size += with_pad4(self.value.len() + 2 + 0);
         content_size
     }
 }
@@ -701,7 +704,7 @@ impl XimFormat for Attribute {
 pub struct Extension {
     pub major_opcode: u8,
     pub minor_opcode: u8,
-    pub name: XimString,
+    pub name: String,
 }
 impl XimFormat for Extension {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
@@ -711,12 +714,7 @@ impl XimFormat for Extension {
             name: {
                 let inner = {
                     let len = u16::read(reader)?;
-                    let mut bytes = reader.consume(len as usize)?;
-                    match bytes.split_last() {
-                        Some((b, left)) if *b == 0 => bytes = left,
-                        _ => {}
-                    }
-                    XimString(bytes.to_vec())
+                    String::from_utf8(reader.consume(len as usize)?.to_vec())?
                 };
                 reader.pad4()?;
                 inner
@@ -726,22 +724,22 @@ impl XimFormat for Extension {
     fn write(&self, writer: &mut Writer) {
         self.major_opcode.write(writer);
         self.minor_opcode.write(writer);
-        (self.name.0.len() as u16).write(writer);
-        writer.write(&self.name.0);
+        (self.name.len() as u16).write(writer);
+        writer.write(self.name.as_bytes());
         writer.write_pad4();
     }
     fn size(&self) -> usize {
         let mut content_size = 0;
         content_size += self.major_opcode.size();
         content_size += self.minor_opcode.size();
-        content_size += with_pad4(self.name.0.len() + 2 + 0);
+        content_size += with_pad4(self.name.len() + 2 + 0);
         content_size
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct StatusTextContent {
     pub status: PreeditDrawStatus,
-    pub status_string: XimString,
+    pub status_string: String,
     pub feedbacks: Vec<Feedback>,
 }
 impl XimFormat for StatusTextContent {
@@ -751,12 +749,7 @@ impl XimFormat for StatusTextContent {
             status_string: {
                 let inner = {
                     let len = u16::read(reader)?;
-                    let mut bytes = reader.consume(len as usize)?;
-                    match bytes.split_last() {
-                        Some((b, left)) if *b == 0 => bytes = left,
-                        _ => {}
-                    }
-                    XimString(bytes.to_vec())
+                    String::from_utf8(reader.consume(len as usize)?.to_vec())?
                 };
                 reader.pad4()?;
                 inner
@@ -775,8 +768,8 @@ impl XimFormat for StatusTextContent {
     }
     fn write(&self, writer: &mut Writer) {
         self.status.write(writer);
-        (self.status_string.0.len() as u16).write(writer);
-        writer.write(&self.status_string.0);
+        (self.status_string.len() as u16).write(writer);
+        writer.write(self.status_string.as_bytes());
         writer.write_pad4();
         ((self.feedbacks.iter().map(|e| e.size()).sum::<usize>() + 2 + 2 - 2 - 2) as u16)
             .write(writer);
@@ -788,7 +781,7 @@ impl XimFormat for StatusTextContent {
     fn size(&self) -> usize {
         let mut content_size = 0;
         content_size += self.status.size();
-        content_size += with_pad4(self.status_string.0.len() + 2 + 0);
+        content_size += with_pad4(self.status_string.len() + 2 + 0);
         content_size += self.feedbacks.iter().map(|e| e.size()).sum::<usize>() + 2 + 2;
         content_size
     }
@@ -836,13 +829,13 @@ pub enum Request {
     Commit {
         input_method_id: u16,
         input_context_id: u16,
-        flag: CommitFlag,
+        data: CommitData,
     },
     Connect {
         endian: Endian,
         client_major_protocol_version: u16,
         client_minor_protocol_version: u16,
-        client_auth_protocol_names: Vec<XimString>,
+        client_auth_protocol_names: Vec<String>,
     },
     ConnectReply {
         server_major_protocol_version: u16,
@@ -868,8 +861,8 @@ pub enum Request {
     DisconnectReply {},
     EncodingNegotiation {
         input_method_id: u16,
-        encodings: Vec<XimString>,
-        encoding_infos: Vec<XimString>,
+        encodings: Vec<String>,
+        encoding_infos: Vec<String>,
     },
     EncodingNegotiationReply {
         input_method_id: u16,
@@ -880,7 +873,7 @@ pub enum Request {
         input_method_id: u16,
         input_context_id: u16,
         flag: ErrorFlag,
-        detail: XimString,
+        detail: String,
     },
     ForwardEvent {
         input_method_id: u16,
@@ -911,7 +904,7 @@ pub enum Request {
         im_attributes: Vec<Attribute>,
     },
     Open {
-        locale: XimString,
+        locale: String,
     },
     OpenReply {
         input_method_id: u16,
@@ -941,7 +934,7 @@ pub enum Request {
         chg_first: i32,
         chg_length: i32,
         status: PreeditDrawStatus,
-        preedit_string: XimString,
+        preedit_string: Vec<u8>,
         feedbacks: Vec<Feedback>,
     },
     PreeditStart {
@@ -960,7 +953,7 @@ pub enum Request {
     },
     QueryExtension {
         input_method_id: u16,
-        extensions: Vec<XimString>,
+        extensions: Vec<String>,
     },
     QueryExtensionReply {
         input_method_id: u16,
@@ -978,7 +971,7 @@ pub enum Request {
     ResetIcReply {
         input_method_id: u16,
         input_context_id: u16,
-        preedit_string: XimString,
+        preedit_string: Vec<u8>,
     },
     SetEventMask {
         input_method_id: u16,
@@ -1073,7 +1066,7 @@ impl XimFormat for Request {
             (63, _) => Ok(Request::Commit {
                 input_method_id: u16::read(reader)?,
                 input_context_id: u16::read(reader)?,
-                flag: CommitFlag::read(reader)?,
+                data: CommitData::read(reader)?,
             }),
             (1, _) => Ok(Request::Connect {
                 endian: {
@@ -1091,12 +1084,7 @@ impl XimFormat for Request {
                         out.push({
                             let inner = {
                                 let len = u16::read(reader)?;
-                                let mut bytes = reader.consume(len as usize)?;
-                                match bytes.split_last() {
-                                    Some((b, left)) if *b == 0 => bytes = left,
-                                    _ => {}
-                                }
-                                XimString(bytes.to_vec())
+                                String::from_utf8(reader.consume(len as usize)?.to_vec())?
                             };
                             reader.pad4()?;
                             inner
@@ -1149,12 +1137,7 @@ impl XimFormat for Request {
                         while reader.cursor() > end {
                             out.push({
                                 let len = u8::read(reader)?;
-                                let mut bytes = reader.consume(len as usize)?;
-                                match bytes.split_last() {
-                                    Some((b, left)) if *b == 0 => bytes = left,
-                                    _ => {}
-                                }
-                                XimString(bytes.to_vec())
+                                String::from_utf8(reader.consume(len as usize)?.to_vec())?
                             });
                         }
                         out
@@ -1171,12 +1154,7 @@ impl XimFormat for Request {
                         out.push({
                             let inner = {
                                 let len = u16::read(reader)?;
-                                let mut bytes = reader.consume(len as usize)?;
-                                match bytes.split_last() {
-                                    Some((b, left)) if *b == 0 => bytes = left,
-                                    _ => {}
-                                }
-                                XimString(bytes.to_vec())
+                                String::from_utf8(reader.consume(len as usize)?.to_vec())?
                             };
                             reader.pad4()?;
                             inner
@@ -1202,12 +1180,7 @@ impl XimFormat for Request {
                     let inner = {
                         let len = u16::read(reader)?;
                         reader.consume(2)?;
-                        let mut bytes = reader.consume(len as usize)?;
-                        match bytes.split_last() {
-                            Some((b, left)) if *b == 0 => bytes = left,
-                            _ => {}
-                        }
-                        XimString(bytes.to_vec())
+                        String::from_utf8(reader.consume(len as usize)?.to_vec())?
                     };
                     reader.pad4()?;
                     inner
@@ -1286,12 +1259,7 @@ impl XimFormat for Request {
                 locale: {
                     let inner = {
                         let len = u8::read(reader)?;
-                        let mut bytes = reader.consume(len as usize)?;
-                        match bytes.split_last() {
-                            Some((b, left)) if *b == 0 => bytes = left,
-                            _ => {}
-                        }
-                        XimString(bytes.to_vec())
+                        String::from_utf8(reader.consume(len as usize)?.to_vec())?
                     };
                     reader.pad4()?;
                     inner
@@ -1345,12 +1313,7 @@ impl XimFormat for Request {
                 preedit_string: {
                     let inner = {
                         let len = u16::read(reader)?;
-                        let mut bytes = reader.consume(len as usize)?;
-                        match bytes.split_last() {
-                            Some((b, left)) if *b == 0 => bytes = left,
-                            _ => {}
-                        }
-                        XimString(bytes.to_vec())
+                        reader.consume(len as usize)?.to_vec()
                     };
                     reader.pad4()?;
                     inner
@@ -1390,12 +1353,7 @@ impl XimFormat for Request {
                         while reader.cursor() > end {
                             out.push({
                                 let len = u8::read(reader)?;
-                                let mut bytes = reader.consume(len as usize)?;
-                                match bytes.split_last() {
-                                    Some((b, left)) if *b == 0 => bytes = left,
-                                    _ => {}
-                                }
-                                XimString(bytes.to_vec())
+                                String::from_utf8(reader.consume(len as usize)?.to_vec())?
                             });
                         }
                         out
@@ -1451,12 +1409,7 @@ impl XimFormat for Request {
                 preedit_string: {
                     let inner = {
                         let len = u16::read(reader)?;
-                        let mut bytes = reader.consume(len as usize)?;
-                        match bytes.split_last() {
-                            Some((b, left)) if *b == 0 => bytes = left,
-                            _ => {}
-                        }
-                        XimString(bytes.to_vec())
+                        reader.consume(len as usize)?.to_vec()
                     };
                     reader.pad4()?;
                     inner
@@ -1596,14 +1549,14 @@ impl XimFormat for Request {
             Request::Commit {
                 input_method_id,
                 input_context_id,
-                flag,
+                data,
             } => {
                 63u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
                 input_method_id.write(writer);
                 input_context_id.write(writer);
-                flag.write(writer);
+                data.write(writer);
             }
             Request::Connect {
                 endian,
@@ -1620,7 +1573,7 @@ impl XimFormat for Request {
                 client_minor_protocol_version.write(writer);
                 ((client_auth_protocol_names
                     .iter()
-                    .map(|e| with_pad4(e.0.len() + 2 + 0))
+                    .map(|e| with_pad4(e.len() + 2 + 0))
                     .sum::<usize>()
                     + 0
                     + 2
@@ -1628,8 +1581,8 @@ impl XimFormat for Request {
                     - 0) as u16)
                     .write(writer);
                 for elem in client_auth_protocol_names.iter() {
-                    (elem.0.len() as u16).write(writer);
-                    writer.write(&elem.0);
+                    (elem.len() as u16).write(writer);
+                    writer.write(elem.as_bytes());
                     writer.write_pad4();
                 }
             }
@@ -1707,17 +1660,16 @@ impl XimFormat for Request {
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
                 input_method_id.write(writer);
-                ((encodings.iter().map(|e| e.0.len() + 1 + 0).sum::<usize>() + 0 + 2 - 2 - 0)
-                    as u16)
+                ((encodings.iter().map(|e| e.len() + 1 + 0).sum::<usize>() + 0 + 2 - 2 - 0) as u16)
                     .write(writer);
                 for elem in encodings.iter() {
-                    (elem.0.len() as u8).write(writer);
-                    writer.write(&elem.0);
+                    (elem.len() as u8).write(writer);
+                    writer.write(elem.as_bytes());
                 }
                 writer.write_pad4();
                 ((encoding_infos
                     .iter()
-                    .map(|e| with_pad4(e.0.len() + 2 + 0))
+                    .map(|e| with_pad4(e.len() + 2 + 0))
                     .sum::<usize>()
                     + 2
                     + 2
@@ -1726,8 +1678,8 @@ impl XimFormat for Request {
                     .write(writer);
                 0u16.write(writer);
                 for elem in encoding_infos.iter() {
-                    (elem.0.len() as u16).write(writer);
-                    writer.write(&elem.0);
+                    (elem.len() as u16).write(writer);
+                    writer.write(elem.as_bytes());
                     writer.write_pad4();
                 }
             }
@@ -1756,9 +1708,9 @@ impl XimFormat for Request {
                 input_method_id.write(writer);
                 input_context_id.write(writer);
                 flag.write(writer);
-                (detail.0.len() as u16).write(writer);
+                (detail.len() as u16).write(writer);
                 writer.write(&[0u8; 2]);
-                writer.write(&detail.0);
+                writer.write(detail.as_bytes());
                 writer.write_pad4();
             }
             Request::ForwardEvent {
@@ -1852,8 +1804,8 @@ impl XimFormat for Request {
                 30u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
-                (locale.0.len() as u8).write(writer);
-                writer.write(&locale.0);
+                (locale.len() as u8).write(writer);
+                writer.write(locale.as_bytes());
                 writer.write_pad4();
             }
             Request::OpenReply {
@@ -1934,8 +1886,8 @@ impl XimFormat for Request {
                 chg_first.write(writer);
                 chg_length.write(writer);
                 status.write(writer);
-                (preedit_string.0.len() as u16).write(writer);
-                writer.write(&preedit_string.0);
+                (preedit_string.len() as u16).write(writer);
+                writer.write(&preedit_string);
                 writer.write_pad4();
                 ((feedbacks.iter().map(|e| e.size()).sum::<usize>() + 2 + 2 - 2 - 2) as u16)
                     .write(writer);
@@ -1986,12 +1938,12 @@ impl XimFormat for Request {
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
                 input_method_id.write(writer);
-                ((extensions.iter().map(|e| e.0.len() + 1 + 0).sum::<usize>() + 0 + 2 - 2 - 0)
+                ((extensions.iter().map(|e| e.len() + 1 + 0).sum::<usize>() + 0 + 2 - 2 - 0)
                     as u16)
                     .write(writer);
                 for elem in extensions.iter() {
-                    (elem.0.len() as u8).write(writer);
-                    writer.write(&elem.0);
+                    (elem.len() as u8).write(writer);
+                    writer.write(elem.as_bytes());
                 }
                 writer.write_pad4();
             }
@@ -2050,8 +2002,8 @@ impl XimFormat for Request {
                 (((self.size() - 4) / 4) as u16).write(writer);
                 input_method_id.write(writer);
                 input_context_id.write(writer);
-                (preedit_string.0.len() as u16).write(writer);
-                writer.write(&preedit_string.0);
+                (preedit_string.len() as u16).write(writer);
+                writer.write(&preedit_string);
                 writer.write_pad4();
             }
             Request::SetEventMask {
@@ -2243,11 +2195,11 @@ impl XimFormat for Request {
             Request::Commit {
                 input_method_id,
                 input_context_id,
-                flag,
+                data,
             } => {
                 content_size += input_method_id.size();
                 content_size += input_context_id.size();
-                content_size += flag.size();
+                content_size += data.size();
             }
             Request::Connect {
                 endian,
@@ -2260,7 +2212,7 @@ impl XimFormat for Request {
                 content_size += client_minor_protocol_version.size();
                 content_size += client_auth_protocol_names
                     .iter()
-                    .map(|e| with_pad4(e.0.len() + 2 + 0))
+                    .map(|e| with_pad4(e.len() + 2 + 0))
                     .sum::<usize>()
                     + 0
                     + 2;
@@ -2310,10 +2262,10 @@ impl XimFormat for Request {
             } => {
                 content_size += input_method_id.size();
                 content_size +=
-                    with_pad4(encodings.iter().map(|e| e.0.len() + 1 + 0).sum::<usize>() + 0 + 2);
+                    with_pad4(encodings.iter().map(|e| e.len() + 1 + 0).sum::<usize>() + 0 + 2);
                 content_size += encoding_infos
                     .iter()
-                    .map(|e| with_pad4(e.0.len() + 2 + 0))
+                    .map(|e| with_pad4(e.len() + 2 + 0))
                     .sum::<usize>()
                     + 2
                     + 2;
@@ -2336,7 +2288,7 @@ impl XimFormat for Request {
                 content_size += input_method_id.size();
                 content_size += input_context_id.size();
                 content_size += flag.size();
-                content_size += with_pad4(detail.0.len() + 2 + 2);
+                content_size += with_pad4(detail.len() + 2 + 2);
             }
             Request::ForwardEvent {
                 input_method_id,
@@ -2391,7 +2343,7 @@ impl XimFormat for Request {
                 content_size += im_attributes.iter().map(|e| e.size()).sum::<usize>() + 0 + 2;
             }
             Request::Open { locale } => {
-                content_size += with_pad4(locale.0.len() + 1 + 0);
+                content_size += with_pad4(locale.len() + 1 + 0);
             }
             Request::OpenReply {
                 input_method_id,
@@ -2447,7 +2399,7 @@ impl XimFormat for Request {
                 content_size += chg_first.size();
                 content_size += chg_length.size();
                 content_size += status.size();
-                content_size += with_pad4(preedit_string.0.len() + 2 + 0);
+                content_size += with_pad4(preedit_string.len() + 2);
                 content_size += feedbacks.iter().map(|e| e.size()).sum::<usize>() + 2 + 2;
             }
             Request::PreeditStart {
@@ -2481,7 +2433,7 @@ impl XimFormat for Request {
             } => {
                 content_size += input_method_id.size();
                 content_size +=
-                    with_pad4(extensions.iter().map(|e| e.0.len() + 1 + 0).sum::<usize>() + 0 + 2);
+                    with_pad4(extensions.iter().map(|e| e.len() + 1 + 0).sum::<usize>() + 0 + 2);
             }
             Request::QueryExtensionReply {
                 input_method_id,
@@ -2513,7 +2465,7 @@ impl XimFormat for Request {
             } => {
                 content_size += input_method_id.size();
                 content_size += input_context_id.size();
-                content_size += with_pad4(preedit_string.0.len() + 2 + 0);
+                content_size += with_pad4(preedit_string.len() + 2);
             }
             Request::SetEventMask {
                 input_method_id,

@@ -1,13 +1,4 @@
 Enums:
-  CommitFlag:
-    repr: u16
-    bitflag: true
-    variants:
-      Synchronous: 1
-      LookupChars: 2
-      LookupKeySym: 4
-      LoopupBoth: 6
-
   ErrorFlag:
     repr: u16
     bitflag: true
@@ -423,7 +414,7 @@ Requests:
     body:
       - "input_method_id u16"
       - "input_context_id u16"
-      - "flag CommitFlag"
+      - "data CommitData"
 
   ResetIc:
     major_opcode: 64
@@ -438,7 +429,7 @@ Requests:
     body:
       - "input_method_id u16"
       - "input_context_id u16"
-      - "preedit_string @pad string"
+      - "preedit_string @pad xstring"
 
   Geometry:
     major_opcode: 70
@@ -486,7 +477,7 @@ Requests:
       - "chg_first i32"
       - "chg_length i32"
       - "status PreeditDrawStatus"
-      - "preedit_string @pad string"
+      - "preedit_string @pad xstring"
       - "feedbacks @list22 Feedback"
 
   PreeditCaret:

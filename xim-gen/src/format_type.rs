@@ -15,6 +15,7 @@ pub enum FormatType {
     Pad(Box<Self>),
     List(Box<Self>, usize, usize),
     String { between_unused: usize, len: usize },
+    XString,
     Normal(String),
 }
 
@@ -43,6 +44,12 @@ impl FormatType {
                 write!(out, "}}")?;
                 write!(out, "out }}")?;
             }
+            FormatType::XString => {
+                writeln!(
+                    out,
+                    "{{ let len = u16::read(reader)?; reader.consume(len as usize)?.to_vec() }}"
+                )?;
+            }
             FormatType::String {
                 len,
                 between_unused,
@@ -53,12 +60,7 @@ impl FormatType {
                 }
                 writeln!(
                     out,
-                    "let mut bytes = reader.consume(len as usize)?;
-                    match bytes.split_last() {{
-                        Some((b, left)) if *b == 0 => bytes = left,
-                        _ => {{}}
-                    }}
-                    XimString(bytes.to_vec())"
+                    "String::from_utf8(reader.consume(len as usize)?.to_vec())?"
                 )?;
                 writeln!(out, "}}")?
             }
@@ -97,15 +99,19 @@ impl FormatType {
                 inner.write(this, out)?;
                 writeln!(out, "writer.write_pad4();")?;
             }
+            FormatType::XString => {
+                writeln!(out, "({}.len() as u16).write(writer);", this)?;
+                writeln!(out, "writer.write(&{});", this)?
+            }
             FormatType::String {
                 len,
                 between_unused,
             } => {
-                writeln!(out, "({}.0.len() as u{}).write(writer);", this, len * 8)?;
+                writeln!(out, "({}.len() as u{}).write(writer);", this, len * 8)?;
                 if *between_unused > 0 {
                     writeln!(out, "writer.write(&[0u8; {}]);", between_unused)?;
                 }
-                writeln!(out, "writer.write(&{}.0);", this)?;
+                writeln!(out, "writer.write({}.as_bytes());", this)?;
             }
             FormatType::Normal(_name) => write!(out, "{}.write(writer);", this)?,
         }
@@ -119,11 +125,12 @@ impl FormatType {
                 inner.size(this, out)?;
                 write!(out, "+ {}", size)
             }
+            FormatType::XString => write!(out, "{}.len() + 2", this),
             FormatType::String {
                 len,
                 between_unused,
             } => {
-                write!(out, "{}.0.len() + {} + {}", this, len, between_unused)
+                write!(out, "{}.len() + {} + {}", this, len, between_unused)
             }
             FormatType::List(inner, prefix, len) => {
                 write!(out, "{}.iter().map(|e| ", this)?;
@@ -146,7 +153,8 @@ impl fmt::Display for FormatType {
             FormatType::Append(inner, _len) => inner.fmt(f),
             FormatType::Pad(inner) => inner.fmt(f),
             FormatType::List(inner, _prefix, _len) => write!(f, "Vec<{}>", inner),
-            FormatType::String { .. } => f.write_str("XimString"),
+            FormatType::XString => f.write_str("Vec<u8>"),
+            FormatType::String { .. } => f.write_str("String"),
             FormatType::Normal(name) => f.write_str(name),
         }
     }
@@ -197,6 +205,8 @@ impl std::str::FromStr for FormatType {
                 Box::new(left.parse()?),
                 n.parse().or_else(|_| Err("@append need number!"))?,
             ))
+        } else if s.starts_with("xstring") {
+            Ok(Self::XString)
         } else if s.starts_with("err_string") {
             Ok(Self::String {
                 len: 2,

@@ -25,24 +25,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         log::debug!("Get event: {:?}", e);
 
-        if client.filter_event(&e, |client, req| match req {
-            Request::ConnectReply {
-                server_major_protocol_version: _,
-                server_minor_protocol_version: _,
-            } => client.send_req(Request::Open {
-                locale: XimString(b"kr"),
-            }),
-            Request::OpenReply {
-                input_method_id,
-                im_attrs: _,
-                ic_attrs: _,
-            } => client.send_req(Request::Close { input_method_id }),
-            Request::CloseReply { input_method_id: _ } => client.send_req(Request::Disconnect {}),
-            Request::DisconnectReply {} => {
-                end = true;
-                Ok(())
+        if client.filter_event(&e, |client, req| {
+            log::trace!("Recv req: {:?}", req);
+
+            match req {
+                Request::ConnectReply {
+                    server_major_protocol_version: _,
+                    server_minor_protocol_version: _,
+                } => client.send_req(Request::Open {
+                    locale: XimString(b"kr"),
+                }),
+                Request::OpenReply {
+                    input_method_id,
+                    im_attrs: _,
+                    ic_attrs: _,
+                } => client.send_req(Request::Close { input_method_id }),
+                Request::SetEventMask {
+                    input_method_id: _,
+                    input_context_id: _,
+                    forward_event_mask: _,
+                    synchronous_event_mask: _,
+                } => Ok(()),
+                Request::CloseReply { input_method_id: _ } => {
+                    client.send_req(Request::Disconnect {})
+                }
+                Request::DisconnectReply {} => {
+                    end = true;
+                    Ok(())
+                }
+                _ => Err(ClientError::InvalidReply),
             }
-            _ => Err(ClientError::InvalidReply),
         })? {
             log::trace!("event consumed");
         }

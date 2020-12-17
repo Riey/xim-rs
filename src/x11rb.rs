@@ -6,7 +6,7 @@ use x11rb::{
     connection::Connection,
     protocol::{
         xproto::{
-            Atom, AtomEnum, ClientMessageData, ClientMessageEvent, ConnectionExt, Screen,
+            Atom, AtomEnum, ClientMessageData, ClientMessageEvent, ConnectionExt, PropMode, Screen,
             SelectionRequestEvent, WindowClass, CLIENT_MESSAGE_EVENT, SELECTION_REQUEST_EVENT,
         },
         Event,
@@ -230,7 +230,28 @@ impl<'x, C: Connection + ConnectionExt> Client<'x, C> {
                 },
             )?;
         } else {
-            todo!("Property");
+            self.conn.change_property(
+                PropMode::Replace,
+                self.client_window,
+                self.atoms.DATA,
+                AtomEnum::Any,
+                8,
+                self.buf.len() as u32,
+                &self.buf,
+            )?;
+            self.conn.send_event(
+                false,
+                self.im_window,
+                0u32,
+                ClientMessageEvent {
+                    data: [self.buf.len() as u32, self.atoms.DATA, 0, 0, 0].into(),
+                    format: 32,
+                    sequence: 0,
+                    response_type: CLIENT_MESSAGE_EVENT,
+                    type_: self.atoms.XIM_PROTOCOL,
+                    window: self.im_window,
+                },
+            )?;
         }
         self.conn.flush()?;
         self.buf.clear();
@@ -243,11 +264,17 @@ impl<'x, C: Connection + ConnectionExt> Client<'x, C> {
         cb: impl FnOnce(&mut Self, Request) -> Result<(), ClientError>,
     ) -> Result<(), ClientError> {
         if msg.format == 32 {
-            todo!("receive by property")
+            let [length, atom, ..] = msg.data.as_data32();
+            let data = self
+                .conn
+                .get_property(true, msg.window, atom, AtomEnum::Any, 0, length)?
+                .reply()?
+                .value;
+            let req = parser::read(&data)?;
+            cb(self, req)?;
         } else if msg.format == 8 {
             let data = msg.data.as_data8();
             let req = parser::read(&data)?;
-            log::trace!("Get XIM message {:?}", req);
             cb(self, req)?;
         }
 

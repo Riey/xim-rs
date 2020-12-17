@@ -1,18 +1,29 @@
-use x11rb::protocol::xproto::*;
+use x11rb::protocol::{xproto::*, Event};
 use x11rb::{connection::Connection, COPY_DEPTH_FROM_PARENT};
 use xim::x11rb::{Client, ClientError};
-use xim_parser::{Request, XimString};
+use xim_parser::{ForwardEventFlag, Request};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    simplelog::TermLogger::init(
-        log::LevelFilter::Trace,
-        simplelog::Config::default(),
-        simplelog::TerminalMode::Stderr,
-    )
-    .unwrap();
+    pretty_env_logger::init();
 
     let (conn, screen_num) = x11rb::connect(None).expect("Connect X");
     let screen = &conn.setup().roots[screen_num];
+    let window = conn.generate_id()?;
+    conn.create_window(
+        screen.root_depth,
+        window,
+        screen.root,
+        0,
+        0,
+        800,
+        600,
+        0,
+        WindowClass::InputOutput,
+        0,
+        &CreateWindowAux::default().background_pixel(screen.black_pixel),
+    )?;
+    conn.map_window(window)?;
+    conn.flush()?;
 
     let mut client = Client::init(&conn, screen, None)?;
 
@@ -33,19 +44,61 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     server_major_protocol_version: _,
                     server_minor_protocol_version: _,
                 } => client.send_req(Request::Open {
-                    locale: XimString(b"kr"),
+                    locale: "ko_KR".into(),
                 }),
                 Request::OpenReply {
                     input_method_id,
-                    im_attrs: _,
-                    ic_attrs: _,
-                } => client.send_req(Request::Close { input_method_id }),
+                    im_attrs,
+                    ic_attrs,
+                } => {
+                    client.set_attrs(im_attrs, ic_attrs);
+                    client.send_req(Request::EncodingNegotiation {
+                        encodings: vec![b"UTF8_STRING\0".to_vec().into(), b"COMPOUND_TEXT\0".to_vec().into()],
+                        encoding_infos: vec![],
+                        input_method_id,
+                    })
+                }
+                Request::EncodingNegotiationReply {
+                    category,
+                    index,
+                    input_method_id,
+                } => client.send_req(Request::CreateIc {
+                    input_method_id,
+                    ic_attributes: Vec::new(),
+                }),
+                Request::CreateIcReply {
+                    input_method_id,
+                    input_context_id,
+                } => {
+                    log::info!(
+                        "IC Created im: {}, ic: {}",
+                        input_method_id,
+                        input_context_id
+                    );
+                    let ic_attributes = client
+                        .get_ic_attr(b"preeditAttributes")
+                        .into_iter()
+                        .collect();
+                    client.send_req(Request::GetIcValues {
+                        ic_attributes,
+                        input_method_id,
+                        input_context_id,
+                    })
+                }
+                Request::GetIcValuesReply {
+                    input_method_id,
+                    input_context_id,
+                    ic_attributes,
+                } => Ok(()),
                 Request::SetEventMask {
                     input_method_id: _,
                     input_context_id: _,
-                    forward_event_mask: _,
-                    synchronous_event_mask: _,
-                } => Ok(()),
+                    forward_event_mask,
+                    synchronous_event_mask,
+                } => {
+                    client.set_event_mask(forward_event_mask, synchronous_event_mask);
+                    Ok(())
+                }
                 Request::CloseReply { input_method_id: _ } => {
                     client.send_req(Request::Disconnect {})
                 }
@@ -53,10 +106,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     end = true;
                     Ok(())
                 }
+                Request::Error {
+                    input_method_id,
+                    input_context_id,
+                    flag,
+                    detail,
+                } => {
+                    log::error!("XIM ERROR: {}", detail);
+                    Err(ClientError::XimError)
+                }
                 _ => Err(ClientError::InvalidReply),
             }
         })? {
             log::trace!("event consumed");
+        } else if let Event::Error(err) = e {
+            log::error!("X11 ERROR!, {:?}", err);
+            return Err(ClientError::XimError.into());
         }
     }
 

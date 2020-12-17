@@ -62,7 +62,7 @@ mod tests {
             },
             &mut out,
         );
-        assert_eq!(out, b"\x50\x00\x01\x00\x02\x00\x00\x00");
+        assert_eq!(out, b"\x32\x00\x01\x00\x02\x00\x00\x00");
     }
 
     #[test]

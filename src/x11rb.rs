@@ -1,20 +1,21 @@
-use std::convert::TryInto;
+use std::{collections::HashMap, convert::TryInto};
 
 use crate::Atoms;
-use parser::{Attr, Attribute, XimString};
+use parser::{Attr, Attribute};
 use x11rb::{
     connection::Connection,
     protocol::{
         xproto::{
-            Atom, AtomEnum, ClientMessageData, ClientMessageEvent, ConnectionExt, PropMode, Screen,
-            SelectionRequestEvent, WindowClass, CLIENT_MESSAGE_EVENT, SELECTION_REQUEST_EVENT,
+            Atom, AtomEnum, ClientMessageData, ClientMessageEvent, ConnectionExt, KeyPressEvent,
+            PropMode, Screen, SelectionRequestEvent, WindowClass, CLIENT_MESSAGE_EVENT,
+            SELECTION_REQUEST_EVENT,
         },
         Event,
     },
     COPY_DEPTH_FROM_PARENT, CURRENT_TIME,
 };
 use xim_parser as parser;
-use xim_parser::Request;
+use xim_parser::{Request, XimString};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ClientError {
@@ -28,6 +29,8 @@ pub enum ClientError {
     ReplyOrId(#[from] x11rb::errors::ReplyOrIdError),
     #[error("Can't read xim message {0}")]
     ReadProtocol(#[from] parser::ReadError),
+    #[error("Server send error")]
+    XimError,
     #[error("Server Transport is not supported")]
     UnsupportedTransport,
     #[error("Invalid reply from server")]
@@ -38,12 +41,17 @@ pub enum ClientError {
 
 pub struct Client<'x, C: Connection + ConnectionExt> {
     conn: &'x C,
+    connected: bool,
     server_owner_window: u32,
     im_window: u32,
     server_atom: Atom,
     atoms: Atoms<Atom>,
     transport_max: usize,
     client_window: u32,
+    im_attributes: HashMap<XimString, u16>,
+    ic_attributes: HashMap<XimString, u16>,
+    forward_event_mask: u32,
+    synchronous_event_mask: u32,
     buf: Vec<u8>,
 }
 
@@ -86,7 +94,7 @@ impl<'x, C: Connection + ConnectionExt> Client<'x, C> {
             )?
             .reply()?;
 
-        if server_reply.type_ != AtomEnum::ATOM.into() || server_reply.format != 32 {
+        if server_reply.type_ != u32::from(AtomEnum::ATOM) || server_reply.format != 32 {
             Err(ClientError::InvalidReply)
         } else {
             for server_atom in server_reply.value32().ok_or(ClientError::InvalidReply)? {
@@ -112,11 +120,16 @@ impl<'x, C: Connection + ConnectionExt> Client<'x, C> {
 
                         return Ok(Self {
                             conn,
+                            connected: false,
                             atoms,
                             server_atom,
                             server_owner_window: server_owner,
+                            im_attributes: HashMap::new(),
+                            ic_attributes: HashMap::new(),
                             im_window: x11rb::NONE,
                             transport_max: 20,
+                            forward_event_mask: 0,
+                            synchronous_event_mask: 0,
                             client_window,
                             buf: Vec::with_capacity(1024),
                         });
@@ -132,12 +145,44 @@ impl<'x, C: Connection + ConnectionExt> Client<'x, C> {
         self.conn
     }
 
+    pub fn im_window(&self) -> u32 {
+        self.im_window
+    }
+
+    pub fn set_attrs(&mut self, im_attrs: Vec<Attr>, ic_attrs: Vec<Attr>) {
+        for im_attr in im_attrs {
+            self.im_attributes.insert(im_attr.name, im_attr.id);
+        }
+
+        for ic_attr in ic_attrs {
+            self.ic_attributes.insert(ic_attr.name, ic_attr.id);
+        }
+    }
+
+    pub fn get_im_attr(&self, name: &[u8]) -> Option<u16> {
+        self.im_attributes.get(name).copied()
+    }
+
+    pub fn get_ic_attr(&self, name: &[u8]) -> Option<u16> {
+        self.ic_attributes.get(name).copied()
+    }
+
     pub fn filter_event(
         &mut self,
         e: &Event,
         cb: impl FnOnce(&mut Self, Request) -> Result<(), ClientError>,
     ) -> Result<bool, ClientError> {
         match e {
+            Event::KeyPress(e) if self.connected => {
+                self.conn
+                    .send_event(false, self.im_window, self.forward_event_mask, e)?;
+                Ok(true)
+            }
+            Event::KeyRelease(e) if self.connected => {
+                self.conn
+                    .send_event(false, self.im_window, self.forward_event_mask, e)?;
+                Ok(true)
+            }
             Event::SelectionNotify(e) if e.requestor == self.client_window => {
                 if e.property == self.atoms.LOCALES {
                     // TODO: set locale
@@ -205,6 +250,19 @@ impl<'x, C: Connection + ConnectionExt> Client<'x, C> {
             }
             _ => Ok(false),
         }
+    }
+
+    pub fn forward_key_press(&mut self, e: &KeyPressEvent) -> Result<(), ClientError> {
+        self.conn
+            .send_event(false, self.im_window, self.forward_event_mask, e)?;
+        self.conn.flush()?;
+        Ok(())
+    }
+
+    pub fn set_event_mask(&mut self, forward_event_mask: u32, synchronous_event_mask: u32) {
+        self.connected = true;
+        self.forward_event_mask = forward_event_mask;
+        self.synchronous_event_mask = synchronous_event_mask;
     }
 
     pub fn send_req(&mut self, req: Request) -> Result<(), ClientError> {

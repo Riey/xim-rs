@@ -53,7 +53,12 @@ impl FormatType {
                 }
                 writeln!(
                     out,
-                    "let bytes = reader.consume(len as usize)?; XimString(bytes.to_vec())"
+                    "let mut bytes = reader.consume(len as usize)?;
+                    match bytes.split_last() {{
+                        Some((b, left)) if *b == 0 => bytes = left,
+                        _ => {{}}
+                    }}
+                    XimString(bytes.to_vec())"
                 )?;
                 writeln!(out, "}}")?
             }

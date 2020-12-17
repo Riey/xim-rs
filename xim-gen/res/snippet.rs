@@ -3,6 +3,7 @@
 
 #![allow(unused)]
 
+use std::borrow::Borrow;
 use std::convert::TryInto;
 use std::fmt;
 
@@ -145,8 +146,39 @@ pub trait XimFormat: Sized {
     fn size(&self) -> usize;
 }
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
+#[repr(transparent)]
 pub struct XimString(pub Vec<u8>);
+
+impl XimString {
+    pub fn from_utf8(s: &str) -> Self {
+        Self(s.as_bytes().to_vec())
+    }
+}
+
+impl Borrow<[u8]> for XimString {
+    fn borrow(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl From<Vec<u8>> for XimString {
+    fn from(b: Vec<u8>) -> Self {
+        Self(b)
+    }
+}
+
+impl<'b> From<&'b str> for XimString {
+    fn from(s: &'b str) -> Self {
+        Self::from_utf8(s)
+    }
+}
+
+impl<'b> From<&'b [u8]> for XimString {
+    fn from(b: &'b [u8]) -> Self {
+        Self(b.to_vec())
+    }
+}
 
 impl fmt::Display for XimString {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

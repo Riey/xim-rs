@@ -19,16 +19,6 @@ pub enum FormatType {
 }
 
 impl FormatType {
-    pub fn has_lifetime(&self) -> bool {
-        match self {
-            FormatType::Append(inner, ..)
-            | FormatType::Pad(inner)
-            | FormatType::List(inner, ..) => inner.has_lifetime(),
-            FormatType::String { .. } => true,
-            FormatType::Normal(name) => name.contains("'"),
-        }
-    }
-
     pub fn read(&self, out: &mut impl Write) -> io::Result<()> {
         match self {
             FormatType::Append(inner, size) => {
@@ -63,11 +53,11 @@ impl FormatType {
                 }
                 writeln!(
                     out,
-                    "let bytes = reader.consume(len as usize)?; XimString(bytes)"
+                    "let bytes = reader.consume(len as usize)?; XimString(bytes.to_vec())"
                 )?;
                 writeln!(out, "}}")?
             }
-            FormatType::Normal(name) => write!(out, "<{} as XimFormat<'b>>::read(reader)?", name)?,
+            FormatType::Normal(name) => write!(out, "{}::read(reader)?", name)?,
         }
 
         Ok(())
@@ -110,7 +100,7 @@ impl FormatType {
                 if *between_unused > 0 {
                     writeln!(out, "writer.write(&[0u8; {}]);", between_unused)?;
                 }
-                writeln!(out, "writer.write({}.0);", this)?;
+                writeln!(out, "writer.write(&{}.0);", this)?;
             }
             FormatType::Normal(_name) => write!(out, "{}.write(writer);", this)?,
         }
@@ -151,7 +141,7 @@ impl fmt::Display for FormatType {
             FormatType::Append(inner, _len) => inner.fmt(f),
             FormatType::Pad(inner) => inner.fmt(f),
             FormatType::List(inner, _prefix, _len) => write!(f, "Vec<{}>", inner),
-            FormatType::String { .. } => f.write_str("XimString<'b>"),
+            FormatType::String { .. } => f.write_str("XimString"),
             FormatType::Normal(name) => f.write_str(name),
         }
     }

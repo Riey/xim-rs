@@ -32,7 +32,7 @@ mod tests {
         assert_eq!(
             req,
             Request::Open {
-                name: XimString(b"en_US"),
+                locale: XimString(b"en_US".to_vec()),
             }
         );
     }
@@ -47,9 +47,22 @@ mod tests {
             req,
             Request::QueryExtension {
                 input_method_id: 0,
-                extensions: vec![XimString(b"XIM_EXT_MOVE"),],
+                extensions: vec![XimString(b"XIM_EXT_MOVE".to_vec()),],
             }
         );
+    }
+
+    #[test]
+    fn write_create_ic() {
+        let mut out = Vec::new();
+        write(
+            &Request::CreateIc {
+                input_method_id: 2,
+                ic_attributes: Vec::new(),
+            },
+            &mut out,
+        );
+        assert_eq!(out, b"\x50\x00\x01\x00\x02\x00\x00\x00");
     }
 
     #[test]
@@ -66,99 +79,99 @@ mod tests {
 
     const OPEN_REPLY: &[u8] = b"\x1f\x00\x59\x00\x01\x00\x18\x00\x00\x00\x0a\x00\x0f\x00\x71\x75\x65\x72\x79\x49\x6e\x70\x75\x74\x53\x74\x79\x6c\x65\x00\x00\x00\x44\x01\x00\x00\x01\x00\x03\x00\x0a\x00\x69\x6e\x70\x75\x74\x53\x74\x79\x6c\x65\x02\x00\x05\x00\x0c\x00\x63\x6c\x69\x65\x6e\x74\x57\x69\x6e\x64\x6f\x77\x00\x00\x03\x00\x05\x00\x0b\x00\x66\x6f\x63\x75\x73\x57\x69\x6e\x64\x6f\x77\x00\x00\x00\x04\x00\x03\x00\x0c\x00\x66\x69\x6c\x74\x65\x72\x45\x76\x65\x6e\x74\x73\x00\x00\x05\x00\xff\x7f\x11\x00\x70\x72\x65\x65\x64\x69\x74\x41\x74\x74\x72\x69\x62\x75\x74\x65\x73\x00\x06\x00\xff\x7f\x10\x00\x73\x74\x61\x74\x75\x73\x41\x74\x74\x72\x69\x62\x75\x74\x65\x73\x00\x00\x07\x00\x0d\x00\x07\x00\x66\x6f\x6e\x74\x53\x65\x74\x00\x00\x00\x08\x00\x0b\x00\x04\x00\x61\x72\x65\x61\x00\x00\x09\x00\x0b\x00\x0a\x00\x61\x72\x65\x61\x4e\x65\x65\x64\x65\x64\x0a\x00\x03\x00\x08\x00\x63\x6f\x6c\x6f\x72\x4d\x61\x70\x00\x00\x0b\x00\x03\x00\x0b\x00\x73\x74\x64\x43\x6f\x6c\x6f\x72\x4d\x61\x70\x00\x00\x00\x0c\x00\x03\x00\x0a\x00\x66\x6f\x72\x65\x67\x72\x6f\x75\x6e\x64\x0d\x00\x03\x00\x0a\x00\x62\x61\x63\x6b\x67\x72\x6f\x75\x6e\x64\x0e\x00\x03\x00\x10\x00\x62\x61\x63\x6b\x67\x72\x6f\x75\x6e\x64\x50\x69\x78\x6d\x61\x70\x00\x00\x0f\x00\x0c\x00\x0c\x00\x73\x70\x6f\x74\x4c\x6f\x63\x61\x74\x69\x6f\x6e\x00\x00\x10\x00\x03\x00\x09\x00\x6c\x69\x6e\x65\x53\x70\x61\x63\x65\x00\x11\x00\x00\x00\x15\x00\x73\x65\x70\x61\x72\x61\x74\x6f\x72\x6f\x66\x4e\x65\x73\x74\x65\x64\x4c\x69\x73\x74\x00";
 
-    fn open_reply_value() -> Request<'static> {
+    fn open_reply_value() -> Request {
         Request::OpenReply {
             input_method_id: 1,
             im_attrs: vec![Attr {
                 id: 0,
                 ty: AttrType::Style,
-                name: XimString(b"queryInputStyle"),
+                name: XimString(b"queryInputStyle".to_vec()),
             }],
             ic_attrs: vec![
                 Attr {
                     id: 1,
                     ty: AttrType::Long,
-                    name: XimString(b"inputStyle"),
+                    name: XimString(b"inputStyle".to_vec()),
                 },
                 Attr {
                     id: 2,
                     ty: AttrType::Window,
-                    name: XimString(b"clientWindow"),
+                    name: XimString(b"clientWindow".to_vec()),
                 },
                 Attr {
                     id: 3,
                     ty: AttrType::Window,
-                    name: XimString(b"focusWindow"),
+                    name: XimString(b"focusWindow".to_vec()),
                 },
                 Attr {
                     id: 4,
                     ty: AttrType::Long,
-                    name: XimString(b"filterEvents"),
+                    name: XimString(b"filterEvents".to_vec()),
                 },
                 Attr {
                     id: 5,
                     ty: AttrType::NestedList,
-                    name: XimString(b"preeditAttributes"),
+                    name: XimString(b"preeditAttributes".to_vec()),
                 },
                 Attr {
                     id: 6,
                     ty: AttrType::NestedList,
-                    name: XimString(b"statusAttributes"),
+                    name: XimString(b"statusAttributes".to_vec()),
                 },
                 Attr {
                     id: 7,
                     ty: AttrType::XFontSet,
-                    name: XimString(b"fontSet"),
+                    name: XimString(b"fontSet".to_vec()),
                 },
                 Attr {
                     id: 8,
                     ty: AttrType::XRectangle,
-                    name: XimString(b"area"),
+                    name: XimString(b"area".to_vec()),
                 },
                 Attr {
                     id: 9,
                     ty: AttrType::XRectangle,
-                    name: XimString(b"areaNeeded"),
+                    name: XimString(b"areaNeeded".to_vec()),
                 },
                 Attr {
                     id: 10,
                     ty: AttrType::Long,
-                    name: XimString(b"colorMap"),
+                    name: XimString(b"colorMap".to_vec()),
                 },
                 Attr {
                     id: 11,
                     ty: AttrType::Long,
-                    name: XimString(b"stdColorMap"),
+                    name: XimString(b"stdColorMap".to_vec()),
                 },
                 Attr {
                     id: 12,
                     ty: AttrType::Long,
-                    name: XimString(b"foreground"),
+                    name: XimString(b"foreground".to_vec()),
                 },
                 Attr {
                     id: 13,
                     ty: AttrType::Long,
-                    name: XimString(b"background"),
+                    name: XimString(b"background".to_vec()),
                 },
                 Attr {
                     id: 14,
                     ty: AttrType::Long,
-                    name: XimString(b"backgroundPixmap"),
+                    name: XimString(b"backgroundPixmap".to_vec()),
                 },
                 Attr {
                     id: 15,
                     ty: AttrType::XPoint,
-                    name: XimString(b"spotLocation"),
+                    name: XimString(b"spotLocation".to_vec()),
                 },
                 Attr {
                     id: 16,
                     ty: AttrType::Long,
-                    name: XimString(b"lineSpace"),
+                    name: XimString(b"lineSpace".to_vec()),
                 },
                 Attr {
                     id: 17,
                     ty: AttrType::Separator,
-                    name: XimString(b"separatorofNestedList"),
+                    name: XimString(b"separatorofNestedList".to_vec()),
                 },
             ],
         }

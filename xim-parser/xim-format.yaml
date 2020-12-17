@@ -215,8 +215,8 @@ Requests:
     minor_opcode: ~
     body:
       - "input_method_id u16"
-      - "im_attrs @list Attr<'b>"
-      - "ic_attrs @list22 Attr<'b>"
+      - "im_attrs @list Attr"
+      - "ic_attrs @list22 Attr"
 
   Close:
     major_opcode: 32
@@ -292,14 +292,14 @@ Requests:
     minor_opcode: ~
     body:
       - "input_method_id u16"
-      - "extentions @list Extension<'b>"
+      - "extentions @list Extension"
 
   SetImValues:
     major_opcode: 42
     minor_opcode: ~
     body:
       - "input_method_id u16"
-      - "attributes @list Attribute<'b>"
+      - "attributes @list Attribute"
 
   SetImValuesReply:
     major_opcode: 43
@@ -319,14 +319,14 @@ Requests:
     minor_opcode: ~
     body:
       - "input_method_id u16"
-      - "im_attributes @list Attribute<'b>"
+      - "im_attributes @list Attribute"
 
   CreateIc:
     major_opcode: 50
     minor_opcode: ~
     body:
       - "input_method_id u16"
-      - "ic_attributes @pad @list Attribute<'b>"
+      - "ic_attributes @pad @list Attribute"
 
   CreateIcReply:
     major_opcode: 51
@@ -355,7 +355,7 @@ Requests:
     body:
       - "input_method_id u16"
       - "input_context_id u16"
-      - "ic_attributes @list22 Attribute<'b>"
+      - "ic_attributes @list22 Attribute"
 
   SetIcValuesReply:
     major_opcode: 55
@@ -378,7 +378,7 @@ Requests:
     body:
       - "input_method_id u16"
       - "input_context_id u16"
-      - "ic_attributes @list22 Attribute<'b>"
+      - "ic_attributes @list22 Attribute"
 
   SetIcFocus:
     major_opcode: 58
@@ -527,7 +527,7 @@ Requests:
     body:
       - "input_method_id u16"
       - "input_context_id u16"
-      - "content StatusContent<'b>"
+      - "content StatusContent"
 
   StatusDone:
     major_opcode: 81

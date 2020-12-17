@@ -26,8 +26,8 @@ pub enum Endian {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum StatusContent<'b> {
-    Text(StatusTextContent<'b>),
+pub enum StatusContent {
+    Text(StatusTextContent),
     Pixmap(u32),
 }
 
@@ -138,30 +138,30 @@ impl<'b> Writer<'b> {
     }
 }
 
-pub trait XimFormat<'b>: Sized {
-    fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError>;
+pub trait XimFormat: Sized {
+    fn read(reader: &mut Reader) -> Result<Self, ReadError>;
     fn write(&self, writer: &mut Writer);
     /// byte size of format
     fn size(&self) -> usize;
 }
 
-#[derive(Copy, Clone, Eq, PartialEq)]
-pub struct XimString<'b>(pub &'b [u8]);
+#[derive(Clone, Eq, PartialEq)]
+pub struct XimString(pub Vec<u8>);
 
-impl<'a> fmt::Display for XimString<'a> {
+impl fmt::Display for XimString {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str(std::str::from_utf8(self.0).unwrap_or("NOT_UTF8"))
+        f.write_str(std::str::from_utf8(&self.0).unwrap_or("NOT_UTF8"))
     }
 }
 
-impl<'a> fmt::Debug for XimString<'a> {
+impl fmt::Debug for XimString {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str(std::str::from_utf8(self.0).unwrap_or("NOT_UTF8"))
+        f.write_str(std::str::from_utf8(&self.0).unwrap_or("NOT_UTF8"))
     }
 }
 
-impl<'b> XimFormat<'b> for Endian {
-    fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
+impl XimFormat for Endian {
+    fn read(reader: &mut Reader) -> Result<Self, ReadError> {
         let n = u8::read(reader)?;
 
         if n == Endian::Native as u8 {
@@ -180,8 +180,8 @@ impl<'b> XimFormat<'b> for Endian {
     }
 }
 
-impl<'b> XimFormat<'b> for StatusContent<'b> {
-    fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
+impl XimFormat for StatusContent {
+    fn read(reader: &mut Reader) -> Result<Self, ReadError> {
         let ty = u32::read(reader)?;
 
         match ty {
@@ -214,8 +214,8 @@ impl<'b> XimFormat<'b> for StatusContent<'b> {
     }
 }
 
-impl<'b> XimFormat<'b> for u8 {
-    fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
+impl XimFormat for u8 {
+    fn read(reader: &mut Reader) -> Result<Self, ReadError> {
         reader.u8()
     }
 
@@ -228,8 +228,8 @@ impl<'b> XimFormat<'b> for u8 {
     }
 }
 
-impl<'b> XimFormat<'b> for u16 {
-    fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
+impl XimFormat for u16 {
+    fn read(reader: &mut Reader) -> Result<Self, ReadError> {
         reader.u16()
     }
 
@@ -242,8 +242,8 @@ impl<'b> XimFormat<'b> for u16 {
     }
 }
 
-impl<'b> XimFormat<'b> for u32 {
-    fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
+impl XimFormat for u32 {
+    fn read(reader: &mut Reader) -> Result<Self, ReadError> {
         reader.u32()
     }
 
@@ -256,8 +256,8 @@ impl<'b> XimFormat<'b> for u32 {
     }
 }
 
-impl<'b> XimFormat<'b> for i32 {
-    fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {
+impl XimFormat for i32 {
+    fn read(reader: &mut Reader) -> Result<Self, ReadError> {
         reader.i32()
     }
 

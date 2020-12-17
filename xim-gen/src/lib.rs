@@ -42,11 +42,11 @@ impl EnumFormat {
             writeln!(out, "}}")?;
         }
 
-        writeln!(out, "impl<'b> XimFormat<'b> for {} {{", name)?;
+        writeln!(out, "impl XimFormat for {} {{", name)?;
 
         writeln!(
             out,
-            "fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {{ let repr = {}::read(reader)?;", self.repr)?;
+            "fn read(reader: &mut Reader) -> Result<Self, ReadError> {{ let repr = {}::read(reader)?;", self.repr)?;
 
         if self.bitflag {
             writeln!(
@@ -111,13 +111,8 @@ struct StructFormat {
 
 impl StructFormat {
     pub fn write(&self, name: &str, out: &mut impl Write) -> io::Result<()> {
-        let has_lifetime = self.body.iter().any(|f| f.ty.has_lifetime());
-
         writeln!(out, "#[derive(Clone, Debug, Eq, PartialEq)]")?;
         write!(out, "pub struct {}", name)?;
-        if has_lifetime {
-            write!(out, "<'b>")?;
-        }
         writeln!(out, "{{")?;
 
         for field in self.body.iter() {
@@ -126,15 +121,12 @@ impl StructFormat {
 
         writeln!(out, "}}")?;
 
-        writeln!(out, "impl<'b> XimFormat<'b> for {}", name)?;
-        if has_lifetime {
-            write!(out, "<'b>")?;
-        }
+        writeln!(out, "impl XimFormat for {}", name)?;
         writeln!(out, "{{")?;
 
         writeln!(
             out,
-            "fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {{"
+            "fn read(reader: &mut Reader) -> Result<Self, ReadError> {{"
         )?;
 
         writeln!(out, "Ok(Self {{")?;
@@ -198,7 +190,7 @@ impl XimFormat {
         }
 
         writeln!(out, "#[derive(Debug, Clone, Eq, PartialEq)]")?;
-        writeln!(out, "pub enum Request<'b> {{")?;
+        writeln!(out, "pub enum Request {{")?;
 
         for (name, req) in self.requests.iter() {
             writeln!(out, "{} {{", name)?;
@@ -210,11 +202,11 @@ impl XimFormat {
 
         writeln!(out, "}}")?;
 
-        writeln!(out, "impl<'b> XimFormat<'b> for Request<'b> {{")?;
+        writeln!(out, "impl XimFormat for Request {{")?;
 
         writeln!(
             out,
-            "fn read(reader: &mut Reader<'b>) -> Result<Self, ReadError> {{"
+            "fn read(reader: &mut Reader) -> Result<Self, ReadError> {{"
         )?;
 
         writeln!(

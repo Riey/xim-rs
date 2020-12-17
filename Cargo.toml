@@ -16,7 +16,7 @@ edition = "2018"
 [dependencies]
 xim-parser = { path = "./xim-parser" }
 thiserror = "1.0.22"
-x11rb = { version = "0.7.0", features = ["allow-unsafe-code"] }
+x11rb = "0.7.0"
 log = "0.4.11"
 
 [dev-dependencies]

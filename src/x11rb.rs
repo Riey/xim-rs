@@ -274,19 +274,3 @@ impl<'x, C: Connection + ConnectionExt> Client<'x, C> {
         Ok(())
     }
 }
-
-// impl<'x, C: Connection + ConnectionExt> Clone for Client<'x, C> {
-//     fn clone(&self) -> Self {
-//         Self {
-//             conn: self.conn,
-//             state: self.state,
-//             client_window: self.client_window,
-//             atoms: self.atoms,
-//             im_window: self.im_window,
-//             server_atom: self.server_atom,
-//             server_owner_window: self.server_owner_window,
-//             transport_max: self.transport_max,
-//             buf: Vec::with_capacity(1024),
-//         }
-//     }
-// }

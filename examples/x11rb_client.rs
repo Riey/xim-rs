@@ -29,7 +29,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Request::ConnectReply {
                 server_major_protocol_version: _,
                 server_minor_protocol_version: _,
-            } => client.send_req(Request::Disconnect {}),
+            } => client.send_req(Request::Open {
+                locale: XimString(b"kr"),
+            }),
+            Request::OpenReply {
+                input_method_id,
+                im_attrs: _,
+                ic_attrs: _,
+            } => client.send_req(Request::Close { input_method_id }),
+            Request::CloseReply { input_method_id: _ } => client.send_req(Request::Disconnect {}),
             Request::DisconnectReply {} => {
                 end = true;
                 Ok(())

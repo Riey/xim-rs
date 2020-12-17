@@ -208,7 +208,7 @@ Requests:
     major_opcode: 30
     minor_opcode: ~
     body:
-      - "name @pad string1"
+      - "locale @pad string1"
 
   OpenReply:
     major_opcode: 31

@@ -863,7 +863,7 @@ pub enum Request<'b> {
         im_attributes: Vec<Attribute<'b>>,
     },
     Open {
-        name: XimString<'b>,
+        locale: XimString<'b>,
     },
     OpenReply {
         input_method_id: u16,
@@ -1219,7 +1219,7 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 },
             }),
             (30, _) => Ok(Request::Open {
-                name: {
+                locale: {
                     let inner = {
                         let len = u8::read(reader)?;
                         let bytes = reader.consume(len as usize)?;
@@ -1768,12 +1768,12 @@ impl<'b> XimFormat<'b> for Request<'b> {
                     elem.write(writer);
                 }
             }
-            Request::Open { name } => {
+            Request::Open { locale } => {
                 30u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
-                (name.0.len() as u8).write(writer);
-                writer.write(name.0);
+                (locale.0.len() as u8).write(writer);
+                writer.write(locale.0);
                 writer.write_pad4();
             }
             Request::OpenReply {
@@ -2310,8 +2310,8 @@ impl<'b> XimFormat<'b> for Request<'b> {
                 content_size += input_method_id.size();
                 content_size += im_attributes.iter().map(|e| e.size()).sum::<usize>() + 0 + 2;
             }
-            Request::Open { name } => {
-                content_size += with_pad4(name.0.len() + 1 + 0);
+            Request::Open { locale } => {
+                content_size += with_pad4(locale.0.len() + 1 + 0);
             }
             Request::OpenReply {
                 input_method_id,

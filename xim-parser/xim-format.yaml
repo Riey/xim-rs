@@ -118,7 +118,7 @@ Structs:
     - "name @pad string"
   Attribute:
     - "id u16"
-    - "value @pad string"
+    - "value @pad xstring"
   Extension:
     - "major_opcode u8"
     - "minor_opcode u8"

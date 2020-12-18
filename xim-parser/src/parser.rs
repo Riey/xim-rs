@@ -671,7 +671,7 @@ impl XimFormat for Attr {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Attribute {
     pub id: u16,
-    pub value: String,
+    pub value: Vec<u8>,
 }
 impl XimFormat for Attribute {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
@@ -680,7 +680,7 @@ impl XimFormat for Attribute {
             value: {
                 let inner = {
                     let len = u16::read(reader)?;
-                    String::from_utf8(reader.consume(len as usize)?.to_vec())?
+                    reader.consume(len as usize)?.to_vec()
                 };
                 reader.pad4()?;
                 inner
@@ -690,13 +690,13 @@ impl XimFormat for Attribute {
     fn write(&self, writer: &mut Writer) {
         self.id.write(writer);
         (self.value.len() as u16).write(writer);
-        writer.write(self.value.as_bytes());
+        writer.write(&self.value);
         writer.write_pad4();
     }
     fn size(&self) -> usize {
         let mut content_size = 0;
         content_size += self.id.size();
-        content_size += with_pad4(self.value.len() + 2 + 0);
+        content_size += with_pad4(self.value.len() + 2);
         content_size
     }
 }

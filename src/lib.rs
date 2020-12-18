@@ -1,18 +1,28 @@
 pub mod x11rb;
 
-#[derive(Clone, Copy, Debug)]
-#[repr(u32)]
-pub enum InputStlye {
-    Invalid = 0,
-    OverTheSpot = 1,
-    RootWindow = 2,
-    OffTheSpot = 3,
-    OnTheSpot = 4,
+use std::collections::HashMap;
+
+use xim_parser::{Attribute, Writer, XimFormat};
+
+pub struct AttributeBuilder<'a> {
+    id_map: &'a HashMap<String, u16>,
+    out: Vec<Attribute>,
 }
 
-impl InputStlye {
-    pub fn to_vec(self) -> Vec<u8> {
-        (self as u32).to_ne_bytes().to_vec()
+impl<'a> AttributeBuilder<'a> {
+    pub fn push<V: AsRef<I>, I: XimFormat>(mut self, name: &str, value: V) -> Self {
+        if let Some(id) = self.id_map.get(name).copied() {
+            let value = value.as_ref();
+            let mut buf = Vec::with_capacity(value.size());
+            value.write(&mut Writer::new(&mut buf));
+            self.out.push(Attribute { id, value: buf });
+        }
+
+        self
+    }
+
+    pub fn build(self) -> Vec<Attribute> {
+        self.out
     }
 }
 

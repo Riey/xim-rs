@@ -573,6 +573,34 @@ impl XimFormat for ForwardEventFlag {
         std::mem::size_of::<u16>()
     }
 }
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u32)]
+pub enum InputStyle {
+    Invalid = 0,
+    OverTheSpot = 1,
+    RootWindow = 2,
+    OffTheSpot = 3,
+    OnTheSpot = 4,
+}
+impl XimFormat for InputStyle {
+    fn read(reader: &mut Reader) -> Result<Self, ReadError> {
+        let repr = u32::read(reader)?;
+        match repr {
+            0 => Ok(Self::Invalid),
+            1 => Ok(Self::OverTheSpot),
+            2 => Ok(Self::RootWindow),
+            3 => Ok(Self::OffTheSpot),
+            4 => Ok(Self::OnTheSpot),
+            _ => Err(reader.invalid_data("InputStyle", repr)),
+        }
+    }
+    fn write(&self, writer: &mut Writer) {
+        (*self as u32).write(writer);
+    }
+    fn size(&self) -> usize {
+        std::mem::size_of::<u32>()
+    }
+}
 bitflags::bitflags! {
 pub struct PreeditDrawStatus: u32 {
 const NOSTRING = 1;

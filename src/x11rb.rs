@@ -1,6 +1,6 @@
 use std::{collections::HashMap, convert::TryInto};
 
-use crate::Atoms;
+use crate::{Atoms, AttributeBuilder};
 use parser::Attribute;
 use x11rb::{
     connection::Connection,
@@ -175,14 +175,17 @@ impl<'x, C: Connection + ConnectionExt> Client<'x, C> {
             .collect()
     }
 
-    pub fn push_ic_attribute(
-        &self,
-        name: &str,
-        value: impl FnOnce() -> Vec<u8>,
-        out: &mut Vec<Attribute>,
-    ) {
-        if let Some(id) = self.ic_attributes.get(name).copied() {
-            out.push(Attribute { id, value: value() });
+    pub fn build_ic_attributes(&self) -> AttributeBuilder {
+        AttributeBuilder {
+            id_map: &self.ic_attributes,
+            out: Vec::new(),
+        }
+    }
+
+    pub fn build_im_attributes(&self) -> AttributeBuilder {
+        AttributeBuilder {
+            id_map: &self.im_attributes,
+            out: Vec::new(),
         }
     }
 
@@ -310,7 +313,7 @@ impl<'x, C: Connection + ConnectionExt> Client<'x, C> {
         } else {
             log::trace!("Send {} by property", req.name());
             self.conn.change_property(
-                PropMode::Append,
+                PropMode::Replace,
                 self.im_window,
                 self.atoms.DATA,
                 AtomEnum::STRING,

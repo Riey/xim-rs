@@ -110,6 +110,17 @@ Enums:
       BadBackground: 15
       LocaleNotSupported: 16
       BadSomething: 999
+  
+  # Common attribute values
+  InputStyle:
+    repr: u32
+    variants:
+      Invalid: 0
+      OverTheSpot: 1
+      RootWindow: 2
+      OffTheSpot: 3
+      OnTheSpot: 4
+
 
 Structs:
   Attr:

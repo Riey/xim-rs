@@ -1,7 +1,7 @@
+use x11rb::connection::Connection;
 use x11rb::protocol::{xproto::*, Event};
-use x11rb::{connection::Connection, COPY_DEPTH_FROM_PARENT};
 use xim::x11rb::{Client, ClientError};
-use xim_parser::{Attribute, ForwardEventFlag, Request};
+use xim_parser::{InputStyle, Request};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     pretty_env_logger::init();
@@ -60,7 +60,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Request::QueryExtensionReply {
                     input_method_id, ..
                 } => client.send_req(Request::EncodingNegotiation {
-                    encodings: vec!["COMPOUND_TEXT".into(), "UTF8-STRING".into()],
+                    encodings: vec!["COMPOUND_TEXT".into(), String::new()],
                     encoding_infos: vec![],
                     input_method_id,
                 }),
@@ -69,13 +69,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     index: _,
                     input_method_id,
                 } => {
-                    let mut ic_attributes = Vec::new();
-
-                    client.push_ic_attribute(
-                        "inputStyle",
-                        || xim::InputStlye::RootWindow.to_vec(),
-                        &mut ic_attributes,
-                    );
+                    let ic_attributes = client
+                        .build_ic_attributes()
+                        .push("inputStyle", InputStyle::RootWindow)
+                        .push("clientWindow", window)
+                        .push("focusWindow", window)
+                        .build();
 
                     client.send_req(Request::CreateIc {
                         input_method_id,
@@ -91,11 +90,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         input_method_id,
                         input_context_id
                     );
-                    client.send_req(Request::GetIcValues {
-                        ic_attributes: client.get_ic_attrs(&["preeditAttributes"]),
-                        input_method_id,
-                        input_context_id,
-                    })
+                    Ok(())
                 }
                 Request::GetIcValuesReply {
                     input_method_id,

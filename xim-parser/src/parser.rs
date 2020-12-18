@@ -873,6 +873,7 @@ pub enum Request {
         input_method_id: u16,
         input_context_id: u16,
         flag: ErrorFlag,
+        code: ErrorCode,
         detail: String,
     },
     ForwardEvent {
@@ -1237,6 +1238,7 @@ impl XimFormat for Request {
                 input_method_id: u16::read(reader)?,
                 input_context_id: u16::read(reader)?,
                 flag: ErrorFlag::read(reader)?,
+                code: ErrorCode::read(reader)?,
                 detail: {
                     let inner = {
                         let len = u16::read(reader)?;
@@ -1761,6 +1763,7 @@ impl XimFormat for Request {
                 input_method_id,
                 input_context_id,
                 flag,
+                code,
                 detail,
             } => {
                 20u8.write(writer);
@@ -1769,6 +1772,7 @@ impl XimFormat for Request {
                 input_method_id.write(writer);
                 input_context_id.write(writer);
                 flag.write(writer);
+                code.write(writer);
                 (detail.len() as u16).write(writer);
                 writer.write(&[0u8; 2]);
                 writer.write(detail.as_bytes());
@@ -2344,11 +2348,13 @@ impl XimFormat for Request {
                 input_method_id,
                 input_context_id,
                 flag,
+                code,
                 detail,
             } => {
                 content_size += input_method_id.size();
                 content_size += input_context_id.size();
                 content_size += flag.size();
+                content_size += code.size();
                 content_size += with_pad4(detail.len() + 2 + 2);
             }
             Request::ForwardEvent {

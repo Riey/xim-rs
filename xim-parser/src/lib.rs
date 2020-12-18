@@ -53,6 +53,26 @@ mod tests {
     }
 
     #[test]
+    fn read_error() {
+        let req = read(&[
+            20, 0, 7, 0, 2, 0, 1, 0, 3, 0, 2, 0, 16, 0, 0, 0, 105, 110, 118, 97, 108, 105, 100, 32,
+            105, 109, 32, 115, 116, 121, 108, 101,
+        ])
+        .unwrap();
+
+        assert_eq!(
+            req,
+            Request::Error {
+                input_method_id: 2,
+                input_context_id: 1,
+                flag: ErrorFlag::INPUTMETHODIDVALID | ErrorFlag::INPUTCONTEXTIDVALID,
+                code: ErrorCode::BadStyle,
+                detail: "invalid im style".into(),
+            }
+        );
+    }
+
+    #[test]
     fn write_create_ic() {
         let mut out = Vec::new();
         write(

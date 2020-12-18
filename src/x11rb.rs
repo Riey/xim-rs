@@ -1,6 +1,7 @@
 use std::{collections::HashMap, convert::TryInto};
 
 use crate::Atoms;
+use parser::Attribute;
 use x11rb::{
     connection::Connection,
     protocol::{
@@ -160,12 +161,29 @@ impl<'x, C: Connection + ConnectionExt> Client<'x, C> {
         }
     }
 
-    pub fn get_im_attr(&self, name: &str) -> Option<u16> {
-        self.im_attributes.get(name).copied()
+    pub fn get_im_attrs(&self, names: &[&str]) -> Vec<u16> {
+        names
+            .iter()
+            .filter_map(|name| self.ic_attributes.get(*name).copied())
+            .collect()
     }
 
-    pub fn get_ic_attr(&self, name: &str) -> Option<u16> {
-        self.ic_attributes.get(name).copied()
+    pub fn get_ic_attrs(&self, names: &[&str]) -> Vec<u16> {
+        names
+            .iter()
+            .filter_map(|name| self.ic_attributes.get(*name).copied())
+            .collect()
+    }
+
+    pub fn push_ic_attribute(
+        &self,
+        name: &str,
+        value: impl FnOnce() -> Vec<u8>,
+        out: &mut Vec<Attribute>,
+    ) {
+        if let Some(id) = self.ic_attributes.get(name).copied() {
+            out.push(Attribute { id, value: value() });
+        }
     }
 
     pub fn filter_event(

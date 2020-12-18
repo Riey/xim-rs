@@ -1,7 +1,7 @@
 use x11rb::protocol::{xproto::*, Event};
 use x11rb::{connection::Connection, COPY_DEPTH_FROM_PARENT};
 use xim::x11rb::{Client, ClientError};
-use xim_parser::{ForwardEventFlag, Request};
+use xim_parser::{Attribute, ForwardEventFlag, Request};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     pretty_env_logger::init();
@@ -52,20 +52,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     ic_attrs,
                 } => {
                     client.set_attrs(im_attrs, ic_attrs);
-                    client.send_req(Request::EncodingNegotiation {
-                        encodings: vec!["COMPOUND_TEXT".into(), "UTF8-STRING".into()],
-                        encoding_infos: vec![],
+                    client.send_req(Request::QueryExtension {
                         input_method_id,
+                        extensions: vec![],
                     })
                 }
+                Request::QueryExtensionReply {
+                    input_method_id, ..
+                } => client.send_req(Request::EncodingNegotiation {
+                    encodings: vec!["COMPOUND_TEXT".into(), "UTF8-STRING".into()],
+                    encoding_infos: vec![],
+                    input_method_id,
+                }),
                 Request::EncodingNegotiationReply {
                     category: _,
                     index: _,
                     input_method_id,
-                } => client.send_req(Request::CreateIc {
-                    input_method_id,
-                    ic_attributes: Vec::new(),
-                }),
+                } => {
+                    let mut ic_attributes = Vec::new();
+
+                    client.push_ic_attribute(
+                        "inputStyle",
+                        || xim::InputStlye::RootWindow.to_vec(),
+                        &mut ic_attributes,
+                    );
+
+                    client.send_req(Request::CreateIc {
+                        input_method_id,
+                        ic_attributes,
+                    })
+                }
                 Request::CreateIcReply {
                     input_method_id,
                     input_context_id,
@@ -75,12 +91,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         input_method_id,
                         input_context_id
                     );
-                    let ic_attributes = client
-                        .get_ic_attr("preeditAttributes")
-                        .into_iter()
-                        .collect();
                     client.send_req(Request::GetIcValues {
-                        ic_attributes,
+                        ic_attributes: client.get_ic_attrs(&["preeditAttributes"]),
                         input_method_id,
                         input_context_id,
                     })

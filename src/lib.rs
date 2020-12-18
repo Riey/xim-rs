@@ -1,5 +1,21 @@
 pub mod x11rb;
 
+#[derive(Clone, Copy, Debug)]
+#[repr(u32)]
+pub enum InputStlye {
+    Invalid = 0,
+    OverTheSpot = 1,
+    RootWindow = 2,
+    OffTheSpot = 3,
+    OnTheSpot = 4,
+}
+
+impl InputStlye {
+    pub fn to_vec(self) -> Vec<u8> {
+        (self as u32).to_ne_bytes().to_vec()
+    }
+}
+
 #[allow(non_snake_case)]
 #[derive(Copy, Clone, Debug)]
 struct Atoms<Atom> {

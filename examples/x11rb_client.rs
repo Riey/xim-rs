@@ -44,7 +44,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     server_major_protocol_version: _,
                     server_minor_protocol_version: _,
                 } => client.send_req(Request::Open {
-                    locale: "ko_KR".into(),
+                    locale: "en_US".into(),
                 }),
                 Request::OpenReply {
                     input_method_id,
@@ -59,8 +59,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     })
                 }
                 Request::EncodingNegotiationReply {
-                    category,
-                    index,
+                    category: _,
+                    index: _,
                     input_method_id,
                 } => client.send_req(Request::CreateIc {
                     input_method_id,
@@ -120,8 +120,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         })? {
             log::trace!("event consumed");
         } else if let Event::Error(err) = e {
-            log::error!("X11 ERROR!, {:?}", err);
-            return Err(ClientError::XimError.into());
+            return Err(ClientError::X11Error(err).into());
         }
     }
 

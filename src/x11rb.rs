@@ -2,18 +2,14 @@ use std::{collections::HashMap, convert::TryInto};
 
 use crate::Atoms;
 use parser::{Attr, Attribute};
-use x11rb::{
-    connection::Connection,
-    protocol::{
+use x11rb::{COPY_DEPTH_FROM_PARENT, CURRENT_TIME, connection::Connection, protocol::{
         xproto::{
             Atom, AtomEnum, ClientMessageData, ClientMessageEvent, ConnectionExt, KeyPressEvent,
             PropMode, Screen, SelectionRequestEvent, WindowClass, CLIENT_MESSAGE_EVENT,
             SELECTION_REQUEST_EVENT,
         },
         Event,
-    },
-    COPY_DEPTH_FROM_PARENT, CURRENT_TIME,
-};
+    }, x11_utils::X11Error};
 use xim_parser as parser;
 use xim_parser::Request;
 
@@ -31,6 +27,8 @@ pub enum ClientError {
     ReadProtocol(#[from] parser::ReadError),
     #[error("Server send error")]
     XimError,
+    #[error("X11 error {0:?}")]
+    X11Error(X11Error),
     #[error("Server Transport is not supported")]
     UnsupportedTransport,
     #[error("Invalid reply from server")]
@@ -269,6 +267,7 @@ impl<'x, C: Connection + ConnectionExt> Client<'x, C> {
         parser::write(&req, &mut self.buf);
 
         if self.buf.len() < self.transport_max {
+            log::trace!("Send {} by CM", req.name());
             if self.buf.len() > 20 {
                 todo!("multi-CM");
             }
@@ -288,11 +287,12 @@ impl<'x, C: Connection + ConnectionExt> Client<'x, C> {
                 },
             )?;
         } else {
+            log::trace!("Send {} by property", req.name());
             self.conn.change_property(
-                PropMode::Replace,
-                self.client_window,
+                PropMode::Append,
+                self.im_window,
                 self.atoms.DATA,
-                AtomEnum::Any,
+                AtomEnum::STRING,
                 8,
                 self.buf.len() as u32,
                 &self.buf,

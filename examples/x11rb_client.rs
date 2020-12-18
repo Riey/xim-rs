@@ -71,9 +71,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 } => {
                     let ic_attributes = client
                         .build_ic_attributes()
-                        .push("inputStyle", InputStyle::RootWindow)
-                        .push("clientWindow", window)
-                        .push("focusWindow", window)
+                        .push("inputStyle", &InputStyle::RootWindow)
+                        .push("clientWindow", &window)
+                        .push("focusWindow", &window)
                         .build();
 
                     client.send_req(Request::CreateIc {

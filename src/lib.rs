@@ -10,9 +10,8 @@ pub struct AttributeBuilder<'a> {
 }
 
 impl<'a> AttributeBuilder<'a> {
-    pub fn push<V: AsRef<I>, I: XimFormat>(mut self, name: &str, value: V) -> Self {
+    pub fn push<V: XimFormat>(mut self, name: &str, value: &V) -> Self {
         if let Some(id) = self.id_map.get(name).copied() {
-            let value = value.as_ref();
             let mut buf = Vec::with_capacity(value.size());
             value.write(&mut Writer::new(&mut buf));
             self.out.push(Attribute { id, value: buf });

@@ -100,6 +100,11 @@ impl<'b> Reader<'b> {
         Ok(*b)
     }
 
+    pub fn i16(&mut self) -> Result<i16, ReadError> {
+        let bytes = self.consume(2)?.try_into().unwrap();
+        Ok(i16::from_ne_bytes(bytes))
+    }
+
     pub fn u16(&mut self) -> Result<u16, ReadError> {
         let bytes = self.consume(2)?.try_into().unwrap();
         Ok(u16::from_ne_bytes(bytes))
@@ -290,6 +295,20 @@ impl XimFormat for u8 {
 
     fn size(&self) -> usize {
         1
+    }
+}
+
+impl XimFormat for i16 {
+    fn read(reader: &mut Reader) -> Result<Self, ReadError> {
+        reader.i16()
+    }
+
+    fn write(&self, writer: &mut Writer) {
+        writer.write(&self.to_ne_bytes())
+    }
+
+    fn size(&self) -> usize {
+        2
     }
 }
 
@@ -573,29 +592,26 @@ impl XimFormat for ForwardEventFlag {
         std::mem::size_of::<u16>()
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-#[repr(u32)]
-pub enum InputStyle {
-    Invalid = 0,
-    OverTheSpot = 1,
-    RootWindow = 2,
-    OffTheSpot = 3,
-    OnTheSpot = 4,
+bitflags::bitflags! {
+pub struct InputStyle: u32 {
+const PREEDITAREA = 1;
+const PREEDITCALLBACKS = 2;
+const PREEDITPOSITION = 4;
+const PREEDITNOTHING = 8;
+const PREEDITNONE = 16;
+const STATUSAREA = 256;
+const STATUSCALLBACKS = 512;
+const STATUSNOTHING = 1024;
+const STATUSNONE = 2048;
+}
 }
 impl XimFormat for InputStyle {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
         let repr = u32::read(reader)?;
-        match repr {
-            0 => Ok(Self::Invalid),
-            1 => Ok(Self::OverTheSpot),
-            2 => Ok(Self::RootWindow),
-            3 => Ok(Self::OffTheSpot),
-            4 => Ok(Self::OnTheSpot),
-            _ => Err(reader.invalid_data("InputStyle", repr)),
-        }
+        Self::from_bits(repr).ok_or(reader.invalid_data("InputStyle", repr))
     }
     fn write(&self, writer: &mut Writer) {
-        (*self as u32).write(writer);
+        self.bits().write(writer);
     }
     fn size(&self) -> usize {
         std::mem::size_of::<u32>()
@@ -761,6 +777,29 @@ impl XimFormat for Extension {
         content_size += self.major_opcode.size();
         content_size += self.minor_opcode.size();
         content_size += with_pad4(self.name.len() + 2 + 0);
+        content_size
+    }
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Spot {
+    pub x: i16,
+    pub y: i16,
+}
+impl XimFormat for Spot {
+    fn read(reader: &mut Reader) -> Result<Self, ReadError> {
+        Ok(Self {
+            x: i16::read(reader)?,
+            y: i16::read(reader)?,
+        })
+    }
+    fn write(&self, writer: &mut Writer) {
+        self.x.write(writer);
+        self.y.write(writer);
+    }
+    fn size(&self) -> usize {
+        let mut content_size = 0;
+        content_size += self.x.size();
+        content_size += self.y.size();
         content_size
     }
 }

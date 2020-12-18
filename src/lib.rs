@@ -4,6 +4,23 @@ use std::collections::HashMap;
 
 use xim_parser::{Attribute, Writer, XimFormat};
 
+pub struct NestedListBuilder<'a> {
+    id_map: &'a HashMap<String, u16>,
+    out: &'a mut Vec<Attribute>,
+}
+
+impl<'a> NestedListBuilder<'a> {
+    pub fn push<V: XimFormat>(self, name: &str, value: &V) -> Self {
+        if let Some(id) = self.id_map.get(name).copied() {
+            let mut buf = Vec::with_capacity(value.size());
+            value.write(&mut Writer::new(&mut buf));
+            self.out.push(Attribute { id, value: buf });
+        }
+
+        self
+    }
+}
+
 pub struct AttributeBuilder<'a> {
     id_map: &'a HashMap<String, u16>,
     out: Vec<Attribute>,
@@ -15,6 +32,27 @@ impl<'a> AttributeBuilder<'a> {
             let mut buf = Vec::with_capacity(value.size());
             value.write(&mut Writer::new(&mut buf));
             self.out.push(Attribute { id, value: buf });
+        }
+
+        self
+    }
+
+    pub fn nested_list(mut self, name: &str, f: impl FnOnce(NestedListBuilder)) -> Self {
+        if let Some(sep_id) = self.id_map.get("separatorofNestedList").copied() {
+            if let Some(id) = self.id_map.get(name).copied() {
+                self.out.push(Attribute {
+                    id,
+                    value: Vec::new(),
+                });
+                f(NestedListBuilder {
+                    id_map: self.id_map,
+                    out: &mut self.out,
+                });
+                self.out.push(Attribute {
+                    id: sep_id,
+                    value: Vec::new(),
+                });
+            }
         }
 
         self

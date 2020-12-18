@@ -1,7 +1,7 @@
 use x11rb::connection::Connection;
 use x11rb::protocol::{xproto::*, Event};
 use xim::x11rb::{Client, ClientError};
-use xim_parser::{InputStyle, Request};
+use xim_parser::{InputStyle, Request, Spot};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     pretty_env_logger::init();
@@ -71,9 +71,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 } => {
                     let ic_attributes = client
                         .build_ic_attributes()
-                        .push("inputStyle", &InputStyle::RootWindow)
+                        .push(
+                            "inputStyle",
+                            &0// (InputStyle::PREEDITPOSITION | InputStyle::STATUSAREA),
+                        )
                         .push("clientWindow", &window)
                         .push("focusWindow", &window)
+                        .nested_list("preeditAttributes", |b| {
+                            b.push("spotLocation", &Spot { x: 0, y: 0 });
+                        })
                         .build();
 
                     client.send_req(Request::CreateIc {

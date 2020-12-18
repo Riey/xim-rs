@@ -113,13 +113,18 @@ Enums:
   
   # Common attribute values
   InputStyle:
+    bitflag: true
     repr: u32
     variants:
-      Invalid: 0
-      OverTheSpot: 1
-      RootWindow: 2
-      OffTheSpot: 3
-      OnTheSpot: 4
+      PreeditArea: 0x1
+      PreeditCallbacks: 0x2
+      PreeditPosition: 0x4
+      PreeditNothing: 0x8
+      PreeditNone: 0x10
+      StatusArea: 0x100
+      StatusCallbacks: 0x200
+      StatusNothing: 0x400
+      StatusNone: 0x800
 
 
 Structs:
@@ -142,6 +147,9 @@ Structs:
     - "status PreeditDrawStatus"
     - "status_string @pad string"
     - "feedbacks @list22 Feedback"
+  Spot:
+    - "x i16"
+    - "y i16"
 
 Requests:
   Connect:

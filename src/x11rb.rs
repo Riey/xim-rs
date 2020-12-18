@@ -313,7 +313,7 @@ impl<'x, C: Connection + ConnectionExt> Client<'x, C> {
         } else {
             log::trace!("Send {} by property", req.name());
             self.conn.change_property(
-                PropMode::Replace,
+                PropMode::Append,
                 self.im_window,
                 self.atoms.DATA,
                 AtomEnum::STRING,

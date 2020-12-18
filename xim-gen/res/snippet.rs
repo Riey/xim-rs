@@ -107,6 +107,11 @@ impl<'b> Reader<'b> {
         Ok(*b)
     }
 
+    pub fn i16(&mut self) -> Result<i16, ReadError> {
+        let bytes = self.consume(2)?.try_into().unwrap();
+        Ok(i16::from_ne_bytes(bytes))
+    }
+
     pub fn u16(&mut self) -> Result<u16, ReadError> {
         let bytes = self.consume(2)?.try_into().unwrap();
         Ok(u16::from_ne_bytes(bytes))
@@ -294,6 +299,20 @@ impl XimFormat for u8 {
 
     fn size(&self) -> usize {
         1
+    }
+}
+
+impl XimFormat for i16 {
+    fn read(reader: &mut Reader) -> Result<Self, ReadError> {
+        reader.i16()
+    }
+
+    fn write(&self, writer: &mut Writer) {
+        writer.write(&self.to_ne_bytes())
+    }
+
+    fn size(&self) -> usize {
+        2
     }
 }
 

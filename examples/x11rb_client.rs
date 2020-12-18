@@ -53,7 +53,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 } => {
                     client.set_attrs(im_attrs, ic_attrs);
                     client.send_req(Request::EncodingNegotiation {
-                        encodings: vec!["COMPOUND_TEXT".into()],
+                        encodings: vec!["COMPOUND_TEXT".into(), "UTF8-STRING".into()],
                         encoding_infos: vec![],
                         input_method_id,
                     })
@@ -110,11 +110,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     input_method_id,
                     input_context_id,
                     flag,
+                    code,
                     detail,
-                } => {
-                    log::error!("XIM ERROR: {}", detail);
-                    Err(ClientError::XimError)
-                }
+                } => Err(ClientError::XimError(code, detail)),
                 _ => Err(ClientError::InvalidReply),
             }
         })? {

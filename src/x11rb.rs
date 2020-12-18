@@ -1,17 +1,20 @@
 use std::{collections::HashMap, convert::TryInto};
 
 use crate::Atoms;
-use parser::{Attr, Attribute};
-use x11rb::{COPY_DEPTH_FROM_PARENT, CURRENT_TIME, connection::Connection, protocol::{
+use x11rb::{
+    connection::Connection,
+    protocol::{
         xproto::{
             Atom, AtomEnum, ClientMessageData, ClientMessageEvent, ConnectionExt, KeyPressEvent,
-            PropMode, Screen, SelectionRequestEvent, WindowClass, CLIENT_MESSAGE_EVENT,
-            SELECTION_REQUEST_EVENT,
+            PropMode, Screen, WindowClass, CLIENT_MESSAGE_EVENT,
         },
         Event,
-    }, x11_utils::X11Error};
+    },
+    x11_utils::X11Error,
+    COPY_DEPTH_FROM_PARENT, CURRENT_TIME,
+};
 use xim_parser as parser;
-use xim_parser::Request;
+use xim_parser::{Attr, Request};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ClientError {
@@ -25,8 +28,8 @@ pub enum ClientError {
     ReplyOrId(#[from] x11rb::errors::ReplyOrIdError),
     #[error("Can't read xim message {0}")]
     ReadProtocol(#[from] parser::ReadError),
-    #[error("Server send error")]
-    XimError,
+    #[error("Server send error code: {0:?}, detail: {1}")]
+    XimError(parser::ErrorCode, String),
     #[error("X11 error {0:?}")]
     X11Error(X11Error),
     #[error("Server Transport is not supported")]
@@ -88,7 +91,7 @@ impl<'x, C: Connection + ConnectionExt> Client<'x, C> {
                 atoms.XIM_SERVERS,
                 AtomEnum::ATOM,
                 0,
-                100000,
+                u32::MAX,
             )?
             .reply()?;
 
@@ -197,7 +200,7 @@ impl<'x, C: Connection + ConnectionExt> Client<'x, C> {
                             self.atoms.TRANSPORT,
                             self.atoms.TRANSPORT,
                             0,
-                            100000,
+                            u32::MAX,
                         )?
                         .reply()?;
 
@@ -328,10 +331,12 @@ impl<'x, C: Connection + ConnectionExt> Client<'x, C> {
                 .get_property(true, msg.window, atom, AtomEnum::Any, 0, length)?
                 .reply()?
                 .value;
+            log::trace!("Raw data: {:?}", data);
             let req = parser::read(&data)?;
             cb(self, req)?;
         } else if msg.format == 8 {
             let data = msg.data.as_data8();
+            log::trace!("Raw data: {:?}", data);
             let req = parser::read(&data)?;
             cb(self, req)?;
         }

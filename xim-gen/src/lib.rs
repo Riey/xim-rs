@@ -202,6 +202,19 @@ impl XimFormat {
 
         writeln!(out, "}}")?;
 
+        writeln!(out, "impl Request {{")?;
+        writeln!(out, "pub fn name(&self) -> &'static str {{")?;
+        writeln!(out, "match self {{")?;
+        for (name, _req) in self.requests.iter() {
+            writeln!(out, "Request::{} {{ .. }} => \"{}\",", name, name)?;
+        }
+        // match
+        writeln!(out, "}}")?;
+        // fn name
+        writeln!(out, "}}")?;
+        // impl Request
+        writeln!(out, "}}")?;
+
         writeln!(out, "impl XimFormat for Request {{")?;
 
         writeln!(

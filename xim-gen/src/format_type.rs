@@ -12,7 +12,7 @@ pub struct Field {
 #[derive(Debug, Eq, PartialEq)]
 pub enum FormatType {
     Append(Box<Self>, usize),
-    Pad(Box<Self>),
+    Pad(Box<Self>, usize),
     List(Box<Self>, usize, usize),
     String { between_unused: usize, len: usize },
     XString,
@@ -27,7 +27,7 @@ impl FormatType {
                 inner.read(out)?;
                 write!(out, "; reader.consume({})?; inner }}", size)?;
             }
-            FormatType::Pad(inner) => {
+            FormatType::Pad(inner, _size_sub) => {
                 write!(out, "{{ let inner = ")?;
                 inner.read(out)?;
                 write!(out, "; reader.pad4()?; inner }}")?;
@@ -58,10 +58,7 @@ impl FormatType {
                 if *between_unused > 0 {
                     writeln!(out, "reader.consume({})?;", between_unused)?;
                 }
-                writeln!(
-                    out,
-                    "reader.consume(len as usize)?.to_vec().into()"
-                )?;
+                writeln!(out, "reader.consume(len as usize)?.to_vec().into()")?;
                 writeln!(out, "}}")?
             }
             FormatType::Normal(name) => write!(out, "{}::read(reader)?", name)?,
@@ -95,7 +92,7 @@ impl FormatType {
                 inner.write("elem", out)?;
                 writeln!(out, "}}")?;
             }
-            FormatType::Pad(inner) => {
+            FormatType::Pad(inner, _size_sub) => {
                 inner.write(this, out)?;
                 writeln!(out, "writer.write_pad4();")?;
             }
@@ -137,10 +134,15 @@ impl FormatType {
                 inner.size("e", out)?;
                 write!(out, ").sum::<usize>() + {} + {}", prefix, len)
             }
-            FormatType::Pad(inner) => {
+            FormatType::Pad(inner, size_add) => {
                 write!(out, "with_pad4(")?;
                 inner.size(this, out)?;
-                write!(out, ")")
+                write!(out, ")")?;
+                if *size_add > 0 {
+                    write!(out, " + {}", size_add)
+                } else {
+                    Ok(())
+                }
             }
             FormatType::Normal(_inner) => write!(out, "{}.size()", this),
         }
@@ -151,7 +153,7 @@ impl fmt::Display for FormatType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             FormatType::Append(inner, _len) => inner.fmt(f),
-            FormatType::Pad(inner) => inner.fmt(f),
+            FormatType::Pad(inner, ..) => inner.fmt(f),
             FormatType::List(inner, _prefix, _len) => write!(f, "Vec<{}>", inner),
             FormatType::XString => f.write_str("Vec<u8>"),
             FormatType::String { .. } => f.write_str("BString"),
@@ -183,9 +185,10 @@ impl std::str::FromStr for FormatType {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s.trim_start();
-
-        if let Some(left) = s.strip_prefix("@pad") {
-            Ok(Self::Pad(Box::new(left.parse()?)))
+        if let Some(left) = s.strip_prefix("@padadd2") {
+            Ok(Self::Pad(Box::new(left.parse()?), 2))
+        } else if let Some(left) = s.strip_prefix("@pad") {
+            Ok(Self::Pad(Box::new(left.parse()?), 0))
         } else if let Some(mut left) = s.strip_prefix("@list") {
             let mut prefix = 0;
             let mut len = 2;

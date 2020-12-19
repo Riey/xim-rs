@@ -1,6 +1,7 @@
 use std::{collections::HashMap, convert::TryInto};
 
 use crate::{Atoms, AttributeBuilder};
+use parser::ForwardEventFlag;
 use x11rb::{
     connection::Connection,
     protocol::{
@@ -194,16 +195,6 @@ impl<'x, C: Connection + ConnectionExt> Client<'x, C> {
         cb: impl FnOnce(&mut Self, Request) -> Result<(), ClientError>,
     ) -> Result<bool, ClientError> {
         match e {
-            Event::KeyPress(e) if self.connected => {
-                self.conn
-                    .send_event(false, self.im_window, self.forward_event_mask, e)?;
-                Ok(true)
-            }
-            Event::KeyRelease(e) if self.connected => {
-                self.conn
-                    .send_event(false, self.im_window, self.forward_event_mask, e)?;
-                Ok(true)
-            }
             Event::SelectionNotify(e) if e.requestor == self.client_window => {
                 if e.property == self.atoms.LOCALES {
                     // TODO: set locale
@@ -273,11 +264,18 @@ impl<'x, C: Connection + ConnectionExt> Client<'x, C> {
         }
     }
 
-    pub fn forward_key_press(&mut self, e: &KeyPressEvent) -> Result<(), ClientError> {
-        self.conn
-            .send_event(false, self.im_window, self.forward_event_mask, e)?;
-        self.conn.flush()?;
-        Ok(())
+    pub fn forward_key_press(
+        &mut self,
+        input_method_id: u16,
+        input_context_id: u16,
+        e: &KeyPressEvent,
+    ) -> Result<(), ClientError> {
+        self.send_req(Request::ForwardEvent {
+            input_method_id,
+            input_context_id,
+            flag: ForwardEventFlag::SYNCHRONOUS,
+            serial_number: e.sequence,
+        })
     }
 
     pub fn set_event_mask(&mut self, forward_event_mask: u32, synchronous_event_mask: u32) {

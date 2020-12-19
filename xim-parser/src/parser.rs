@@ -2578,7 +2578,7 @@ impl XimWrite for Request {
             } => {
                 content_size += input_method_id.size();
                 content_size +=
-                    with_pad4(encodings.iter().map(|e| e.len() + 1 + 0).sum::<usize>() + 0 + 2);
+                    with_pad4(encodings.iter().map(|e| e.len() + 1 + 0).sum::<usize>() + 0 + 2) + 2;
                 content_size += encoding_infos
                     .iter()
                     .map(|e| with_pad4(e.len() + 2 + 0))

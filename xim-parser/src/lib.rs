@@ -203,9 +203,29 @@ mod tests {
         assert_eq!(read(OPEN_REPLY).unwrap(), open_reply_value());
     }
 
+    fn check_size(r: Request) {
+        let mut out = Vec::new();
+        out.resize(r.size(), 0);
+        write(&r, &mut out);
+    }
+
     #[test]
     fn size_open_reply() {
         assert_eq!(open_reply_value().size(), OPEN_REPLY.len());
+    }
+
+    #[test]
+    fn size_open_reply_bytes() {
+        check_size(open_reply_value());
+    }
+
+    #[test]
+    fn size_encoding_nego() {
+        check_size(Request::EncodingNegotiation {
+            encodings: vec!["COMPOUND_TEXT".into()],
+            encoding_infos: vec![],
+            input_method_id: 0,
+        });
     }
 
     #[test]

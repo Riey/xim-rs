@@ -29,6 +29,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     log::info!("Start event loop");
 
+    let mut im_id = None;
+    let mut ic_id = None;
+
     let mut end = false;
 
     while !end {
@@ -96,7 +99,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         input_method_id,
                         input_context_id
                     );
-                    Ok(())
+
+                    im_id = Some(input_method_id);
+                    ic_id = Some(input_context_id);
+
+                    client.send_req(Request::SetIcFocus {
+                        input_method_id,
+                        input_context_id,
+                    })
                 }
                 Request::GetIcValuesReply {
                     input_method_id: _,
@@ -126,6 +136,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             log::trace!("event consumed");
         } else if let Event::Error(err) = e {
             return Err(ClientError::X11Error(err).into());
+        } else {
+            match e {
+                Event::KeyPress(e) | Event::KeyRelease(e) => match (im_id, ic_id) {
+                    (Some(im), Some(ic)) => {
+                        client.forward_key_press(im, ic, &e)?;
+                    }
+                    _ => {}
+                },
+                _ => {}
+            }
         }
     }
 

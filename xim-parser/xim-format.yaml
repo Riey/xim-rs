@@ -324,7 +324,7 @@ Requests:
     minor_opcode: ~
     body:
       - "input_method_id u16"
-      - "encodings @pad @list string1"
+      - "encodings @padadd2 @list string1"
       - "encoding_infos @list22 @pad string"
 
   EncodingNegotiationReply:

@@ -3,6 +3,7 @@
 
 #![allow(clippy::identity_op)]
 
+use bstr::{BString, ByteSlice};
 use std::convert::TryInto;
 
 pub fn read(b: &[u8]) -> Result<Request, ReadError> {
@@ -46,8 +47,6 @@ pub enum ReadError {
     InvalidData(&'static str, String),
     #[error("Not a native endian")]
     NotNativeEndian,
-    #[error("Not a utf8 string")]
-    Utf8Error(#[from] std::string::FromUtf8Error),
 }
 
 fn pad4(len: usize) -> usize {

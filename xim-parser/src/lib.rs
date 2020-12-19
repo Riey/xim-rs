@@ -1,5 +1,6 @@
 mod parser;
 
+pub use bstr;
 pub use parser::*;
 
 #[cfg(test)]

@@ -14,7 +14,7 @@ use x11rb::{
     COPY_DEPTH_FROM_PARENT, CURRENT_TIME,
 };
 use xim_parser as parser;
-use xim_parser::{Attr, AttributeName, Request, XimWrite};
+use xim_parser::{bstr::BString, Attr, AttributeName, Request, XimWrite};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ClientError {
@@ -29,7 +29,7 @@ pub enum ClientError {
     #[error("Can't read xim message {0}")]
     ReadProtocol(#[from] parser::ReadError),
     #[error("Server send error code: {0:?}, detail: {1}")]
-    XimError(parser::ErrorCode, String),
+    XimError(parser::ErrorCode, BString),
     #[error("X11 error {0:?}")]
     X11Error(X11Error),
     #[error("Server Transport is not supported")]

@@ -1,7 +1,6 @@
 use std::{collections::HashMap, convert::TryInto};
 
 use crate::{Atoms, AttributeBuilder};
-use parser::Attribute;
 use x11rb::{
     connection::Connection,
     protocol::{
@@ -15,7 +14,7 @@ use x11rb::{
     COPY_DEPTH_FROM_PARENT, CURRENT_TIME,
 };
 use xim_parser as parser;
-use xim_parser::{Attr, Request};
+use xim_parser::{Attr, AttributeName, Request, XimWrite};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ClientError {
@@ -50,8 +49,8 @@ pub struct Client<'x, C: Connection + ConnectionExt> {
     atoms: Atoms<Atom>,
     transport_max: usize,
     client_window: u32,
-    im_attributes: HashMap<String, u16>,
-    ic_attributes: HashMap<String, u16>,
+    im_attributes: HashMap<AttributeName, u16>,
+    ic_attributes: HashMap<AttributeName, u16>,
     forward_event_mask: u32,
     synchronous_event_mask: u32,
     buf: Vec<u8>,
@@ -161,17 +160,17 @@ impl<'x, C: Connection + ConnectionExt> Client<'x, C> {
         }
     }
 
-    pub fn get_im_attrs(&self, names: &[&str]) -> Vec<u16> {
+    pub fn get_im_attrs(&self, names: &[AttributeName]) -> Vec<u16> {
         names
             .iter()
-            .filter_map(|name| self.ic_attributes.get(*name).copied())
+            .filter_map(|name| self.ic_attributes.get(name).copied())
             .collect()
     }
 
-    pub fn get_ic_attrs(&self, names: &[&str]) -> Vec<u16> {
+    pub fn get_ic_attrs(&self, names: &[AttributeName]) -> Vec<u16> {
         names
             .iter()
-            .filter_map(|name| self.ic_attributes.get(*name).copied())
+            .filter_map(|name| self.ic_attributes.get(name).copied())
             .collect()
     }
 
@@ -288,6 +287,7 @@ impl<'x, C: Connection + ConnectionExt> Client<'x, C> {
     }
 
     pub fn send_req(&mut self, req: Request) -> Result<(), ClientError> {
+        self.buf.resize(req.size(), 0);
         parser::write(&req, &mut self.buf);
 
         if self.buf.len() < self.transport_max {

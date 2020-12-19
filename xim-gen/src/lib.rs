@@ -42,7 +42,7 @@ impl EnumFormat {
             writeln!(out, "}}")?;
         }
 
-        writeln!(out, "impl XimFormat for {} {{", name)?;
+        writeln!(out, "impl XimRead for {} {{", name)?;
 
         writeln!(
             out,
@@ -51,7 +51,7 @@ impl EnumFormat {
         if self.bitflag {
             writeln!(
                 out,
-                "Self::from_bits(repr).ok_or(reader.invalid_data(\"{}\", repr))",
+                "Self::from_bits(repr).ok_or_else(|| reader.invalid_data(\"{}\", repr))",
                 name
             )?;
         } else {
@@ -71,6 +71,11 @@ impl EnumFormat {
 
         writeln!(out, "}}")?;
 
+        // impl XimRead
+        writeln!(out, "}}")?;
+
+        writeln!(out, "impl XimWrite for {} {{", name)?;
+
         writeln!(out, "fn write(&self, writer: &mut Writer) {{")?;
 
         if self.bitflag {
@@ -87,7 +92,7 @@ impl EnumFormat {
             self.repr
         )?;
 
-        // impl
+        // impl XimWrite
         writeln!(out, "}}")?;
 
         Ok(())
@@ -121,8 +126,7 @@ impl StructFormat {
 
         writeln!(out, "}}")?;
 
-        writeln!(out, "impl XimFormat for {}", name)?;
-        writeln!(out, "{{")?;
+        writeln!(out, "impl XimRead for {} {{", name)?;
 
         writeln!(
             out,
@@ -137,9 +141,12 @@ impl StructFormat {
         }
         writeln!(out, "}})")?;
 
-        // end fn read
+        // fn read
+        writeln!(out, "}}")?;
+        // impl XimRead
         writeln!(out, "}}")?;
 
+        writeln!(out, "impl XimWrite for {} {{", name)?;
         writeln!(out, "fn write(&self, writer: &mut Writer) {{")?;
         for field in self.body.iter() {
             field.ty.write(&format!("self.{}", field.name), out)?;
@@ -173,6 +180,8 @@ impl StructFormat {
 struct XimFormat {
     #[serde(rename = "Enums")]
     enums: BTreeMap<String, EnumFormat>,
+    #[serde(rename = "AttributeNames")]
+    attribute_names: BTreeMap<String, String>,
     #[serde(rename = "Structs")]
     structs: BTreeMap<String, StructFormat>,
     #[serde(rename = "Requests")]
@@ -188,6 +197,64 @@ impl XimFormat {
         for (name, st) in self.structs.iter() {
             st.write(name, out)?;
         }
+
+        writeln!(
+            out,
+            "#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Ord, PartialOrd)]"
+        )?;
+        writeln!(out, "pub enum AttributeName {{")?;
+        for (key, _value) in self.attribute_names.iter() {
+            writeln!(out, "{},", key)?;
+        }
+        writeln!(out, "}}")?;
+
+        writeln!(out, "impl AttributeName {{")?;
+        writeln!(out, "pub fn name(self) -> &'static str {{")?;
+        writeln!(out, "match self {{")?;
+        for (key, value) in self.attribute_names.iter() {
+            writeln!(out, "Self::{} => \"{}\",", key, value)?;
+        }
+        // match
+        writeln!(out, "}}")?;
+        // fn name
+        writeln!(out, "}}")?;
+        // impl AttributeName
+        writeln!(out, "}}")?;
+
+        writeln!(out, "impl XimRead for AttributeName {{")?;
+        writeln!(
+            out,
+            "fn read(reader: &mut Reader) -> Result<Self, ReadError> {{"
+        )?;
+        writeln!(
+            out,
+            "let len = u16::read(reader)?; match reader.consume(len as usize)? {{"
+        )?;
+        for (key, value) in self.attribute_names.iter() {
+            writeln!(out, "b\"{}\" => Ok(Self::{}),", value, key)?;
+        }
+        writeln!(out, "bytes => Err(reader.invalid_data(\"AttributeName\", std::str::from_utf8(bytes).unwrap_or(\"NOT_UTF8\"))),")?;
+        // match
+        writeln!(out, "}}")?;
+        // fn read
+        writeln!(out, "}}")?;
+        // impl XimRead
+        writeln!(out, "}}")?;
+
+        writeln!(out, "impl XimWrite for AttributeName {{")?;
+
+        writeln!(out, "fn write(&self, writer: &mut Writer) {{")?;
+        writeln!(out, "let name = self.name(); (name.len() as u16).write(writer); writer.write(name.as_bytes());")?;
+        // fn write
+        writeln!(out, "}}")?;
+
+        writeln!(out, "fn size(&self) -> usize {{")?;
+        writeln!(out, "self.name().len() + 2")?;
+        // fn size
+        writeln!(out, "}}")?;
+
+        // impl XimWrite
+        writeln!(out, "}}")?;
 
         writeln!(out, "#[derive(Debug, Clone, Eq, PartialEq)]")?;
         writeln!(out, "pub enum Request {{")?;
@@ -215,7 +282,7 @@ impl XimFormat {
         // impl Request
         writeln!(out, "}}")?;
 
-        writeln!(out, "impl XimFormat for Request {{")?;
+        writeln!(out, "impl XimRead for Request {{")?;
 
         writeln!(
             out,
@@ -254,6 +321,11 @@ impl XimFormat {
 
         // fn read
         writeln!(out, "}}")?;
+
+        // impl XimRead
+        writeln!(out, "}}")?;
+
+        writeln!(out, "impl XimWrite for Request {{")?;
 
         writeln!(out, "fn write(&self, writer: &mut Writer) {{")?;
 
@@ -311,7 +383,7 @@ impl XimFormat {
         // fn size
         writeln!(out, "}}")?;
 
-        // impl
+        // impl XimWrite
         writeln!(out, "}}")?;
 
         Ok(())

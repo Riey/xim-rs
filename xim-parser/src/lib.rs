@@ -75,14 +75,13 @@ mod tests {
     #[test]
     fn write_create_ic() {
         let mut out = Vec::new();
-        write(
-            &Request::CreateIc {
-                input_method_id: 2,
-                ic_attributes: Vec::new(),
-            },
-            &mut out,
-        );
-        assert_eq!(out, b"\x32\x00\x01\x00\x02\x00\x00\x00");
+        let req = Request::CreateIc {
+            input_method_id: 2,
+            ic_attributes: Vec::new(),
+        };
+        out.resize(req.size(), 0);
+        write(&req, &mut out);
+        assert_eq!(out, b"\x32\x00\x01\x00\x02\x00\x00\x00\x00\x00");
     }
 
     #[test]
@@ -92,6 +91,7 @@ mod tests {
             server_major_protocol_version: 1,
         };
         let mut out = Vec::new();
+        out.resize(reply.size(), 0);
         write(&reply, &mut out);
 
         assert_eq!(out, b"\x02\x00\x01\x00\x01\x00\x00\x00");
@@ -105,93 +105,93 @@ mod tests {
             im_attrs: vec![Attr {
                 id: 0,
                 ty: AttrType::Style,
-                name: "queryInputStyle".into(),
+                name: AttributeName::QueryInputStyle,
             }],
             ic_attrs: vec![
                 Attr {
                     id: 1,
                     ty: AttrType::Long,
-                    name: "inputStyle".into(),
+                    name: AttributeName::InputStyle,
                 },
                 Attr {
                     id: 2,
                     ty: AttrType::Window,
-                    name: "clientWindow".into(),
+                    name: AttributeName::ClientWindow,
                 },
                 Attr {
                     id: 3,
                     ty: AttrType::Window,
-                    name: "focusWindow".into(),
+                    name: AttributeName::FocusWindow,
                 },
                 Attr {
                     id: 4,
                     ty: AttrType::Long,
-                    name: "filterEvents".into(),
+                    name: AttributeName::FilterEvents,
                 },
                 Attr {
                     id: 5,
                     ty: AttrType::NestedList,
-                    name: "preeditAttributes".into(),
+                    name: AttributeName::PreeditAttributes,
                 },
                 Attr {
                     id: 6,
                     ty: AttrType::NestedList,
-                    name: "statusAttributes".into(),
+                    name: AttributeName::StatusAttributes,
                 },
                 Attr {
                     id: 7,
                     ty: AttrType::XFontSet,
-                    name: "fontSet".into(),
+                    name: AttributeName::FontSet,
                 },
                 Attr {
                     id: 8,
                     ty: AttrType::XRectangle,
-                    name: "area".into(),
+                    name: AttributeName::Area,
                 },
                 Attr {
                     id: 9,
                     ty: AttrType::XRectangle,
-                    name: "areaNeeded".into(),
+                    name: AttributeName::AreaNeeded,
                 },
                 Attr {
                     id: 10,
                     ty: AttrType::Long,
-                    name: "colorMap".into(),
+                    name: AttributeName::ColorMap,
                 },
                 Attr {
                     id: 11,
                     ty: AttrType::Long,
-                    name: "stdColorMap".into(),
+                    name: AttributeName::StdColorMap,
                 },
                 Attr {
                     id: 12,
                     ty: AttrType::Long,
-                    name: "foreground".into(),
+                    name: AttributeName::Foreground,
                 },
                 Attr {
                     id: 13,
                     ty: AttrType::Long,
-                    name: "background".into(),
+                    name: AttributeName::Background,
                 },
                 Attr {
                     id: 14,
                     ty: AttrType::Long,
-                    name: "backgroundPixmap".into(),
+                    name: AttributeName::BackgroundPixmap,
                 },
                 Attr {
                     id: 15,
                     ty: AttrType::XPoint,
-                    name: "spotLocation".into(),
+                    name: AttributeName::SpotLocation,
                 },
                 Attr {
                     id: 16,
                     ty: AttrType::Long,
-                    name: "lineSpace".into(),
+                    name: AttributeName::LineSpace,
                 },
                 Attr {
                     id: 17,
                     ty: AttrType::Separator,
-                    name: "separatorofNestedList".into(),
+                    name: AttributeName::SeparatorofNestedList,
                 },
             ],
         }
@@ -211,6 +211,7 @@ mod tests {
     fn write_open_reply() {
         let mut out = Vec::new();
         let value = open_reply_value();
+        out.resize(value.size(), 0);
         write(&value, &mut out);
         assert_eq!(OPEN_REPLY.len(), out.len());
         assert_eq!(OPEN_REPLY, out);

@@ -1,7 +1,7 @@
 use x11rb::connection::Connection;
 use x11rb::protocol::{xproto::*, Event};
 use xim::x11rb::{Client, ClientError};
-use xim_parser::{InputStyle, Request, Spot};
+use xim_parser::{AttributeName, InputStyle, Request, Spot};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     pretty_env_logger::init();
@@ -72,13 +72,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let ic_attributes = client
                         .build_ic_attributes()
                         .push(
-                            "inputStyle",
-                            &0// (InputStyle::PREEDITPOSITION | InputStyle::STATUSAREA),
+                            AttributeName::InputStyle,
+                            InputStyle::PREEDITPOSITION | InputStyle::STATUSAREA,
                         )
-                        .push("clientWindow", &window)
-                        .push("focusWindow", &window)
-                        .nested_list("preeditAttributes", |b| {
-                            b.push("spotLocation", &Spot { x: 0, y: 0 });
+                        .push(AttributeName::ClientWindow, window)
+                        .push(AttributeName::FocusWindow, window)
+                        .nested_list(AttributeName::PreeditAttributes, |b| {
+                            b.push(AttributeName::SpotLocation, Spot { x: 0, y: 0 });
                         })
                         .build();
 
@@ -99,9 +99,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     Ok(())
                 }
                 Request::GetIcValuesReply {
-                    input_method_id,
-                    input_context_id,
-                    ic_attributes,
+                    input_method_id: _,
+                    input_context_id: _,
+                    ic_attributes: _,
                 } => Ok(()),
                 Request::SetEventMask {
                     input_method_id: _,
@@ -119,13 +119,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     end = true;
                     Ok(())
                 }
-                Request::Error {
-                    input_method_id,
-                    input_context_id,
-                    flag,
-                    code,
-                    detail,
-                } => Err(ClientError::XimError(code, detail)),
+                Request::Error { code, detail, .. } => Err(ClientError::XimError(code, detail)),
                 _ => Err(ClientError::InvalidReply),
             }
         })? {

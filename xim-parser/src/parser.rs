@@ -158,14 +158,31 @@ impl<'b> Writer<'b> {
     }
 }
 
-pub trait XimFormat: Sized {
+pub trait XimRead: Sized {
     fn read(reader: &mut Reader) -> Result<Self, ReadError>;
+}
+
+pub trait XimWrite {
     fn write(&self, writer: &mut Writer);
     /// byte size of format
     fn size(&self) -> usize;
 }
 
-impl XimFormat for Endian {
+impl<'a, T> XimWrite for &'a T
+where
+    T: XimWrite,
+{
+    #[inline(always)]
+    fn write(&self, writer: &mut Writer) {
+        (**self).write(writer);
+    }
+    #[inline(always)]
+    fn size(&self) -> usize {
+        (**self).size()
+    }
+}
+
+impl XimRead for Endian {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
         let n = u8::read(reader)?;
 
@@ -175,7 +192,9 @@ impl XimFormat for Endian {
             Err(ReadError::NotNativeEndian)
         }
     }
+}
 
+impl XimWrite for Endian {
     fn write(&self, writer: &mut Writer) {
         (*self as u8).write(writer);
     }
@@ -185,17 +204,19 @@ impl XimFormat for Endian {
     }
 }
 
-impl XimFormat for StatusContent {
+impl XimRead for StatusContent {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
         let ty = u32::read(reader)?;
 
         match ty {
-            0 => Ok(Self::Text(XimFormat::read(reader)?)),
-            1 => Ok(Self::Pixmap(XimFormat::read(reader)?)),
+            0 => Ok(Self::Text(StatusTextContent::read(reader)?)),
+            1 => Ok(Self::Pixmap(u32::read(reader)?)),
             _ => Err(reader.invalid_data("StatusContentType", ty)),
         }
     }
+}
 
+impl XimWrite for StatusContent {
     fn write(&self, writer: &mut Writer) {
         match self {
             StatusContent::Text(content) => {
@@ -219,7 +240,7 @@ impl XimFormat for StatusContent {
     }
 }
 
-impl XimFormat for CommitData {
+impl XimRead for CommitData {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
         let ty = reader.u16()?;
 
@@ -252,7 +273,9 @@ impl XimFormat for CommitData {
             _ => Err(reader.invalid_data("CommitDataType", ty)),
         }
     }
+}
 
+impl XimWrite for CommitData {
     fn write(&self, writer: &mut Writer) {
         match self {
             Self::Synchronous => 1u16.write(writer),
@@ -288,11 +311,13 @@ impl XimFormat for CommitData {
     }
 }
 
-impl XimFormat for u8 {
+impl XimRead for u8 {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
         reader.u8()
     }
+}
 
+impl XimWrite for u8 {
     fn write(&self, writer: &mut Writer) {
         writer.write_u8(*self)
     }
@@ -302,61 +327,30 @@ impl XimFormat for u8 {
     }
 }
 
-impl XimFormat for i16 {
-    fn read(reader: &mut Reader) -> Result<Self, ReadError> {
-        reader.i16()
-    }
+macro_rules! impl_int {
+    ($ty:ident) => {
+        impl XimRead for $ty {
+            fn read(reader: &mut Reader) -> Result<Self, ReadError> {
+                reader.$ty()
+            }
+        }
 
-    fn write(&self, writer: &mut Writer) {
-        writer.write(&self.to_ne_bytes())
-    }
+        impl XimWrite for $ty {
+            fn write(&self, writer: &mut Writer) {
+                writer.write(&self.to_ne_bytes())
+            }
 
-    fn size(&self) -> usize {
-        2
-    }
+            fn size(&self) -> usize {
+                std::mem::size_of::<$ty>()
+            }
+        }
+    };
 }
 
-impl XimFormat for u16 {
-    fn read(reader: &mut Reader) -> Result<Self, ReadError> {
-        reader.u16()
-    }
-
-    fn write(&self, writer: &mut Writer) {
-        writer.write(&self.to_ne_bytes())
-    }
-
-    fn size(&self) -> usize {
-        2
-    }
-}
-
-impl XimFormat for u32 {
-    fn read(reader: &mut Reader) -> Result<Self, ReadError> {
-        reader.u32()
-    }
-
-    fn write(&self, writer: &mut Writer) {
-        writer.write(&self.to_ne_bytes())
-    }
-
-    fn size(&self) -> usize {
-        4
-    }
-}
-
-impl XimFormat for i32 {
-    fn read(reader: &mut Reader) -> Result<Self, ReadError> {
-        reader.i32()
-    }
-
-    fn write(&self, writer: &mut Writer) {
-        writer.write(&self.to_ne_bytes())
-    }
-
-    fn size(&self) -> usize {
-        4
-    }
-}
+impl_int!(u16);
+impl_int!(i16);
+impl_int!(u32);
+impl_int!(i32);
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(u16)]
 pub enum AttrType {
@@ -376,7 +370,7 @@ pub enum AttrType {
     ResetState = 19,
     NestedList = 32767,
 }
-impl XimFormat for AttrType {
+impl XimRead for AttrType {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
         let repr = u16::read(reader)?;
         match repr {
@@ -398,6 +392,8 @@ impl XimFormat for AttrType {
             _ => Err(reader.invalid_data("AttrType", repr)),
         }
     }
+}
+impl XimWrite for AttrType {
     fn write(&self, writer: &mut Writer) {
         (*self as u16).write(writer);
     }
@@ -421,7 +417,7 @@ pub enum CaretDirection {
     AbsolutePosition = 10,
     DontChange = 11,
 }
-impl XimFormat for CaretDirection {
+impl XimRead for CaretDirection {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
         let repr = u32::read(reader)?;
         match repr {
@@ -440,6 +436,8 @@ impl XimFormat for CaretDirection {
             _ => Err(reader.invalid_data("CaretDirection", repr)),
         }
     }
+}
+impl XimWrite for CaretDirection {
     fn write(&self, writer: &mut Writer) {
         (*self as u32).write(writer);
     }
@@ -454,7 +452,7 @@ pub enum CaretStyle {
     Primary = 1,
     Secondary = 2,
 }
-impl XimFormat for CaretStyle {
+impl XimRead for CaretStyle {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
         let repr = u32::read(reader)?;
         match repr {
@@ -464,6 +462,8 @@ impl XimFormat for CaretStyle {
             _ => Err(reader.invalid_data("CaretStyle", repr)),
         }
     }
+}
+impl XimWrite for CaretStyle {
     fn write(&self, writer: &mut Writer) {
         (*self as u32).write(writer);
     }
@@ -492,7 +492,7 @@ pub enum ErrorCode {
     LocaleNotSupported = 16,
     BadSomething = 999,
 }
-impl XimFormat for ErrorCode {
+impl XimRead for ErrorCode {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
         let repr = u16::read(reader)?;
         match repr {
@@ -516,6 +516,8 @@ impl XimFormat for ErrorCode {
             _ => Err(reader.invalid_data("ErrorCode", repr)),
         }
     }
+}
+impl XimWrite for ErrorCode {
     fn write(&self, writer: &mut Writer) {
         (*self as u16).write(writer);
     }
@@ -529,11 +531,13 @@ const INPUTMETHODIDVALID = 1;
 const INPUTCONTEXTIDVALID = 2;
 }
 }
-impl XimFormat for ErrorFlag {
+impl XimRead for ErrorFlag {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
         let repr = u16::read(reader)?;
         Self::from_bits(repr).ok_or(reader.invalid_data("ErrorFlag", repr))
     }
+}
+impl XimWrite for ErrorFlag {
     fn write(&self, writer: &mut Writer) {
         self.bits().write(writer);
     }
@@ -554,7 +558,7 @@ pub enum Feedback {
     VisibleToBackward = 128,
     VisibleCenter = 256,
 }
-impl XimFormat for Feedback {
+impl XimRead for Feedback {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
         let repr = u32::read(reader)?;
         match repr {
@@ -570,6 +574,8 @@ impl XimFormat for Feedback {
             _ => Err(reader.invalid_data("Feedback", repr)),
         }
     }
+}
+impl XimWrite for Feedback {
     fn write(&self, writer: &mut Writer) {
         (*self as u32).write(writer);
     }
@@ -584,11 +590,13 @@ const REQUESTFILTERING = 2;
 const REQUESTLOOPUPSTRING = 4;
 }
 }
-impl XimFormat for ForwardEventFlag {
+impl XimRead for ForwardEventFlag {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
         let repr = u16::read(reader)?;
         Self::from_bits(repr).ok_or(reader.invalid_data("ForwardEventFlag", repr))
     }
+}
+impl XimWrite for ForwardEventFlag {
     fn write(&self, writer: &mut Writer) {
         self.bits().write(writer);
     }
@@ -609,11 +617,13 @@ const STATUSNOTHING = 1024;
 const STATUSNONE = 2048;
 }
 }
-impl XimFormat for InputStyle {
+impl XimRead for InputStyle {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
         let repr = u32::read(reader)?;
         Self::from_bits(repr).ok_or(reader.invalid_data("InputStyle", repr))
     }
+}
+impl XimWrite for InputStyle {
     fn write(&self, writer: &mut Writer) {
         self.bits().write(writer);
     }
@@ -627,11 +637,13 @@ const NOSTRING = 1;
 const NOFEEDBACK = 2;
 }
 }
-impl XimFormat for PreeditDrawStatus {
+impl XimRead for PreeditDrawStatus {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
         let repr = u32::read(reader)?;
         Self::from_bits(repr).ok_or(reader.invalid_data("PreeditDrawStatus", repr))
     }
+}
+impl XimWrite for PreeditDrawStatus {
     fn write(&self, writer: &mut Writer) {
         self.bits().write(writer);
     }
@@ -646,11 +658,13 @@ const ENABLE = 1;
 const DISABLE = 2;
 }
 }
-impl XimFormat for PreeditStateFlag {
+impl XimRead for PreeditStateFlag {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
         let repr = u32::read(reader)?;
         Self::from_bits(repr).ok_or(reader.invalid_data("PreeditStateFlag", repr))
     }
+}
+impl XimWrite for PreeditStateFlag {
     fn write(&self, writer: &mut Writer) {
         self.bits().write(writer);
     }
@@ -664,7 +678,7 @@ pub enum TriggerNotifyFlag {
     OnKeyList = 0,
     OffKeyList = 1,
 }
-impl XimFormat for TriggerNotifyFlag {
+impl XimRead for TriggerNotifyFlag {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
         let repr = u32::read(reader)?;
         match repr {
@@ -673,6 +687,8 @@ impl XimFormat for TriggerNotifyFlag {
             _ => Err(reader.invalid_data("TriggerNotifyFlag", repr)),
         }
     }
+}
+impl XimWrite for TriggerNotifyFlag {
     fn write(&self, writer: &mut Writer) {
         (*self as u32).write(writer);
     }
@@ -686,7 +702,7 @@ pub struct Attr {
     pub ty: AttrType,
     pub name: String,
 }
-impl XimFormat for Attr {
+impl XimRead for Attr {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
         Ok(Self {
             id: u16::read(reader)?,
@@ -701,6 +717,8 @@ impl XimFormat for Attr {
             },
         })
     }
+}
+impl XimWrite for Attr {
     fn write(&self, writer: &mut Writer) {
         self.id.write(writer);
         self.ty.write(writer);
@@ -721,7 +739,7 @@ pub struct Attribute {
     pub id: u16,
     pub value: Vec<u8>,
 }
-impl XimFormat for Attribute {
+impl XimRead for Attribute {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
         Ok(Self {
             id: u16::read(reader)?,
@@ -735,6 +753,8 @@ impl XimFormat for Attribute {
             },
         })
     }
+}
+impl XimWrite for Attribute {
     fn write(&self, writer: &mut Writer) {
         self.id.write(writer);
         (self.value.len() as u16).write(writer);
@@ -754,7 +774,7 @@ pub struct Extension {
     pub minor_opcode: u8,
     pub name: String,
 }
-impl XimFormat for Extension {
+impl XimRead for Extension {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
         Ok(Self {
             major_opcode: u8::read(reader)?,
@@ -769,6 +789,8 @@ impl XimFormat for Extension {
             },
         })
     }
+}
+impl XimWrite for Extension {
     fn write(&self, writer: &mut Writer) {
         self.major_opcode.write(writer);
         self.minor_opcode.write(writer);
@@ -789,13 +811,15 @@ pub struct Spot {
     pub x: i16,
     pub y: i16,
 }
-impl XimFormat for Spot {
+impl XimRead for Spot {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
         Ok(Self {
             x: i16::read(reader)?,
             y: i16::read(reader)?,
         })
     }
+}
+impl XimWrite for Spot {
     fn write(&self, writer: &mut Writer) {
         self.x.write(writer);
         self.y.write(writer);
@@ -813,7 +837,7 @@ pub struct StatusTextContent {
     pub status_string: String,
     pub feedbacks: Vec<Feedback>,
 }
-impl XimFormat for StatusTextContent {
+impl XimRead for StatusTextContent {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
         Ok(Self {
             status: PreeditDrawStatus::read(reader)?,
@@ -837,6 +861,8 @@ impl XimFormat for StatusTextContent {
             },
         })
     }
+}
+impl XimWrite for StatusTextContent {
     fn write(&self, writer: &mut Writer) {
         self.status.write(writer);
         (self.status_string.len() as u16).write(writer);
@@ -863,7 +889,7 @@ pub struct TriggerKey {
     pub modifier: u32,
     pub modifier_mask: u32,
 }
-impl XimFormat for TriggerKey {
+impl XimRead for TriggerKey {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
         Ok(Self {
             keysym: u32::read(reader)?,
@@ -871,6 +897,8 @@ impl XimFormat for TriggerKey {
             modifier_mask: u32::read(reader)?,
         })
     }
+}
+impl XimWrite for TriggerKey {
     fn write(&self, writer: &mut Writer) {
         self.keysym.write(writer);
         self.modifier.write(writer);
@@ -1171,7 +1199,7 @@ impl Request {
         }
     }
 }
-impl XimFormat for Request {
+impl XimRead for Request {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
         let major_opcode = reader.u8()?;
         let minor_opcode = reader.u8()?;
@@ -1639,6 +1667,8 @@ impl XimFormat for Request {
             }
         }
     }
+}
+impl XimWrite for Request {
     fn write(&self, writer: &mut Writer) {
         match self {
             Request::AuthNext {} => {

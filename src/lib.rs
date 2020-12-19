@@ -2,7 +2,7 @@ pub mod x11rb;
 
 use std::collections::HashMap;
 
-use xim_parser::{Attribute, Writer, XimFormat};
+use xim_parser::{Attribute, Writer, XimWrite};
 
 pub struct NestedListBuilder<'a> {
     id_map: &'a HashMap<String, u16>,
@@ -10,7 +10,7 @@ pub struct NestedListBuilder<'a> {
 }
 
 impl<'a> NestedListBuilder<'a> {
-    pub fn push<V: XimFormat>(self, name: &str, value: &V) -> Self {
+    pub fn push<V: XimWrite>(self, name: &str, value: V) -> Self {
         if let Some(id) = self.id_map.get(name).copied() {
             let mut buf = Vec::with_capacity(value.size());
             value.write(&mut Writer::new(&mut buf));
@@ -27,7 +27,7 @@ pub struct AttributeBuilder<'a> {
 }
 
 impl<'a> AttributeBuilder<'a> {
-    pub fn push<V: XimFormat>(mut self, name: &str, value: &V) -> Self {
+    pub fn push<V: XimWrite>(mut self, name: &str, value: V) -> Self {
         if let Some(id) = self.id_map.get(name).copied() {
             let mut buf = Vec::with_capacity(value.size());
             value.write(&mut Writer::new(&mut buf));

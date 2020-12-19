@@ -42,7 +42,7 @@ impl EnumFormat {
             writeln!(out, "}}")?;
         }
 
-        writeln!(out, "impl XimFormat for {} {{", name)?;
+        writeln!(out, "impl XimRead for {} {{", name)?;
 
         writeln!(
             out,
@@ -71,6 +71,11 @@ impl EnumFormat {
 
         writeln!(out, "}}")?;
 
+        // impl XimRead
+        writeln!(out, "}}")?;
+
+        writeln!(out, "impl XimWrite for {} {{", name)?;
+
         writeln!(out, "fn write(&self, writer: &mut Writer) {{")?;
 
         if self.bitflag {
@@ -87,7 +92,7 @@ impl EnumFormat {
             self.repr
         )?;
 
-        // impl
+        // impl XimWrite
         writeln!(out, "}}")?;
 
         Ok(())
@@ -121,8 +126,7 @@ impl StructFormat {
 
         writeln!(out, "}}")?;
 
-        writeln!(out, "impl XimFormat for {}", name)?;
-        writeln!(out, "{{")?;
+        writeln!(out, "impl XimRead for {} {{", name)?;
 
         writeln!(
             out,
@@ -137,9 +141,12 @@ impl StructFormat {
         }
         writeln!(out, "}})")?;
 
-        // end fn read
+        // fn read
+        writeln!(out, "}}")?;
+        // impl XimRead
         writeln!(out, "}}")?;
 
+        writeln!(out, "impl XimWrite for {} {{", name)?;
         writeln!(out, "fn write(&self, writer: &mut Writer) {{")?;
         for field in self.body.iter() {
             field.ty.write(&format!("self.{}", field.name), out)?;
@@ -215,7 +222,7 @@ impl XimFormat {
         // impl Request
         writeln!(out, "}}")?;
 
-        writeln!(out, "impl XimFormat for Request {{")?;
+        writeln!(out, "impl XimRead for Request {{")?;
 
         writeln!(
             out,
@@ -254,6 +261,11 @@ impl XimFormat {
 
         // fn read
         writeln!(out, "}}")?;
+
+        // impl XimRead
+        writeln!(out, "}}")?;
+
+        writeln!(out, "impl XimWrite for Request {{")?;
 
         writeln!(out, "fn write(&self, writer: &mut Writer) {{")?;
 
@@ -311,7 +323,7 @@ impl XimFormat {
         // fn size
         writeln!(out, "}}")?;
 
-        // impl
+        // impl XimWrite
         writeln!(out, "}}")?;
 
         Ok(())

@@ -165,14 +165,28 @@ impl<'b> Writer<'b> {
     }
 }
 
-pub trait XimFormat: Sized {
+pub trait XimRead: Sized {
     fn read(reader: &mut Reader) -> Result<Self, ReadError>;
+}
+
+pub trait XimWrite {
     fn write(&self, writer: &mut Writer);
     /// byte size of format
     fn size(&self) -> usize;
 }
 
-impl XimFormat for Endian {
+impl<'a, T> XimWrite for &'a T where T: XimWrite {
+    #[inline(always)]
+    fn write(&self, writer: &mut Writer) {
+        (**self).write(writer);
+    }
+    #[inline(always)]
+    fn size(&self) -> usize {
+        (**self).size()
+    }
+}
+
+impl XimRead for Endian {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
         let n = u8::read(reader)?;
 
@@ -182,7 +196,9 @@ impl XimFormat for Endian {
             Err(ReadError::NotNativeEndian)
         }
     }
+}
 
+impl XimWrite for Endian {
     fn write(&self, writer: &mut Writer) {
         (*self as u8).write(writer);
     }
@@ -192,17 +208,19 @@ impl XimFormat for Endian {
     }
 }
 
-impl XimFormat for StatusContent {
+impl XimRead for StatusContent {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
         let ty = u32::read(reader)?;
 
         match ty {
-            0 => Ok(Self::Text(XimFormat::read(reader)?)),
-            1 => Ok(Self::Pixmap(XimFormat::read(reader)?)),
+            0 => Ok(Self::Text(StatusTextContent::read(reader)?)),
+            1 => Ok(Self::Pixmap(u32::read(reader)?)),
             _ => Err(reader.invalid_data("StatusContentType", ty)),
         }
     }
+}
 
+impl XimWrite for StatusContent {
     fn write(&self, writer: &mut Writer) {
         match self {
             StatusContent::Text(content) => {
@@ -226,7 +244,7 @@ impl XimFormat for StatusContent {
     }
 }
 
-impl XimFormat for CommitData {
+impl XimRead for CommitData {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
         let ty = reader.u16()?;
 
@@ -256,7 +274,9 @@ impl XimFormat for CommitData {
             _ => Err(reader.invalid_data("CommitDataType", ty)),
         }
     }
+}
 
+impl XimWrite for CommitData {
     fn write(&self, writer: &mut Writer) {
         match self {
             Self::Synchronous => 1u16.write(writer),
@@ -292,11 +312,13 @@ impl XimFormat for CommitData {
     }
 }
 
-impl XimFormat for u8 {
+impl XimRead for u8 {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
         reader.u8()
     }
+}
 
+impl XimWrite for u8 {
     fn write(&self, writer: &mut Writer) {
         writer.write_u8(*self)
     }
@@ -306,58 +328,27 @@ impl XimFormat for u8 {
     }
 }
 
-impl XimFormat for i16 {
-    fn read(reader: &mut Reader) -> Result<Self, ReadError> {
-        reader.i16()
-    }
+macro_rules! impl_int {
+    ($ty:ident) => {
+        impl XimRead for $ty {
+            fn read(reader: &mut Reader) -> Result<Self, ReadError> {
+                reader.$ty()
+            }
+        }
 
-    fn write(&self, writer: &mut Writer) {
-        writer.write(&self.to_ne_bytes())
-    }
+        impl XimWrite for $ty {
+            fn write(&self, writer: &mut Writer) {
+                writer.write(&self.to_ne_bytes())
+            }
 
-    fn size(&self) -> usize {
-        2
-    }
+            fn size(&self) -> usize {
+                std::mem::size_of::<$ty>()
+            }
+        }
+    };
 }
 
-impl XimFormat for u16 {
-    fn read(reader: &mut Reader) -> Result<Self, ReadError> {
-        reader.u16()
-    }
-
-    fn write(&self, writer: &mut Writer) {
-        writer.write(&self.to_ne_bytes())
-    }
-
-    fn size(&self) -> usize {
-        2
-    }
-}
-
-impl XimFormat for u32 {
-    fn read(reader: &mut Reader) -> Result<Self, ReadError> {
-        reader.u32()
-    }
-
-    fn write(&self, writer: &mut Writer) {
-        writer.write(&self.to_ne_bytes())
-    }
-
-    fn size(&self) -> usize {
-        4
-    }
-}
-
-impl XimFormat for i32 {
-    fn read(reader: &mut Reader) -> Result<Self, ReadError> {
-        reader.i32()
-    }
-
-    fn write(&self, writer: &mut Writer) {
-        writer.write(&self.to_ne_bytes())
-    }
-
-    fn size(&self) -> usize {
-        4
-    }
-}
+impl_int!(u16);
+impl_int!(i16);
+impl_int!(u32);
+impl_int!(i32);

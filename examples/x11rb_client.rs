@@ -63,7 +63,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Request::QueryExtensionReply {
                     input_method_id, ..
                 } => client.send_req(Request::EncodingNegotiation {
-                    encodings: vec!["COMPOUND_TEXT".into()],
+                    encodings: vec!["COMPOUND_TEXT".into(), "".into()],
                     encoding_infos: vec![],
                     input_method_id,
                 }),

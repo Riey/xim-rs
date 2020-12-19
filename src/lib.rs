@@ -14,7 +14,8 @@ pub struct NestedListBuilder<'a> {
 impl<'a> NestedListBuilder<'a> {
     pub fn push<V: XimWrite>(self, name: AttributeName, value: V) -> Self {
         if let Some(id) = self.id_map.get(&name).copied() {
-            let mut buf = Vec::with_capacity(value.size());
+            let mut buf = Vec::new();
+            buf.resize(value.size(), 0);
             value.write(&mut Writer::new(&mut buf));
             self.out.push(Attribute { id, value: buf });
         }
@@ -31,7 +32,8 @@ pub struct AttributeBuilder<'a> {
 impl<'a> AttributeBuilder<'a> {
     pub fn push<V: XimWrite>(mut self, name: AttributeName, value: V) -> Self {
         if let Some(id) = self.id_map.get(&name).copied() {
-            let mut buf = Vec::with_capacity(value.size());
+            let mut buf = Vec::new();
+            buf.resize(value.size(), 0);
             value.write(&mut Writer::new(&mut buf));
             self.out.push(Attribute { id, value: buf });
         }

@@ -60,7 +60,7 @@ impl FormatType {
                 }
                 writeln!(
                     out,
-                    "String::from_utf8(reader.consume(len as usize)?.to_vec())?"
+                    "reader.consume(len as usize)?.to_vec().into()"
                 )?;
                 writeln!(out, "}}")?
             }
@@ -154,7 +154,7 @@ impl fmt::Display for FormatType {
             FormatType::Pad(inner) => inner.fmt(f),
             FormatType::List(inner, _prefix, _len) => write!(f, "Vec<{}>", inner),
             FormatType::XString => f.write_str("Vec<u8>"),
-            FormatType::String { .. } => f.write_str("String"),
+            FormatType::String { .. } => f.write_str("BString"),
             FormatType::Normal(name) => f.write_str(name),
         }
     }

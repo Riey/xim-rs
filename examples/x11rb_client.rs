@@ -73,7 +73,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .build_ic_attributes()
                         .push(
                             "inputStyle",
-                            &0// (InputStyle::PREEDITPOSITION | InputStyle::STATUSAREA),
+                            &0, // (InputStyle::PREEDITPOSITION | InputStyle::STATUSAREA),
                         )
                         .push("clientWindow", &window)
                         .push("focusWindow", &window)

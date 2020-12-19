@@ -11,7 +11,7 @@ pub fn read(b: &[u8]) -> Result<Request, ReadError> {
     Request::read(&mut Reader::new(b))
 }
 
-pub fn write(req: &Request, out: &mut Vec<u8>) {
+pub fn write(req: &Request, out: &mut [u8]) {
     req.write(&mut Writer::new(out));
 }
 
@@ -139,25 +139,29 @@ impl<'b> Reader<'b> {
 }
 
 pub struct Writer<'b> {
-    out: &'b mut Vec<u8>,
+    out: &'b mut [u8],
+    idx: usize,
 }
 
 impl<'b> Writer<'b> {
-    pub fn new(out: &'b mut Vec<u8>) -> Self {
-        Self { out }
+    pub fn new(out: &'b mut [u8]) -> Self {
+        Self { out, idx: 0 }
     }
 
     pub fn write_u8(&mut self, b: u8) {
-        self.out.push(b);
+        self.out[self.idx] = b;
+        self.idx += 1;
     }
 
     pub fn write(&mut self, bytes: &[u8]) {
-        self.out.extend_from_slice(bytes);
+        self.out[self.idx..self.idx+bytes.len()].copy_from_slice(bytes);
+        self.idx += bytes.len();
     }
 
     pub fn write_pad4(&mut self) {
-        let pad = pad4(self.out.len());
-        self.out.extend(std::iter::repeat(0).take(pad));
+        let pad = pad4(self.idx);
+        let pad_bytes = [0; 4];
+        self.write(&pad_bytes[..pad]);
     }
 }
 

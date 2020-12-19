@@ -75,14 +75,13 @@ mod tests {
     #[test]
     fn write_create_ic() {
         let mut out = Vec::new();
-        write(
-            &Request::CreateIc {
-                input_method_id: 2,
-                ic_attributes: Vec::new(),
-            },
-            &mut out,
-        );
-        assert_eq!(out, b"\x32\x00\x01\x00\x02\x00\x00\x00");
+        let req = Request::CreateIc {
+            input_method_id: 2,
+            ic_attributes: Vec::new(),
+        };
+        out.resize(req.size(), 0);
+        write(&req, &mut out);
+        assert_eq!(out, b"\x32\x00\x01\x00\x02\x00\x00\x00\x00\x00");
     }
 
     #[test]
@@ -92,6 +91,7 @@ mod tests {
             server_major_protocol_version: 1,
         };
         let mut out = Vec::new();
+        out.resize(reply.size(), 0);
         write(&reply, &mut out);
 
         assert_eq!(out, b"\x02\x00\x01\x00\x01\x00\x00\x00");
@@ -211,6 +211,7 @@ mod tests {
     fn write_open_reply() {
         let mut out = Vec::new();
         let value = open_reply_value();
+        out.resize(value.size(), 0);
         write(&value, &mut out);
         assert_eq!(OPEN_REPLY.len(), out.len());
         assert_eq!(OPEN_REPLY, out);

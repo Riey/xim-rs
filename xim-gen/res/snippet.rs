@@ -35,16 +35,9 @@ pub enum StatusContent {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CommitData {
     Synchronous,
-    Keysym {
-        keysym: u32,
-    },
-    Chars {
-        commited: Vec<u8>,
-    },
-    Both {
-        keysym: u32,
-        commited: Vec<u8>,
-    },
+    Keysym { keysym: u32 },
+    Chars { commited: Vec<u8> },
+    Both { keysym: u32, commited: Vec<u8> },
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -154,7 +147,7 @@ impl<'b> Writer<'b> {
     }
 
     pub fn write(&mut self, bytes: &[u8]) {
-        self.out[self.idx..self.idx+bytes.len()].copy_from_slice(bytes);
+        self.out[self.idx..self.idx + bytes.len()].copy_from_slice(bytes);
         self.idx += bytes.len();
     }
 
@@ -175,7 +168,10 @@ pub trait XimWrite {
     fn size(&self) -> usize;
 }
 
-impl<'a, T> XimWrite for &'a T where T: XimWrite {
+impl<'a, T> XimWrite for &'a T
+where
+    T: XimWrite,
+{
     #[inline(always)]
     fn write(&self, writer: &mut Writer) {
         (**self).write(writer);
@@ -249,9 +245,7 @@ impl XimRead for CommitData {
         let ty = reader.u16()?;
 
         match ty {
-            1 => {
-                Ok(Self::Synchronous)
-            }
+            1 => Ok(Self::Synchronous),
             2 => {
                 reader.consume(2)?;
                 let keysym = reader.u32()?;
@@ -261,7 +255,9 @@ impl XimRead for CommitData {
                 let len = reader.u16()?;
                 let bytes = reader.consume(len as usize)?;
                 reader.pad4()?;
-                Ok(Self::Chars { commited: bytes.to_vec() })
+                Ok(Self::Chars {
+                    commited: bytes.to_vec(),
+                })
             }
             6 => {
                 reader.consume(2)?;
@@ -269,7 +265,10 @@ impl XimRead for CommitData {
                 let len = reader.u16()?;
                 let bytes = reader.consume(len as usize)?;
                 reader.pad4()?;
-                Ok(Self::Both { keysym, commited: bytes.to_vec() })
+                Ok(Self::Both {
+                    keysym,
+                    commited: bytes.to_vec(),
+                })
             }
             _ => Err(reader.invalid_data("CommitDataType", ty)),
         }

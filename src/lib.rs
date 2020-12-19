@@ -4,6 +4,8 @@ use std::collections::HashMap;
 
 use xim_parser::{Attribute, AttributeName, Writer, XimWrite};
 
+pub use ctext::{compound_text_to_utf8, utf8_to_compound_text};
+
 pub struct NestedListBuilder<'a> {
     id_map: &'a HashMap<AttributeName, u16>,
     out: &'a mut Vec<Attribute>,

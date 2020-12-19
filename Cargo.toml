@@ -12,13 +12,12 @@ authors = ["Riey <creeper844@gmail.com>"]
 edition = "2018"
 license = "MIT"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 xim-parser = { path = "./xim-parser" }
 thiserror = "1.0.22"
 x11rb = "0.7.0"
 log = "0.4.11"
+ctext = { git = "https://github.com/Riey/ctext-rs" }
 
 [dev-dependencies]
 criterion = "0.3.3"

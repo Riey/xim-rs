@@ -51,7 +51,7 @@ impl EnumFormat {
         if self.bitflag {
             writeln!(
                 out,
-                "Self::from_bits(repr).ok_or(reader.invalid_data(\"{}\", repr))",
+                "Self::from_bits(repr).ok_or_else(|| reader.invalid_data(\"{}\", repr))",
                 name
             )?;
         } else {

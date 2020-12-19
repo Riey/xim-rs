@@ -180,6 +180,8 @@ impl StructFormat {
 struct XimFormat {
     #[serde(rename = "Enums")]
     enums: BTreeMap<String, EnumFormat>,
+    #[serde(rename = "AttributeNames")]
+    attribute_names: BTreeMap<String, String>,
     #[serde(rename = "Structs")]
     structs: BTreeMap<String, StructFormat>,
     #[serde(rename = "Requests")]
@@ -195,6 +197,64 @@ impl XimFormat {
         for (name, st) in self.structs.iter() {
             st.write(name, out)?;
         }
+
+        writeln!(
+            out,
+            "#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Ord, PartialOrd)]"
+        )?;
+        writeln!(out, "pub enum AttributeName {{")?;
+        for (key, _value) in self.attribute_names.iter() {
+            writeln!(out, "{},", key)?;
+        }
+        writeln!(out, "}}")?;
+
+        writeln!(out, "impl AttributeName {{")?;
+        writeln!(out, "pub fn name(self) -> &'static str {{")?;
+        writeln!(out, "match self {{")?;
+        for (key, value) in self.attribute_names.iter() {
+            writeln!(out, "Self::{} => \"{}\",", key, value)?;
+        }
+        // match
+        writeln!(out, "}}")?;
+        // fn name
+        writeln!(out, "}}")?;
+        // impl AttributeName
+        writeln!(out, "}}")?;
+
+        writeln!(out, "impl XimRead for AttributeName {{")?;
+        writeln!(
+            out,
+            "fn read(reader: &mut Reader) -> Result<Self, ReadError> {{"
+        )?;
+        writeln!(
+            out,
+            "let len = u16::read(reader)?; match reader.consume(len as usize)? {{"
+        )?;
+        for (key, value) in self.attribute_names.iter() {
+            writeln!(out, "b\"{}\" => Ok(Self::{}),", value, key)?;
+        }
+        writeln!(out, "bytes => Err(reader.invalid_data(\"AttributeName\", std::str::from_utf8(bytes).unwrap_or(\"NOT_UTF8\"))),")?;
+        // match
+        writeln!(out, "}}")?;
+        // fn read
+        writeln!(out, "}}")?;
+        // impl XimRead
+        writeln!(out, "}}")?;
+
+        writeln!(out, "impl XimWrite for AttributeName {{")?;
+
+        writeln!(out, "fn write(&self, writer: &mut Writer) {{")?;
+        writeln!(out, "let name = self.name(); (name.len() as u16).write(writer); writer.write(name.as_bytes());")?;
+        // fn write
+        writeln!(out, "}}")?;
+
+        writeln!(out, "fn size(&self) -> usize {{")?;
+        writeln!(out, "self.name().len() + 2")?;
+        // fn size
+        writeln!(out, "}}")?;
+
+        // impl XimWrite
+        writeln!(out, "}}")?;
 
         writeln!(out, "#[derive(Debug, Clone, Eq, PartialEq)]")?;
         writeln!(out, "pub enum Request {{")?;

@@ -2,16 +2,16 @@ pub mod x11rb;
 
 use std::collections::HashMap;
 
-use xim_parser::{Attribute, Writer, XimWrite};
+use xim_parser::{Attribute, AttributeName, Writer, XimWrite};
 
 pub struct NestedListBuilder<'a> {
-    id_map: &'a HashMap<String, u16>,
+    id_map: &'a HashMap<AttributeName, u16>,
     out: &'a mut Vec<Attribute>,
 }
 
 impl<'a> NestedListBuilder<'a> {
-    pub fn push<V: XimWrite>(self, name: &str, value: V) -> Self {
-        if let Some(id) = self.id_map.get(name).copied() {
+    pub fn push<V: XimWrite>(self, name: AttributeName, value: V) -> Self {
+        if let Some(id) = self.id_map.get(&name).copied() {
             let mut buf = Vec::with_capacity(value.size());
             value.write(&mut Writer::new(&mut buf));
             self.out.push(Attribute { id, value: buf });
@@ -22,13 +22,13 @@ impl<'a> NestedListBuilder<'a> {
 }
 
 pub struct AttributeBuilder<'a> {
-    id_map: &'a HashMap<String, u16>,
+    id_map: &'a HashMap<AttributeName, u16>,
     out: Vec<Attribute>,
 }
 
 impl<'a> AttributeBuilder<'a> {
-    pub fn push<V: XimWrite>(mut self, name: &str, value: V) -> Self {
-        if let Some(id) = self.id_map.get(name).copied() {
+    pub fn push<V: XimWrite>(mut self, name: AttributeName, value: V) -> Self {
+        if let Some(id) = self.id_map.get(&name).copied() {
             let mut buf = Vec::with_capacity(value.size());
             value.write(&mut Writer::new(&mut buf));
             self.out.push(Attribute { id, value: buf });
@@ -37,9 +37,13 @@ impl<'a> AttributeBuilder<'a> {
         self
     }
 
-    pub fn nested_list(mut self, name: &str, f: impl FnOnce(NestedListBuilder)) -> Self {
-        if let Some(sep_id) = self.id_map.get("separatorofNestedList").copied() {
-            if let Some(id) = self.id_map.get(name).copied() {
+    pub fn nested_list(mut self, name: AttributeName, f: impl FnOnce(NestedListBuilder)) -> Self {
+        if let Some(sep_id) = self
+            .id_map
+            .get(&AttributeName::SeparatorofNestedList)
+            .copied()
+        {
+            if let Some(id) = self.id_map.get(&name).copied() {
                 self.out.push(Attribute {
                     id,
                     value: Vec::new(),

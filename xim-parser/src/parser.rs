@@ -700,7 +700,7 @@ impl XimWrite for TriggerNotifyFlag {
 pub struct Attr {
     pub id: u16,
     pub ty: AttrType,
-    pub name: String,
+    pub name: AttributeName,
 }
 impl XimRead for Attr {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
@@ -708,10 +708,7 @@ impl XimRead for Attr {
             id: u16::read(reader)?,
             ty: AttrType::read(reader)?,
             name: {
-                let inner = {
-                    let len = u16::read(reader)?;
-                    String::from_utf8(reader.consume(len as usize)?.to_vec())?
-                };
+                let inner = AttributeName::read(reader)?;
                 reader.pad4()?;
                 inner
             },
@@ -722,15 +719,14 @@ impl XimWrite for Attr {
     fn write(&self, writer: &mut Writer) {
         self.id.write(writer);
         self.ty.write(writer);
-        (self.name.len() as u16).write(writer);
-        writer.write(self.name.as_bytes());
+        self.name.write(writer);
         writer.write_pad4();
     }
     fn size(&self) -> usize {
         let mut content_size = 0;
         content_size += self.id.size();
         content_size += self.ty.size();
-        content_size += with_pad4(self.name.len() + 2 + 0);
+        content_size += with_pad4(self.name.size());
         content_size
     }
 }
@@ -910,6 +906,162 @@ impl XimWrite for TriggerKey {
         content_size += self.modifier.size();
         content_size += self.modifier_mask.size();
         content_size
+    }
+}
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Ord, PartialOrd)]
+pub enum AttributeName {
+    Area,
+    AreaNeeded,
+    Background,
+    BackgroundPixmap,
+    ClientWindow,
+    ColorMap,
+    Cursor,
+    DestroyCallback,
+    FilterEvents,
+    FocusWindow,
+    FontSet,
+    Foreground,
+    GeometryCallback,
+    HotKey,
+    HotKeyState,
+    InputStyle,
+    LineSpace,
+    NestedList,
+    PreeditAttributes,
+    PreeditCaretCallback,
+    PreeditDoneCallback,
+    PreeditDrawCallback,
+    PreeditStartCallback,
+    PreeditState,
+    PreeditStateNotifyCallback,
+    QueryICValuesList,
+    QueryIMValuesList,
+    QueryInputStyle,
+    R6PreeditCallback,
+    ResetState,
+    ResourceClass,
+    ResourceName,
+    SeparatorofNestedList,
+    SpotLocation,
+    StatusAttributes,
+    StatusDoneCallback,
+    StatusDrawCallback,
+    StatusStartCallback,
+    StdColorMap,
+    StringConversion,
+    StringConversionCallback,
+    VisiblePosition,
+}
+impl AttributeName {
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Area => "area",
+            Self::AreaNeeded => "areaNeeded",
+            Self::Background => "background",
+            Self::BackgroundPixmap => "backgroundPixmap",
+            Self::ClientWindow => "clientWindow",
+            Self::ColorMap => "colorMap",
+            Self::Cursor => "cursor",
+            Self::DestroyCallback => "destroyCallback",
+            Self::FilterEvents => "filterEvents",
+            Self::FocusWindow => "focusWindow",
+            Self::FontSet => "fontSet",
+            Self::Foreground => "foreground",
+            Self::GeometryCallback => "geometryCallback",
+            Self::HotKey => "hotKey",
+            Self::HotKeyState => "hotKeyState",
+            Self::InputStyle => "inputStyle",
+            Self::LineSpace => "lineSpace",
+            Self::NestedList => "XNVaNestedList",
+            Self::PreeditAttributes => "preeditAttributes",
+            Self::PreeditCaretCallback => "preeditCaretCallback",
+            Self::PreeditDoneCallback => "preeditDoneCallback",
+            Self::PreeditDrawCallback => "preeditDrawCallback",
+            Self::PreeditStartCallback => "preeditStartCallback",
+            Self::PreeditState => "preeditState",
+            Self::PreeditStateNotifyCallback => "preeditStateNotifyCallback",
+            Self::QueryICValuesList => "queryICValuesList",
+            Self::QueryIMValuesList => "queryIMValuesList",
+            Self::QueryInputStyle => "queryInputStyle",
+            Self::R6PreeditCallback => "r6PreeditCallback",
+            Self::ResetState => "resetState",
+            Self::ResourceClass => "resourceClass",
+            Self::ResourceName => "resourceName",
+            Self::SeparatorofNestedList => "separatorofNestedList",
+            Self::SpotLocation => "spotLocation",
+            Self::StatusAttributes => "statusAttributes",
+            Self::StatusDoneCallback => "statusDoneCallback",
+            Self::StatusDrawCallback => "statusDrawCallback",
+            Self::StatusStartCallback => "statusStartCallback",
+            Self::StdColorMap => "stdColorMap",
+            Self::StringConversion => "stringConversion",
+            Self::StringConversionCallback => "stringConversionCallback",
+            Self::VisiblePosition => "visiblePosition",
+        }
+    }
+}
+impl XimRead for AttributeName {
+    fn read(reader: &mut Reader) -> Result<Self, ReadError> {
+        let len = u16::read(reader)?;
+        match reader.consume(len as usize)? {
+            b"area" => Ok(Self::Area),
+            b"areaNeeded" => Ok(Self::AreaNeeded),
+            b"background" => Ok(Self::Background),
+            b"backgroundPixmap" => Ok(Self::BackgroundPixmap),
+            b"clientWindow" => Ok(Self::ClientWindow),
+            b"colorMap" => Ok(Self::ColorMap),
+            b"cursor" => Ok(Self::Cursor),
+            b"destroyCallback" => Ok(Self::DestroyCallback),
+            b"filterEvents" => Ok(Self::FilterEvents),
+            b"focusWindow" => Ok(Self::FocusWindow),
+            b"fontSet" => Ok(Self::FontSet),
+            b"foreground" => Ok(Self::Foreground),
+            b"geometryCallback" => Ok(Self::GeometryCallback),
+            b"hotKey" => Ok(Self::HotKey),
+            b"hotKeyState" => Ok(Self::HotKeyState),
+            b"inputStyle" => Ok(Self::InputStyle),
+            b"lineSpace" => Ok(Self::LineSpace),
+            b"XNVaNestedList" => Ok(Self::NestedList),
+            b"preeditAttributes" => Ok(Self::PreeditAttributes),
+            b"preeditCaretCallback" => Ok(Self::PreeditCaretCallback),
+            b"preeditDoneCallback" => Ok(Self::PreeditDoneCallback),
+            b"preeditDrawCallback" => Ok(Self::PreeditDrawCallback),
+            b"preeditStartCallback" => Ok(Self::PreeditStartCallback),
+            b"preeditState" => Ok(Self::PreeditState),
+            b"preeditStateNotifyCallback" => Ok(Self::PreeditStateNotifyCallback),
+            b"queryICValuesList" => Ok(Self::QueryICValuesList),
+            b"queryIMValuesList" => Ok(Self::QueryIMValuesList),
+            b"queryInputStyle" => Ok(Self::QueryInputStyle),
+            b"r6PreeditCallback" => Ok(Self::R6PreeditCallback),
+            b"resetState" => Ok(Self::ResetState),
+            b"resourceClass" => Ok(Self::ResourceClass),
+            b"resourceName" => Ok(Self::ResourceName),
+            b"separatorofNestedList" => Ok(Self::SeparatorofNestedList),
+            b"spotLocation" => Ok(Self::SpotLocation),
+            b"statusAttributes" => Ok(Self::StatusAttributes),
+            b"statusDoneCallback" => Ok(Self::StatusDoneCallback),
+            b"statusDrawCallback" => Ok(Self::StatusDrawCallback),
+            b"statusStartCallback" => Ok(Self::StatusStartCallback),
+            b"stdColorMap" => Ok(Self::StdColorMap),
+            b"stringConversion" => Ok(Self::StringConversion),
+            b"stringConversionCallback" => Ok(Self::StringConversionCallback),
+            b"visiblePosition" => Ok(Self::VisiblePosition),
+            bytes => Err(reader.invalid_data(
+                "AttributeName",
+                std::str::from_utf8(bytes).unwrap_or("NOT_UTF8"),
+            )),
+        }
+    }
+}
+impl XimWrite for AttributeName {
+    fn write(&self, writer: &mut Writer) {
+        let name = self.name();
+        (name.len() as u16).write(writer);
+        writer.write(name.as_bytes());
+    }
+    fn size(&self) -> usize {
+        self.name().len() + 2
     }
 }
 #[derive(Debug, Clone, Eq, PartialEq)]

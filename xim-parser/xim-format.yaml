@@ -126,12 +126,56 @@ Enums:
       StatusNothing: 0x400
       StatusNone: 0x800
 
+AttributeNames:
+  NestedList: XNVaNestedList
+  QueryInputStyle: queryInputStyle
+  ClientWindow: clientWindow
+  InputStyle: inputStyle
+  FocusWindow: focusWindow
+  ResourceName: resourceName
+  ResourceClass: resourceClass
+  GeometryCallback: geometryCallback
+  DestroyCallback: destroyCallback
+  FilterEvents: filterEvents
+  PreeditStartCallback: preeditStartCallback
+  PreeditDoneCallback: preeditDoneCallback
+  PreeditDrawCallback: preeditDrawCallback
+  PreeditCaretCallback: preeditCaretCallback
+  PreeditStateNotifyCallback: preeditStateNotifyCallback
+  PreeditAttributes: preeditAttributes
+  StatusStartCallback: statusStartCallback
+  StatusDoneCallback: statusDoneCallback
+  StatusDrawCallback: statusDrawCallback
+  StatusAttributes: statusAttributes
+  Area: area
+  AreaNeeded: areaNeeded
+  SpotLocation: spotLocation
+  ColorMap: colorMap
+  StdColorMap: stdColorMap
+  Foreground: foreground
+  Background: background
+  BackgroundPixmap: backgroundPixmap
+  FontSet: fontSet
+  LineSpace: lineSpace
+  Cursor: cursor
+
+  QueryIMValuesList: queryIMValuesList
+  QueryICValuesList: queryICValuesList
+  VisiblePosition: visiblePosition
+  R6PreeditCallback: r6PreeditCallback
+  StringConversionCallback: stringConversionCallback
+  StringConversion: stringConversion
+  ResetState: resetState
+  HotKey: hotKey
+  HotKeyState: hotKeyState
+  PreeditState: preeditState
+  SeparatorofNestedList: separatorofNestedList
 
 Structs:
   Attr:
     - "id u16"
     - "ty AttrType"
-    - "name @pad string"
+    - "name @pad AttributeName"
   Attribute:
     - "id u16"
     - "value @pad xstring"

@@ -6,6 +6,8 @@
 use bstr::{BString, ByteSlice};
 use std::convert::TryInto;
 
+pub type RawXEvent = [u8; 32];
+
 pub fn read(b: &[u8]) -> Result<Request, ReadError> {
     Request::read(&mut Reader::new(b))
 }
@@ -177,6 +179,22 @@ where
     #[inline(always)]
     fn size(&self) -> usize {
         (**self).size()
+    }
+}
+
+impl XimRead for RawXEvent {
+    fn read(reader: &mut Reader) -> Result<Self, ReadError> {
+        Ok(reader.consume(32)?.try_into().unwrap())
+    }
+}
+
+impl XimWrite for RawXEvent {
+    fn write(&self, writer: &mut Writer) {
+        writer.write(&self[..])
+    }
+
+    fn size(&self) -> usize {
+        std::mem::size_of::<Self>()
     }
 }
 

@@ -457,6 +457,7 @@ Requests:
       - "input_context_id u16"
       - "flag ForwardEventFlag"
       - "serial_number u16"
+      - "xev RawXEvent"
 
   Sync:
     major_opcode: 61

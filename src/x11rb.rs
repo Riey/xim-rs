@@ -275,6 +275,7 @@ impl<'x, C: Connection + ConnectionExt> Client<'x, C> {
             input_context_id,
             flag: ForwardEventFlag::SYNCHRONOUS,
             serial_number: e.sequence,
+            xev: e.into(),
         })
     }
 

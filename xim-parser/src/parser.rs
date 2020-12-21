@@ -6,6 +6,8 @@
 use bstr::{BString, ByteSlice};
 use std::convert::TryInto;
 
+pub type RawXEvent = [u8; 32];
+
 pub fn read(b: &[u8]) -> Result<Request, ReadError> {
     Request::read(&mut Reader::new(b))
 }
@@ -177,6 +179,22 @@ where
     #[inline(always)]
     fn size(&self) -> usize {
         (**self).size()
+    }
+}
+
+impl XimRead for RawXEvent {
+    fn read(reader: &mut Reader) -> Result<Self, ReadError> {
+        Ok(reader.consume(32)?.try_into().unwrap())
+    }
+}
+
+impl XimWrite for RawXEvent {
+    fn write(&self, writer: &mut Writer) {
+        writer.write(&self[..])
+    }
+
+    fn size(&self) -> usize {
+        std::mem::size_of::<Self>()
     }
 }
 
@@ -1130,6 +1148,7 @@ pub enum Request {
         input_context_id: u16,
         flag: ForwardEventFlag,
         serial_number: u16,
+        xev: RawXEvent,
     },
     Geometry {
         input_method_id: u16,
@@ -1503,6 +1522,7 @@ impl XimRead for Request {
                 input_context_id: u16::read(reader)?,
                 flag: ForwardEventFlag::read(reader)?,
                 serial_number: u16::read(reader)?,
+                xev: RawXEvent::read(reader)?,
             }),
             (70, _) => Ok(Request::Geometry {
                 input_method_id: u16::read(reader)?,
@@ -2034,6 +2054,7 @@ impl XimWrite for Request {
                 input_context_id,
                 flag,
                 serial_number,
+                xev,
             } => {
                 60u8.write(writer);
                 0u8.write(writer);
@@ -2042,6 +2063,7 @@ impl XimWrite for Request {
                 input_context_id.write(writer);
                 flag.write(writer);
                 serial_number.write(writer);
+                xev.write(writer);
             }
             Request::Geometry {
                 input_method_id,
@@ -2613,11 +2635,13 @@ impl XimWrite for Request {
                 input_context_id,
                 flag,
                 serial_number,
+                xev,
             } => {
                 content_size += input_method_id.size();
                 content_size += input_context_id.size();
                 content_size += flag.size();
                 content_size += serial_number.size();
+                content_size += xev.size();
             }
             Request::Geometry {
                 input_method_id,

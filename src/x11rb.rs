@@ -350,12 +350,10 @@ impl<'x, C: Connection + ConnectionExt> Client<'x, C> {
                 .get_property(true, msg.window, atom, AtomEnum::Any, 0, length)?
                 .reply()?
                 .value;
-            log::trace!("Raw data: {:?}", data);
             let req = parser::read(&data)?;
             cb(self, req)?;
         } else if msg.format == 8 {
             let data = msg.data.as_data8();
-            log::trace!("Raw data: {:?}", data);
             let req = parser::read(&data)?;
             cb(self, req)?;
         }

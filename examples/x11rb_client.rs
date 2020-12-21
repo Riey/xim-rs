@@ -39,8 +39,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     while !end {
         let e = conn.wait_for_event()?;
 
-        log::debug!("Get event: {:?}", e);
-
         if client.filter_event(&e, |client, req| {
             log::trace!("Recv req: {:?}", req);
 
@@ -78,7 +76,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .build_ic_attributes()
                         .push(
                             AttributeName::InputStyle,
-                            InputStyle::PREEDITPOSITION | InputStyle::STATUSAREA,
+                            InputStyle::PREEDITPOSITION | InputStyle::STATUSNOTHING,
                         )
                         .push(AttributeName::ClientWindow, window)
                         .push(AttributeName::FocusWindow, window)

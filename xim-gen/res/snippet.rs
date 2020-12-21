@@ -35,10 +35,19 @@ pub enum StatusContent {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CommitData {
-    Synchronous,
-    Keysym { keysym: u32 },
-    Chars { commited: Vec<u8> },
-    Both { keysym: u32, commited: Vec<u8> },
+    Keysym {
+        keysym: u32,
+        syncronous: bool,
+    },
+    Chars {
+        commited: Vec<u8>,
+        syncronous: bool,
+    },
+    Both {
+        keysym: u32,
+        commited: Vec<u8>,
+        syncronous: bool,
+    },
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -261,21 +270,24 @@ impl XimRead for CommitData {
         let ty = reader.u16()?;
 
         match ty {
-            1 => Ok(Self::Synchronous),
-            2 => {
-                reader.consume(2)?;
-                let keysym = reader.u32()?;
-                Ok(Self::Keysym { keysym })
-            }
-            4 => {
+            2 | 3 => {
                 let len = reader.u16()?;
                 let bytes = reader.consume(len as usize)?;
                 reader.pad4()?;
                 Ok(Self::Chars {
                     commited: bytes.to_vec(),
+                    syncronous: ty == 5,
                 })
             }
-            6 => {
+            4 | 5 => {
+                reader.consume(2)?;
+                let keysym = reader.u32()?;
+                Ok(Self::Keysym {
+                    keysym,
+                    syncronous: ty == 3,
+                })
+            }
+            6 | 7 => {
                 reader.consume(2)?;
                 let keysym = reader.u32()?;
                 let len = reader.u16()?;
@@ -284,6 +296,7 @@ impl XimRead for CommitData {
                 Ok(Self::Both {
                     keysym,
                     commited: bytes.to_vec(),
+                    syncronous: ty == 7,
                 })
             }
             _ => Err(reader.invalid_data("CommitDataType", ty)),
@@ -294,20 +307,22 @@ impl XimRead for CommitData {
 impl XimWrite for CommitData {
     fn write(&self, writer: &mut Writer) {
         match self {
-            Self::Synchronous => 1u16.write(writer),
-            Self::Keysym { keysym } => {
-                2u16.write(writer);
-                0u16.write(writer);
-                keysym.write(writer);
-            }
-            Self::Chars { commited } => {
-                4u16.write(writer);
+            Self::Chars { commited, syncronous } => {
+                let flag = if *syncronous { 3u16 } else { 2u16 };
+                flag.write(writer);
                 (commited.len() as u16).write(writer);
                 writer.write(&commited);
                 writer.write_pad4();
             }
-            Self::Both { keysym, commited } => {
-                6u16.write(writer);
+            Self::Keysym { keysym, syncronous } => {
+                let flag = if *syncronous { 5u16 } else { 4u16 };
+                flag.write(writer);
+                0u16.write(writer);
+                keysym.write(writer);
+            }
+            Self::Both { keysym, commited, syncronous } => {
+                let flag = if *syncronous { 7u16 } else { 6u16 };
+                flag.write(writer);
                 0u16.write(writer);
                 keysym.write(writer);
                 (commited.len() as u16).write(writer);
@@ -319,9 +334,8 @@ impl XimWrite for CommitData {
 
     fn size(&self) -> usize {
         match self {
-            Self::Synchronous => 2,
             Self::Keysym { .. } => 6,
-            Self::Chars { commited } => with_pad4(commited.len() + 2),
+            Self::Chars { commited, .. } => with_pad4(commited.len() + 2),
             Self::Both { commited, .. } => with_pad4(commited.len() + 2) + 6,
         }
     }

@@ -82,6 +82,9 @@ impl<'x, C: Connection + ConnectionExt> Client<'x, C> {
         let var = std::env::var("XMODIFIERS").ok();
         let var = var.as_ref().and_then(|n| n.strip_prefix("@im="));
         let im_name = im_name.or(var).ok_or(ClientError::NoXimServer)?;
+
+        log::info!("Try connect {}", im_name);
+
         let atoms = Atoms::new::<ClientError, _>(|name| {
             Ok(conn.intern_atom(false, name.as_bytes())?.reply()?.atom)
         })?;
@@ -273,7 +276,7 @@ impl<'x, C: Connection + ConnectionExt> Client<'x, C> {
         self.send_req(Request::ForwardEvent {
             input_method_id,
             input_context_id,
-            flag: ForwardEventFlag::SYNCHRONOUS,
+            flag: ForwardEventFlag::REQUESTLOOPUPSTRING,
             serial_number: e.sequence,
             xev: e.into(),
         })

@@ -1,7 +1,9 @@
+use std::convert::TryFrom;
+
 use x11rb::connection::Connection;
 use x11rb::protocol::{xproto::*, Event};
 use xim::x11rb::{Client, ClientError};
-use xim_parser::{AttributeName, InputStyle, Request, Spot};
+use xim_parser::{AttributeName, CommitData, InputStyle, Request, Spot};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     pretty_env_logger::init();
@@ -130,6 +132,35 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     Ok(())
                 }
                 Request::Error { code, detail, .. } => Err(ClientError::XimError(code, detail)),
+                Request::ForwardEvent { xev, .. } => {
+                    let xev = &xev[..];
+                    if let Ok(press) = KeyPressEvent::try_from(xev) {
+                        log::info!("forward press: 0x{:X}", press.detail);
+                        Ok(())
+                    } else {
+                        Err(ClientError::InvalidReply)
+                    }
+                }
+                Request::Commit {
+                    input_method_id,
+                    input_context_id,
+                    data,
+                } => match data {
+                    CommitData::Keysym { keysym, .. } => {
+                        log::info!("Commited keysym: {}", keysym);
+
+                        Ok(())
+                    }
+                    CommitData::Chars { commited, .. } => {
+                        log::info!(
+                            "Commited {}",
+                            ctext::compound_text_to_utf8(&commited).unwrap()
+                        );
+
+                        Ok(())
+                    }
+                    _ => todo!(),
+                },
                 _ => Err(ClientError::InvalidReply),
             }
         })? {

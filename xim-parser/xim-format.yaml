@@ -347,7 +347,7 @@ Requests:
     minor_opcode: ~
     body:
       - "input_method_id u16"
-      - "extentions @list Extension"
+      - "extensions @list Extension"
 
   SetImValues:
     major_opcode: 42

@@ -1,7 +1,18 @@
 use std::{collections::HashMap, convert::TryInto};
 
 use crate::{Atoms, AttributeBuilder, ClientHandler};
-use x11rb::{COPY_DEPTH_FROM_PARENT, CURRENT_TIME, connection::Connection, protocol::{Event, xproto::{Atom, AtomEnum, CLIENT_MESSAGE_EVENT, ClientMessageData, ClientMessageEvent, ConnectionExt, KeyPressEvent, PropMode, Screen, WindowClass}}, x11_utils::X11Error};
+use x11rb::{
+    connection::Connection,
+    protocol::{
+        xproto::{
+            Atom, AtomEnum, ClientMessageData, ClientMessageEvent, ConnectionExt, KeyPressEvent,
+            PropMode, Screen, WindowClass, CLIENT_MESSAGE_EVENT,
+        },
+        Event,
+    },
+    x11_utils::X11Error,
+    COPY_DEPTH_FROM_PARENT, CURRENT_TIME,
+};
 use xim_parser::{
     bstr::BString, Attr, Attribute, AttributeName, CommitData, ForwardEventFlag, Request, XimWrite,
 };
@@ -81,14 +92,13 @@ impl<'x, C: Connection + ConnectionExt> crate::Client for X11rbClient<'x, C> {
         input_method_id: u16,
         input_context_id: u16,
         flag: ForwardEventFlag,
-        sequence: u16,
         xev: Self::XEvent,
     ) -> Result<(), Self::Error> {
         self.send_req(Request::ForwardEvent {
             input_method_id,
             input_context_id,
             flag,
-            serial_number: sequence,
+            serial_number: xev.sequence,
             xev: xev.into(),
         })
     }

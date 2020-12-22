@@ -144,8 +144,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             handler.im_id,
                             handler.ic_id,
                             ForwardEventFlag::empty(),
-                            e.sequence,
-                            e.into(),
+                            e,
                         )?;
                     }
                 }

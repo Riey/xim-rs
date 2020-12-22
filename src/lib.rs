@@ -37,7 +37,6 @@ pub trait Client {
         input_method_id: u16,
         input_context_id: u16,
         flag: ForwardEventFlag,
-        sequence: u16,
         xev: Self::XEvent,
     ) -> Result<(), Self::Error>;
 }

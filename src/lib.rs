@@ -8,7 +8,7 @@ use xim_parser::{
 };
 
 pub trait Client {
-    type Error: std::fmt::Debug + std::fmt::Display + std::error::Error;
+    type Error: std::error::Error;
     type XEvent;
 
     fn build_ic_attributes(&self) -> AttributeBuilder;

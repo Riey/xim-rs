@@ -9,6 +9,7 @@ use xim_parser::{
 
 pub trait Client {
     type Error: std::fmt::Debug + std::fmt::Display + std::error::Error;
+    type XEvent;
 
     fn build_ic_attributes(&self) -> AttributeBuilder;
     fn build_im_attributes(&self) -> AttributeBuilder;
@@ -37,7 +38,7 @@ pub trait Client {
         input_context_id: u16,
         flag: ForwardEventFlag,
         sequence: u16,
-        xev: RawXEvent,
+        xev: Self::XEvent,
     ) -> Result<(), Self::Error>;
 }
 

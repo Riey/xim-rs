@@ -1,18 +1,7 @@
 use std::{collections::HashMap, convert::TryInto};
 
 use crate::{Atoms, AttributeBuilder, ClientHandler};
-use x11rb::{
-    connection::Connection,
-    protocol::{
-        xproto::{
-            Atom, AtomEnum, ClientMessageData, ClientMessageEvent, ConnectionExt, PropMode, Screen,
-            WindowClass, CLIENT_MESSAGE_EVENT,
-        },
-        Event,
-    },
-    x11_utils::X11Error,
-    COPY_DEPTH_FROM_PARENT, CURRENT_TIME,
-};
+use x11rb::{COPY_DEPTH_FROM_PARENT, CURRENT_TIME, connection::Connection, protocol::{Event, xproto::{Atom, AtomEnum, CLIENT_MESSAGE_EVENT, ClientMessageData, ClientMessageEvent, ConnectionExt, KeyPressEvent, PropMode, Screen, WindowClass}}, x11_utils::X11Error};
 use xim_parser::{
     bstr::BString, Attr, Attribute, AttributeName, CommitData, ForwardEventFlag, Request, XimWrite,
 };
@@ -43,6 +32,7 @@ pub enum ClientError {
 
 impl<'x, C: Connection + ConnectionExt> crate::Client for X11rbClient<'x, C> {
     type Error = ClientError;
+    type XEvent = KeyPressEvent;
 
     fn build_ic_attributes(&self) -> AttributeBuilder {
         AttributeBuilder {
@@ -92,14 +82,14 @@ impl<'x, C: Connection + ConnectionExt> crate::Client for X11rbClient<'x, C> {
         input_context_id: u16,
         flag: ForwardEventFlag,
         sequence: u16,
-        xev: xim_parser::RawXEvent,
+        xev: Self::XEvent,
     ) -> Result<(), Self::Error> {
         self.send_req(Request::ForwardEvent {
             input_method_id,
             input_context_id,
             flag,
             serial_number: sequence,
-            xev,
+            xev: xev.into(),
         })
     }
 
@@ -456,12 +446,24 @@ impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
                 CommitData::Keysym { keysym: _, .. } => {
                     todo!()
                 }
-                CommitData::Chars { commited, .. } => handler.handle_commit(
-                    self,
-                    input_method_id,
-                    input_context_id,
-                    crate::compound_text_to_utf8(&commited).unwrap(),
-                ),
+                CommitData::Chars {
+                    commited,
+                    syncronous,
+                } => {
+                    if syncronous {
+                        self.send_req(Request::SyncReply {
+                            input_method_id,
+                            input_context_id,
+                        })?;
+                    }
+
+                    handler.handle_commit(
+                        self,
+                        input_method_id,
+                        input_context_id,
+                        crate::compound_text_to_utf8(&commited).unwrap(),
+                    )
+                }
                 _ => todo!(),
             },
             _ => Err(ClientError::InvalidReply),

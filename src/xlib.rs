@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::ffi::CStr;
+use std::mem::MaybeUninit;
 
 use crate::{
     client::{ClientCore, ClientHandler},
@@ -9,7 +11,9 @@ use x11_dl::xlib;
 use xim_parser::{bstr::BString, AttributeName};
 
 #[derive(Debug, Error)]
-pub enum XlibError {
+pub enum ClientError {
+    #[error("Can't Intern atom")]
+    InternAtomError,
     #[error("Can't read xim message {0}")]
     ReadProtocol(#[from] xim_parser::ReadError),
     #[error("Server send error code: {0:?}, detail: {1}")]
@@ -22,8 +26,8 @@ pub enum XlibError {
     NoXimServer,
 }
 
-impl ClientCore for XlibClient {
-    type Error = XlibError;
+impl<X: XlibRef> ClientCore for XlibClient<X> {
+    type Error = ClientError;
     type XEvent = xlib::XKeyEvent;
 
     #[inline]
@@ -82,9 +86,137 @@ impl ClientCore for XlibClient {
     }
 }
 
-pub struct XlibClient {
-    xlib: xlib::Xlib,
+impl<'a> XlibRef for &'a xlib::Xlib {
+    fn xlib(&self) -> &xlib::Xlib {
+        self
+    }
+}
+
+impl XlibRef for xlib::Xlib {
+    fn xlib(&self) -> &xlib::Xlib {
+        self
+    }
+}
+
+pub trait XlibRef {
+    fn xlib(&self) -> &xlib::Xlib;
+}
+
+pub struct XlibClient<X: XlibRef> {
+    x: X,
     display: *mut xlib::Display,
+    im_window: xlib::Window,
+    server_owner_window: xlib::Window,
+    server_atom: xlib::Atom,
+    atoms: Atoms<xlib::Atom>,
+    transport_max: usize,
+    client_window: xlib::Window,
     im_attributes: HashMap<AttributeName, u16>,
     ic_attributes: HashMap<AttributeName, u16>,
+    forward_event_mask: u32,
+    synchronous_event_mask: u32,
+    buf: Vec<u8>,
+}
+
+impl<X: XlibRef> XlibClient<X> {
+    pub unsafe fn init(
+        x: X,
+        display: *mut xlib::Display,
+        im_name: Option<&str>,
+    ) -> Result<Self, ClientError> {
+        let xlib = x.xlib();
+        let root = (xlib.XDefaultRootWindow)(display);
+        let client_window = (xlib.XCreateSimpleWindow)(display, root, 0, 0, 1, 1, 0, 0, 0);
+
+        let var = std::env::var("XMODIFIERS").ok();
+        let var = var.as_ref().and_then(|n| n.strip_prefix("@im="));
+        let im_name = im_name.or(var).ok_or(ClientError::NoXimServer)?;
+
+        let atoms = Atoms::new::<ClientError, _>(|name| {
+            let atom = unsafe { (xlib.XInternAtom)(display, name.as_ptr() as *const _, 0) };
+            if atom == 0 {
+                Err(ClientError::InternAtomError)
+            } else {
+                Ok(atom)
+            }
+        })?;
+
+        let mut act_ty = MaybeUninit::uninit();
+        let mut act_format = MaybeUninit::uninit();
+        let mut items = MaybeUninit::uninit();
+        let mut bytes = MaybeUninit::uninit();
+        let mut prop = MaybeUninit::uninit();
+
+        let code = (xlib.XGetWindowProperty)(
+            display,
+            root,
+            atoms.XIM_SERVERS,
+            0,
+            8196,
+            xlib::False,
+            xlib::XA_ATOM,
+            act_ty.as_mut_ptr(),
+            act_format.as_mut_ptr(),
+            items.as_mut_ptr(),
+            bytes.as_mut_ptr(),
+            prop.as_mut_ptr(),
+        );
+
+        assert_eq!(code, 0);
+
+        let ty = dbg!(act_ty.assume_init());
+        let format = act_format.assume_init();
+        let items = items.assume_init();
+        let bytes = bytes.assume_init();
+        let prop = prop.assume_init() as *mut u32;
+
+        if ty != xlib::XA_ATOM || format != 32 {
+            Err(ClientError::InvalidReply)
+        } else {
+            for i in 0..items {
+                let server_atom = prop.add(i as usize).read() as xlib::Atom;
+                let server_owner = (xlib.XGetSelectionOwner)(display, server_atom);
+                let name = CStr::from_ptr((xlib.XGetAtomName)(display, server_atom));
+                let name = match name.to_str() {
+                    Ok(s) => s,
+                    _ => continue,
+                };
+
+                if let Some(name) = name.strip_prefix("@server=") {
+                    if name == im_name {
+                        (xlib.XConvertSelection)(
+                            display,
+                            client_window,
+                            server_atom,
+                            atoms.TRANSPORT,
+                            atoms.TRANSPORT,
+                            xlib::CurrentTime,
+                        );
+                        (xlib.XFlush)(display);
+                        (xlib.XFree)(prop as _);
+
+                        return Ok(Self {
+                            atoms,
+                            client_window,
+                            server_atom,
+                            server_owner_window: server_owner,
+                            im_window: 0,
+                            forward_event_mask: 0,
+                            synchronous_event_mask: 0,
+                            transport_max: 0,
+                            display,
+                            x,
+                            ic_attributes: HashMap::new(),
+                            im_attributes: HashMap::new(),
+                            buf: Vec::with_capacity(1024),
+                        });
+                    }
+                }
+            }
+
+            (xlib.XFree)(prop as _);
+
+            Err(ClientError::NoXimServer)
+        }
+    }
 }

@@ -12,13 +12,17 @@ authors = ["Riey <creeper844@gmail.com>"]
 edition = "2018"
 license = "MIT"
 
+[features]
+default = ["x11rb"]
+
 [dependencies]
 xim-parser = { path = "./xim-parser" }
 thiserror = "1.0.22"
-x11rb = "0.7.0"
 log = "0.4.11"
 ctext = { git = "https://github.com/Riey/ctext-rs" }
-x11-dl = "2.18.5"
+
+x11rb = { version = "0.7.0", optional = true }
+x11-dl = { version = "2.18.5", optional = true }
 
 [dev-dependencies]
 criterion = "0.3.3"

@@ -2,7 +2,7 @@ use std::{collections::HashMap, convert::TryInto};
 
 use crate::{
     client::{ClientCore, ClientHandler},
-    Atoms
+    Atoms,
 };
 use x11rb::{
     connection::Connection,
@@ -17,7 +17,7 @@ use x11rb::{
     COPY_DEPTH_FROM_PARENT, CURRENT_TIME,
 };
 use xim_parser::{
-    bstr::BString, Attr, Attribute, AttributeName, CommitData, ForwardEventFlag, Request, XimWrite,
+    bstr::BString, Attr, AttributeName, CommitData, ForwardEventFlag, Request, XimWrite,
 };
 
 #[derive(Debug, thiserror::Error)]

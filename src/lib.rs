@@ -1,5 +1,7 @@
 mod client;
+#[cfg(feature = "x11rb")]
 pub mod x11rb;
+#[cfg(feature = "x11-dl")]
 pub mod xlib;
 
 use std::collections::HashMap;

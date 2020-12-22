@@ -53,6 +53,7 @@ impl<C: Client> ClientHandler<C> for ExampleHandler {
         input_context_id: u16,
     ) -> Result<(), C::Error> {
         self.connected = true;
+        self.ic_id = input_context_id;
         log::info!("IC created {}, {}", input_method_id, input_context_id);
         Ok(())
     }

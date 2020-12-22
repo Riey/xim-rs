@@ -1,7 +1,6 @@
 use std::{collections::HashMap, convert::TryInto};
 
 use crate::{Atoms, AttributeBuilder, ClientHandler};
-use parser::ForwardEventFlag;
 use x11rb::{
     connection::Connection,
     protocol::{
@@ -14,8 +13,9 @@ use x11rb::{
     x11_utils::X11Error,
     COPY_DEPTH_FROM_PARENT, CURRENT_TIME,
 };
-use xim_parser as parser;
-use xim_parser::{bstr::BString, Attr, Attribute, AttributeName, CommitData, Request, XimWrite};
+use xim_parser::{
+    bstr::BString, Attr, Attribute, AttributeName, CommitData, ForwardEventFlag, Request, XimWrite,
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ClientError {
@@ -28,9 +28,9 @@ pub enum ClientError {
     #[error("ReplyOrId error: {0}")]
     ReplyOrId(#[from] x11rb::errors::ReplyOrIdError),
     #[error("Can't read xim message {0}")]
-    ReadProtocol(#[from] parser::ReadError),
+    ReadProtocol(#[from] xim_parser::ReadError),
     #[error("Server send error code: {0:?}, detail: {1}")]
-    XimError(parser::ErrorCode, BString),
+    XimError(xim_parser::ErrorCode, BString),
     #[error("X11 error {0:?}")]
     X11Error(X11Error),
     #[error("Server Transport is not supported")]
@@ -92,7 +92,7 @@ impl<'x, C: Connection + ConnectionExt> crate::Client for X11rbClient<'x, C> {
         input_context_id: u16,
         flag: ForwardEventFlag,
         sequence: u16,
-        xev: parser::RawXEvent,
+        xev: xim_parser::RawXEvent,
     ) -> Result<(), Self::Error> {
         self.send_req(Request::ForwardEvent {
             input_method_id,
@@ -304,7 +304,7 @@ impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
                     self.send_req(Request::Connect {
                         client_major_protocol_version: 1,
                         client_minor_protocol_version: 0,
-                        endian: parser::Endian::Native,
+                        endian: xim_parser::Endian::Native,
                         client_auth_protocol_names: Vec::new(),
                     })?;
                     Ok(true)
@@ -326,7 +326,7 @@ impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
 
     fn send_req(&mut self, req: Request) -> Result<(), ClientError> {
         self.buf.resize(req.size(), 0);
-        parser::write(&req, &mut self.buf);
+        xim_parser::write(&req, &mut self.buf);
 
         if self.buf.len() < self.transport_max {
             if self.buf.len() > 20 {
@@ -388,11 +388,11 @@ impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
                 .get_property(true, msg.window, atom, AtomEnum::Any, 0, length)?
                 .reply()?
                 .value;
-            let req = parser::read(&data)?;
+            let req = xim_parser::read(&data)?;
             self.handle_request(req, handler)?;
         } else if msg.format == 8 {
             let data = msg.data.as_data8();
-            let req = parser::read(&data)?;
+            let req = xim_parser::read(&data)?;
             self.handle_request(req, handler)?;
         }
 
@@ -404,6 +404,7 @@ impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
         req: Request,
         handler: &mut impl ClientHandler<Self>,
     ) -> Result<(), ClientError> {
+        log::trace!("Recv: {:?}", req);
         match req {
             Request::ConnectReply {
                 server_major_protocol_version: _,
@@ -459,7 +460,7 @@ impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
                     self,
                     input_method_id,
                     input_context_id,
-                    &crate::compound_text_to_utf8(&commited).unwrap(),
+                    crate::compound_text_to_utf8(&commited).unwrap(),
                 ),
                 _ => todo!(),
             },

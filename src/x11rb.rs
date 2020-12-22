@@ -2,7 +2,7 @@ use std::{collections::HashMap, convert::TryInto};
 
 use crate::{
     client::{ClientCore, ClientHandler},
-    Atoms, AttributeBuilder,
+    Atoms
 };
 use x11rb::{
     connection::Connection,
@@ -304,7 +304,6 @@ impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
     }
 
     fn send_req_impl(&mut self, req: Request) -> Result<(), ClientError> {
-        log::trace!("send: {}", req.name());
         self.buf.resize(req.size(), 0);
         xim_parser::write(&req, &mut self.buf);
 
@@ -435,13 +434,24 @@ impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
                 input_context_id,
                 flag,
                 ..
-            } => handler.handle_forward_event(
-                self,
-                input_method_id,
-                input_context_id,
-                flag,
-                self.deserialize_event(xev),
-            ),
+            } => {
+                handler.handle_forward_event(
+                    self,
+                    input_method_id,
+                    input_context_id,
+                    flag,
+                    self.deserialize_event(xev),
+                )?;
+
+                if flag.contains(ForwardEventFlag::SYNCHRONOUS) {
+                    self.send_req(Request::SyncReply {
+                        input_method_id,
+                        input_context_id,
+                    })?;
+                }
+
+                Ok(())
+            }
             Request::Commit {
                 input_method_id,
                 input_context_id,
@@ -454,6 +464,13 @@ impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
                     commited,
                     syncronous,
                 } => {
+                    handler.handle_commit(
+                        self,
+                        input_method_id,
+                        input_context_id,
+                        crate::compound_text_to_utf8(&commited).unwrap(),
+                    )?;
+
                     if syncronous {
                         self.send_req(Request::SyncReply {
                             input_method_id,
@@ -461,12 +478,7 @@ impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
                         })?;
                     }
 
-                    handler.handle_commit(
-                        self,
-                        input_method_id,
-                        input_context_id,
-                        crate::compound_text_to_utf8(&commited).unwrap(),
-                    )
+                    Ok(())
                 }
                 _ => todo!(),
             },
@@ -498,8 +510,36 @@ impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
 #[test]
 fn event_check() {
     use xim_parser::{Writer, XimWrite};
-    let e = KeyPressEvent { sequence: 1, child: 1, detail: 0, event: 4, event_x: 1, event_y: 4, response_type: 2, root_x: 1, root_y: 5, same_screen: false, state: 1, time:4, root: 12 };
-    let xev = xim_parser::XEvent { sequence: 1, child: 1, detail: 0, event: 4, event_x: 1, event_y: 4, response_type: 2, root_x: 1, root_y: 5, same_screen: false, state: 1, time:4, root: 12 };
+    let e = KeyPressEvent {
+        sequence: 1,
+        child: 1,
+        detail: 0,
+        event: 4,
+        event_x: 1,
+        event_y: 4,
+        response_type: 2,
+        root_x: 1,
+        root_y: 5,
+        same_screen: false,
+        state: 1,
+        time: 4,
+        root: 12,
+    };
+    let xev = xim_parser::XEvent {
+        sequence: 1,
+        child: 1,
+        detail: 0,
+        event: 4,
+        event_x: 1,
+        event_y: 4,
+        response_type: 2,
+        root_x: 1,
+        root_y: 5,
+        same_screen: false,
+        state: 1,
+        time: 4,
+        root: 12,
+    };
     let mut buf = [0; 32];
     xev.write(&mut Writer::new(&mut buf));
     assert_eq!(<[u8; 32]>::from(e), buf);

@@ -1,21 +1,10 @@
 use std::{collections::HashMap, convert::TryInto};
 
-use crate::{Atoms, AttributeBuilder};
-use parser::ForwardEventFlag;
-use x11rb::{
-    connection::Connection,
-    protocol::{
-        xproto::{
-            Atom, AtomEnum, ClientMessageData, ClientMessageEvent, ConnectionExt, KeyPressEvent,
-            PropMode, Screen, WindowClass, CLIENT_MESSAGE_EVENT,
-        },
-        Event,
-    },
-    x11_utils::X11Error,
-    COPY_DEPTH_FROM_PARENT, CURRENT_TIME,
+use crate::{Atoms, AttributeBuilder, ClientHandler};
+use x11rb::{COPY_DEPTH_FROM_PARENT, CURRENT_TIME, connection::Connection, protocol::{Event, xproto::{Atom, AtomEnum, CLIENT_MESSAGE_EVENT, ClientMessageData, ClientMessageEvent, ConnectionExt, KeyPressEvent, PropMode, Screen, WindowClass}}, x11_utils::X11Error};
+use xim_parser::{
+    bstr::BString, Attr, Attribute, AttributeName, CommitData, ForwardEventFlag, Request, XimWrite,
 };
-use xim_parser as parser;
-use xim_parser::{bstr::BString, Attr, AttributeName, Request, XimWrite};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ClientError {
@@ -28,9 +17,9 @@ pub enum ClientError {
     #[error("ReplyOrId error: {0}")]
     ReplyOrId(#[from] x11rb::errors::ReplyOrIdError),
     #[error("Can't read xim message {0}")]
-    ReadProtocol(#[from] parser::ReadError),
+    ReadProtocol(#[from] xim_parser::ReadError),
     #[error("Server send error code: {0:?}, detail: {1}")]
-    XimError(parser::ErrorCode, BString),
+    XimError(xim_parser::ErrorCode, BString),
     #[error("X11 error {0:?}")]
     X11Error(X11Error),
     #[error("Server Transport is not supported")]
@@ -41,9 +30,91 @@ pub enum ClientError {
     NoXimServer,
 }
 
-pub struct Client<'x, C: Connection + ConnectionExt> {
+impl<'x, C: Connection + ConnectionExt> crate::Client for X11rbClient<'x, C> {
+    type Error = ClientError;
+    type XEvent = KeyPressEvent;
+
+    fn build_ic_attributes(&self) -> AttributeBuilder {
+        AttributeBuilder {
+            id_map: &self.ic_attributes,
+            out: Vec::new(),
+        }
+    }
+
+    fn build_im_attributes(&self) -> AttributeBuilder {
+        AttributeBuilder {
+            id_map: &self.im_attributes,
+            out: Vec::new(),
+        }
+    }
+
+    fn open(&mut self, locale: &[u8]) -> Result<(), Self::Error> {
+        self.send_req(Request::Open {
+            locale: locale.into(),
+        })
+    }
+
+    fn quert_extension(
+        &mut self,
+        input_method_id: u16,
+        extensions: &[&str],
+    ) -> Result<(), Self::Error> {
+        self.send_req(Request::QueryExtension {
+            input_method_id,
+            extensions: extensions.iter().map(|&e| e.into()).collect(),
+        })
+    }
+
+    fn create_ic(
+        &mut self,
+        input_method_id: u16,
+        ic_attributes: Vec<Attribute>,
+    ) -> Result<(), Self::Error> {
+        self.send_req(Request::CreateIc {
+            input_method_id,
+            ic_attributes,
+        })
+    }
+
+    fn forward_event(
+        &mut self,
+        input_method_id: u16,
+        input_context_id: u16,
+        flag: ForwardEventFlag,
+        sequence: u16,
+        xev: Self::XEvent,
+    ) -> Result<(), Self::Error> {
+        self.send_req(Request::ForwardEvent {
+            input_method_id,
+            input_context_id,
+            flag,
+            serial_number: sequence,
+            xev: xev.into(),
+        })
+    }
+
+    fn disconnect(&mut self) -> Result<(), Self::Error> {
+        self.send_req(Request::Disconnect {})
+    }
+
+    fn close(&mut self, input_method_id: u16) -> Result<(), Self::Error> {
+        self.send_req(Request::Close { input_method_id })
+    }
+
+    fn destory_ic(
+        &mut self,
+        input_method_id: u16,
+        input_context_id: u16,
+    ) -> Result<(), Self::Error> {
+        self.send_req(Request::DestoryIc {
+            input_method_id,
+            input_context_id,
+        })
+    }
+}
+
+pub struct X11rbClient<'x, C: Connection + ConnectionExt> {
     conn: &'x C,
-    connected: bool,
     server_owner_window: u32,
     im_window: u32,
     server_atom: Atom,
@@ -57,7 +128,7 @@ pub struct Client<'x, C: Connection + ConnectionExt> {
     buf: Vec<u8>,
 }
 
-impl<'x, C: Connection + ConnectionExt> Client<'x, C> {
+impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
     pub fn init(
         conn: &'x C,
         screen: &'x Screen,
@@ -125,7 +196,6 @@ impl<'x, C: Connection + ConnectionExt> Client<'x, C> {
 
                         return Ok(Self {
                             conn,
-                            connected: false,
                             atoms,
                             server_atom,
                             server_owner_window: server_owner,
@@ -154,7 +224,7 @@ impl<'x, C: Connection + ConnectionExt> Client<'x, C> {
         self.im_window
     }
 
-    pub fn set_attrs(&mut self, im_attrs: Vec<Attr>, ic_attrs: Vec<Attr>) {
+    fn set_attrs(&mut self, im_attrs: Vec<Attr>, ic_attrs: Vec<Attr>) {
         for im_attr in im_attrs {
             self.im_attributes.insert(im_attr.name, im_attr.id);
         }
@@ -164,38 +234,10 @@ impl<'x, C: Connection + ConnectionExt> Client<'x, C> {
         }
     }
 
-    pub fn get_im_attrs(&self, names: &[AttributeName]) -> Vec<u16> {
-        names
-            .iter()
-            .filter_map(|name| self.ic_attributes.get(name).copied())
-            .collect()
-    }
-
-    pub fn get_ic_attrs(&self, names: &[AttributeName]) -> Vec<u16> {
-        names
-            .iter()
-            .filter_map(|name| self.ic_attributes.get(name).copied())
-            .collect()
-    }
-
-    pub fn build_ic_attributes(&self) -> AttributeBuilder {
-        AttributeBuilder {
-            id_map: &self.ic_attributes,
-            out: Vec::new(),
-        }
-    }
-
-    pub fn build_im_attributes(&self) -> AttributeBuilder {
-        AttributeBuilder {
-            id_map: &self.im_attributes,
-            out: Vec::new(),
-        }
-    }
-
     pub fn filter_event(
         &mut self,
         e: &Event,
-        cb: impl FnOnce(&mut Self, Request) -> Result<(), ClientError>,
+        handler: &mut impl ClientHandler<Self>,
     ) -> Result<bool, ClientError> {
         match e {
             Event::SelectionNotify(e) if e.requestor == self.client_window => {
@@ -252,12 +294,12 @@ impl<'x, C: Connection + ConnectionExt> Client<'x, C> {
                     self.send_req(Request::Connect {
                         client_major_protocol_version: 1,
                         client_minor_protocol_version: 0,
-                        endian: parser::Endian::Native,
+                        endian: xim_parser::Endian::Native,
                         client_auth_protocol_names: Vec::new(),
                     })?;
                     Ok(true)
                 } else if msg.type_ == self.atoms.XIM_PROTOCOL {
-                    self.handle_xim_protocol(msg, cb)?;
+                    self.handle_xim_protocol(msg, handler)?;
                     Ok(true)
                 } else {
                     Ok(false)
@@ -267,33 +309,16 @@ impl<'x, C: Connection + ConnectionExt> Client<'x, C> {
         }
     }
 
-    pub fn forward_key_press(
-        &mut self,
-        input_method_id: u16,
-        input_context_id: u16,
-        e: &KeyPressEvent,
-    ) -> Result<(), ClientError> {
-        self.send_req(Request::ForwardEvent {
-            input_method_id,
-            input_context_id,
-            flag: ForwardEventFlag::REQUESTLOOPUPSTRING,
-            serial_number: e.sequence,
-            xev: e.into(),
-        })
-    }
-
-    pub fn set_event_mask(&mut self, forward_event_mask: u32, synchronous_event_mask: u32) {
-        self.connected = true;
+    fn set_event_mask(&mut self, forward_event_mask: u32, synchronous_event_mask: u32) {
         self.forward_event_mask = forward_event_mask;
         self.synchronous_event_mask = synchronous_event_mask;
     }
 
-    pub fn send_req(&mut self, req: Request) -> Result<(), ClientError> {
+    fn send_req(&mut self, req: Request) -> Result<(), ClientError> {
         self.buf.resize(req.size(), 0);
-        parser::write(&req, &mut self.buf);
+        xim_parser::write(&req, &mut self.buf);
 
         if self.buf.len() < self.transport_max {
-            log::trace!("Send {} by CM", req.name());
             if self.buf.len() > 20 {
                 todo!("multi-CM");
             }
@@ -313,7 +338,6 @@ impl<'x, C: Connection + ConnectionExt> Client<'x, C> {
                 },
             )?;
         } else {
-            log::trace!("Send {} by property", req.name());
             self.conn.change_property(
                 PropMode::Append,
                 self.im_window,
@@ -345,7 +369,7 @@ impl<'x, C: Connection + ConnectionExt> Client<'x, C> {
     fn handle_xim_protocol(
         &mut self,
         msg: &ClientMessageEvent,
-        cb: impl FnOnce(&mut Self, Request) -> Result<(), ClientError>,
+        handler: &mut impl ClientHandler<Self>,
     ) -> Result<(), ClientError> {
         if msg.format == 32 {
             let [length, atom, ..] = msg.data.as_data32();
@@ -354,15 +378,96 @@ impl<'x, C: Connection + ConnectionExt> Client<'x, C> {
                 .get_property(true, msg.window, atom, AtomEnum::Any, 0, length)?
                 .reply()?
                 .value;
-            let req = parser::read(&data)?;
-            cb(self, req)?;
+            let req = xim_parser::read(&data)?;
+            self.handle_request(req, handler)?;
         } else if msg.format == 8 {
             let data = msg.data.as_data8();
-            let req = parser::read(&data)?;
-            cb(self, req)?;
+            let req = xim_parser::read(&data)?;
+            self.handle_request(req, handler)?;
         }
 
         Ok(())
+    }
+
+    fn handle_request(
+        &mut self,
+        req: Request,
+        handler: &mut impl ClientHandler<Self>,
+    ) -> Result<(), ClientError> {
+        log::trace!("Recv: {:?}", req);
+        match req {
+            Request::ConnectReply {
+                server_major_protocol_version: _,
+                server_minor_protocol_version: _,
+            } => handler.handle_connect(self),
+            Request::OpenReply {
+                input_method_id,
+                im_attrs,
+                ic_attrs,
+            } => {
+                self.set_attrs(im_attrs, ic_attrs);
+                handler.handle_open(self, input_method_id)
+            }
+            Request::QueryExtensionReply {
+                input_method_id: _,
+                extensions,
+            } => handler.handle_query_extension(self, &extensions),
+            Request::CreateIcReply {
+                input_method_id,
+                input_context_id,
+            } => handler.handle_create_ic(self, input_method_id, input_context_id),
+            Request::SetEventMask {
+                input_method_id: _,
+                input_context_id: _,
+                forward_event_mask,
+                synchronous_event_mask,
+            } => {
+                self.set_event_mask(forward_event_mask, synchronous_event_mask);
+                Ok(())
+            }
+            Request::CloseReply { input_method_id } => handler.handle_close(self, input_method_id),
+            Request::DisconnectReply {} => {
+                handler.handle_disconnect();
+                Ok(())
+            }
+            Request::Error { code, detail, .. } => Err(ClientError::XimError(code, detail)),
+            Request::ForwardEvent {
+                xev,
+                input_method_id,
+                input_context_id,
+                flag,
+                ..
+            } => handler.handle_forward_event(self, input_method_id, input_context_id, flag, xev),
+            Request::Commit {
+                input_method_id,
+                input_context_id,
+                data,
+            } => match data {
+                CommitData::Keysym { keysym: _, .. } => {
+                    todo!()
+                }
+                CommitData::Chars {
+                    commited,
+                    syncronous,
+                } => {
+                    if syncronous {
+                        self.send_req(Request::SyncReply {
+                            input_method_id,
+                            input_context_id,
+                        })?;
+                    }
+
+                    handler.handle_commit(
+                        self,
+                        input_method_id,
+                        input_context_id,
+                        crate::compound_text_to_utf8(&commited).unwrap(),
+                    )
+                }
+                _ => todo!(),
+            },
+            _ => Err(ClientError::InvalidReply),
+        }
     }
 
     fn xconnect(&mut self) -> Result<(), ClientError> {

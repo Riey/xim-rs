@@ -1247,7 +1247,7 @@ pub enum Request {
     },
     QueryExtensionReply {
         input_method_id: u16,
-        extentions: Vec<Extension>,
+        extensions: Vec<Extension>,
     },
     RegisterTriggerKeys {
         input_method_id: u16,
@@ -1717,7 +1717,7 @@ impl XimRead for Request {
             }),
             (41, _) => Ok(Request::QueryExtensionReply {
                 input_method_id: u16::read(reader)?,
-                extentions: {
+                extensions: {
                     let mut out = Vec::new();
                     let len = u16::read(reader)? as usize;
                     let end = reader.cursor() - len;
@@ -2308,15 +2308,15 @@ impl XimWrite for Request {
             }
             Request::QueryExtensionReply {
                 input_method_id,
-                extentions,
+                extensions,
             } => {
                 41u8.write(writer);
                 0u8.write(writer);
                 (((self.size() - 4) / 4) as u16).write(writer);
                 input_method_id.write(writer);
-                ((extentions.iter().map(|e| e.size()).sum::<usize>() + 0 + 2 - 2 - 0) as u16)
+                ((extensions.iter().map(|e| e.size()).sum::<usize>() + 0 + 2 - 2 - 0) as u16)
                     .write(writer);
-                for elem in extentions.iter() {
+                for elem in extensions.iter() {
                     elem.write(writer);
                 }
             }
@@ -2800,10 +2800,10 @@ impl XimWrite for Request {
             }
             Request::QueryExtensionReply {
                 input_method_id,
-                extentions,
+                extensions,
             } => {
                 content_size += input_method_id.size();
-                content_size += extentions.iter().map(|e| e.size()).sum::<usize>() + 0 + 2;
+                content_size += extensions.iter().map(|e| e.size()).sum::<usize>() + 0 + 2;
             }
             Request::RegisterTriggerKeys {
                 input_method_id,

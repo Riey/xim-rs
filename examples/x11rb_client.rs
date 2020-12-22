@@ -17,7 +17,6 @@ struct ExampleHandler {
 impl<C: Client> ClientHandler<C> for ExampleHandler {
     fn handle_connect(&mut self, client: &mut C) -> Result<(), C::Error> {
         log::trace!("Connected");
-        self.connected = true;
         client.open(b"en_US")
     }
 
@@ -28,7 +27,7 @@ impl<C: Client> ClientHandler<C> for ExampleHandler {
             .build_ic_attributes()
             .push(
                 AttributeName::InputStyle,
-                InputStyle::PREEDITPOSITION | InputStyle::STATUSNOTHING,
+                InputStyle::PREEDITNOTHING | InputStyle::STATUSNOTHING,
             )
             .push(AttributeName::ClientWindow, self.window)
             .push(AttributeName::FocusWindow, self.window)
@@ -53,6 +52,7 @@ impl<C: Client> ClientHandler<C> for ExampleHandler {
         input_method_id: u16,
         input_context_id: u16,
     ) -> Result<(), C::Error> {
+        self.connected = true;
         log::info!("IC created {}, {}", input_method_id, input_context_id);
         Ok(())
     }
@@ -92,7 +92,7 @@ impl<C: Client> ClientHandler<C> for ExampleHandler {
         _input_method_id: u16,
         _input_context_id: u16,
         _flag: xim_parser::ForwardEventFlag,
-        _xev: xim_parser::RawXEvent,
+        _xev: C::XEvent,
     ) -> Result<(), C::Error> {
         Ok(())
     }
@@ -133,7 +133,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let e = conn.wait_for_event()?;
 
         if client.filter_event(&e, &mut handler)? {
-            log::trace!("event consumed");
+            continue;
         } else if let Event::Error(err) = e {
             return Err(ClientError::X11Error(err).into());
         } else {
@@ -143,7 +143,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         client.forward_event(
                             handler.im_id,
                             handler.ic_id,
-                            ForwardEventFlag::empty(),
+                            ForwardEventFlag::SYNCHRONOUS,
                             e,
                         )?;
                     }

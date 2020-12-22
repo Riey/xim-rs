@@ -74,6 +74,23 @@ mod tests {
     }
 
     #[test]
+    fn write_forward_event() {
+        let mut out = Vec::new();
+        let req = Request::ForwardEvent {
+            input_method_id: 0,
+            input_context_id: 0,
+            flag: ForwardEventFlag::empty(),
+            serial_number: 0,
+            xev: unsafe { std::mem::zeroed() },
+        };
+
+        assert_eq!(req.size(), 4 + 8 + 32);
+        out.resize(req.size(), 0);
+        write(&req, &mut out);
+        assert!(out.starts_with(b"\x3c\x00\x0a\x00"));
+    }
+
+    #[test]
     fn write_create_ic() {
         let mut out = Vec::new();
         let req = Request::CreateIc {

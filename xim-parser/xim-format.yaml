@@ -195,6 +195,21 @@ Structs:
     - "x i16"
     - "y i16"
 
+  XEvent:
+    - "response_type u8"
+    - "detail u8"
+    - "sequence u16"
+    - "time u32"
+    - "root u32"
+    - "event u32"
+    - "child u32"
+    - "root_x i16"
+    - "root_y i16"
+    - "event_x i16"
+    - "event_y i16"
+    - "state u16"
+    - "same_screen @append1 bool"
+
 Requests:
   Connect:
     major_opcode: 1
@@ -457,7 +472,7 @@ Requests:
       - "input_context_id u16"
       - "flag ForwardEventFlag"
       - "serial_number u16"
-      - "xev RawXEvent"
+      - "xev XEvent"
 
   Sync:
     major_opcode: 61

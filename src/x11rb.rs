@@ -1,6 +1,9 @@
 use std::{collections::HashMap, convert::TryInto};
 
-use crate::{Atoms, AttributeBuilder, ClientHandler};
+use crate::{
+    client::{ClientCore, ClientHandler},
+    Atoms, AttributeBuilder,
+};
 use x11rb::{
     connection::Connection,
     protocol::{
@@ -27,12 +30,12 @@ pub enum ClientError {
     Connection(#[from] x11rb::errors::ConnectionError),
     #[error("ReplyOrId error: {0}")]
     ReplyOrId(#[from] x11rb::errors::ReplyOrIdError),
+    #[error("X11 error {0:?}")]
+    X11Error(X11Error),
     #[error("Can't read xim message {0}")]
     ReadProtocol(#[from] xim_parser::ReadError),
     #[error("Server send error code: {0:?}, detail: {1}")]
     XimError(xim_parser::ErrorCode, BString),
-    #[error("X11 error {0:?}")]
-    X11Error(X11Error),
     #[error("Server Transport is not supported")]
     UnsupportedTransport,
     #[error("Invalid reply from server")]
@@ -41,85 +44,61 @@ pub enum ClientError {
     NoXimServer,
 }
 
-impl<'x, C: Connection + ConnectionExt> crate::Client for X11rbClient<'x, C> {
+impl<'x, C: Connection + ConnectionExt> ClientCore for X11rbClient<'x, C> {
     type Error = ClientError;
     type XEvent = KeyPressEvent;
 
-    fn build_ic_attributes(&self) -> AttributeBuilder {
-        AttributeBuilder {
-            id_map: &self.ic_attributes,
-            out: Vec::new(),
+    #[inline]
+    fn ic_attributes(&self) -> &HashMap<AttributeName, u16> {
+        &self.ic_attributes
+    }
+
+    #[inline]
+    fn im_attributes(&self) -> &HashMap<AttributeName, u16> {
+        &self.im_attributes
+    }
+
+    #[inline]
+    fn serialize_event(&self, xev: Self::XEvent) -> xim_parser::XEvent {
+        xim_parser::XEvent {
+            response_type: xev.response_type,
+            detail: xev.detail,
+            sequence: xev.sequence,
+            time: xev.time,
+            root: xev.root,
+            event: xev.event,
+            child: xev.child,
+            root_x: xev.root_x,
+            root_y: xev.root_y,
+            event_x: xev.event_x,
+            event_y: xev.event_y,
+            state: xev.state,
+            same_screen: xev.same_screen,
         }
     }
 
-    fn build_im_attributes(&self) -> AttributeBuilder {
-        AttributeBuilder {
-            id_map: &self.im_attributes,
-            out: Vec::new(),
+    #[inline]
+    fn deserialize_event(&self, xev: xim_parser::XEvent) -> Self::XEvent {
+        KeyPressEvent {
+            response_type: xev.response_type,
+            detail: xev.detail,
+            sequence: xev.sequence,
+            time: xev.time,
+            root: xev.root,
+            event: xev.event,
+            child: xev.child,
+            root_x: xev.root_x,
+            root_y: xev.root_y,
+            event_x: xev.event_x,
+            event_y: xev.event_y,
+            state: xev.state,
+            same_screen: xev.same_screen,
         }
     }
 
-    fn open(&mut self, locale: &[u8]) -> Result<(), Self::Error> {
-        self.send_req(Request::Open {
-            locale: locale.into(),
-        })
-    }
-
-    fn quert_extension(
-        &mut self,
-        input_method_id: u16,
-        extensions: &[&str],
-    ) -> Result<(), Self::Error> {
-        self.send_req(Request::QueryExtension {
-            input_method_id,
-            extensions: extensions.iter().map(|&e| e.into()).collect(),
-        })
-    }
-
-    fn create_ic(
-        &mut self,
-        input_method_id: u16,
-        ic_attributes: Vec<Attribute>,
-    ) -> Result<(), Self::Error> {
-        self.send_req(Request::CreateIc {
-            input_method_id,
-            ic_attributes,
-        })
-    }
-
-    fn forward_event(
-        &mut self,
-        input_method_id: u16,
-        input_context_id: u16,
-        flag: ForwardEventFlag,
-        xev: Self::XEvent,
-    ) -> Result<(), Self::Error> {
-        self.send_req(Request::ForwardEvent {
-            input_method_id,
-            input_context_id,
-            flag,
-            serial_number: xev.sequence,
-            xev: xev.into(),
-        })
-    }
-
-    fn disconnect(&mut self) -> Result<(), Self::Error> {
-        self.send_req(Request::Disconnect {})
-    }
-
-    fn close(&mut self, input_method_id: u16) -> Result<(), Self::Error> {
-        self.send_req(Request::Close { input_method_id })
-    }
-
-    fn destory_ic(
-        &mut self,
-        input_method_id: u16,
-        input_context_id: u16,
-    ) -> Result<(), Self::Error> {
-        self.send_req(Request::DestoryIc {
-            input_method_id,
-            input_context_id,
-        })
+    #[inline]
+    fn send_req(&mut self, req: Request) -> Result<(), Self::Error> {
+        self.send_req_impl(req)
     }
 }
 
@@ -324,7 +303,8 @@ impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
         self.synchronous_event_mask = synchronous_event_mask;
     }
 
-    fn send_req(&mut self, req: Request) -> Result<(), ClientError> {
+    fn send_req_impl(&mut self, req: Request) -> Result<(), ClientError> {
+        log::trace!("send: {}", req.name());
         self.buf.resize(req.size(), 0);
         xim_parser::write(&req, &mut self.buf);
 
@@ -416,8 +396,16 @@ impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
                 ic_attrs,
             } => {
                 self.set_attrs(im_attrs, ic_attrs);
-                handler.handle_open(self, input_method_id)
+                // Require for uim
+                self.send_req(Request::EncodingNegotiation {
+                    encodings: vec!["COMPOUND_TEXT".into(), "".into()],
+                    encoding_infos: vec![],
+                    input_method_id,
+                })
             }
+            Request::EncodingNegotiationReply {
+                input_method_id, ..
+            } => handler.handle_open(self, input_method_id),
             Request::QueryExtensionReply {
                 input_method_id: _,
                 extensions,
@@ -447,7 +435,13 @@ impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
                 input_context_id,
                 flag,
                 ..
-            } => handler.handle_forward_event(self, input_method_id, input_context_id, flag, xev),
+            } => handler.handle_forward_event(
+                self,
+                input_method_id,
+                input_context_id,
+                flag,
+                self.deserialize_event(xev),
+            ),
             Request::Commit {
                 input_method_id,
                 input_context_id,
@@ -499,4 +493,14 @@ impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
 
         Ok(())
     }
+}
+
+#[test]
+fn event_check() {
+    use xim_parser::{Writer, XimWrite};
+    let e = KeyPressEvent { sequence: 1, child: 1, detail: 0, event: 4, event_x: 1, event_y: 4, response_type: 2, root_x: 1, root_y: 5, same_screen: false, state: 1, time:4, root: 12 };
+    let xev = xim_parser::XEvent { sequence: 1, child: 1, detail: 0, event: 4, event_x: 1, event_y: 4, response_type: 2, root_x: 1, root_y: 5, same_screen: false, state: 1, time:4, root: 12 };
+    let mut buf = [0; 32];
+    xev.write(&mut Writer::new(&mut buf));
+    assert_eq!(<[u8; 32]>::from(e), buf);
 }

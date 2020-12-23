@@ -188,7 +188,7 @@ impl<X: XlibRef> XlibClient<X> {
         let ty = ty.assume_init();
         let format = format.assume_init();
         let items = items.assume_init();
-        let bytes = bytes.assume_init();
+        let _bytes = bytes.assume_init();
         let prop = prop.assume_init() as *mut xlib::Atom;
 
         if ty != xlib::XA_ATOM || format != 32 {
@@ -279,12 +279,9 @@ impl<X: XlibRef> XlibClient<X> {
                 let prop = prop.assume_init();
 
                 if e.selection.property == dbg!(self.atoms.LOCALES) {
-                    log::trace!("Get LOCALES");
                     // TODO: set locale
                     self.xconnect()?;
                 } else if e.selection.property == self.atoms.TRANSPORT {
-                    log::trace!("Get TRANSPORT");
-
                     let transport = std::slice::from_raw_parts(prop, items as usize);
 
                     if !transport.starts_with(b"@transport=X/") {
@@ -412,7 +409,6 @@ impl<X: XlibRef> XlibClient<X> {
         .into();
 
         unsafe {
-            log::trace!("Send event");
             (self.x.xlib().XSendEvent)(
                 self.display,
                 self.server_owner_window,
@@ -420,8 +416,6 @@ impl<X: XlibRef> XlibClient<X> {
                 xlib::NoEventMask,
                 &mut ev,
             );
-
-            (self.x.xlib().XFlush)(self.display);
         }
         Ok(())
     }

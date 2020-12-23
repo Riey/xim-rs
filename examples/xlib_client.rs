@@ -17,9 +17,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let display = (xlib.XOpenDisplay)(ptr::null());
         let screen = (xlib.XDefaultScreen)(display);
         let root = (xlib.XDefaultRootWindow)(display);
-        let mut attributes: xlib::XSetWindowAttributes = std::mem::zeroed();
-        attributes.background_pixel = (xlib.XBlackPixel)(display, screen);
-        let window = (xlib.XCreateWindow)(
+        let window = (xlib.XCreateSimpleWindow)(
             display,
             root,
             0,
@@ -27,11 +25,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             800,
             600,
             0,
-            0,
-            xlib::InputOutput as _,
-            ptr::null_mut(),
-            xlib::CWBackPixel,
-            &mut attributes,
+            (xlib.XBlackPixel)(display, 0),
+            (xlib.XBlackPixel)(display, 0),
         );
         (xlib.XMapWindow)(display, window);
 
@@ -42,6 +37,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut handler = ExampleHandler::default();
         handler.window = window as u32;
 
+        (xlib.XSelectInput)(display, window, xlib::KeyPressMask | xlib::KeyReleaseMask);
+
         loop {
             let mut e = MaybeUninit::uninit();
             (xlib.XNextEvent)(display, e.as_mut_ptr());
@@ -51,24 +48,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             if client.filter_event(&e, &mut handler)? {
                 continue;
+            } else {
+                match e.get_type() {
+                    xlib::KeyPress | xlib::KeyRelease => {
+                        if handler.connected {
+                            client.forward_event(handler.im_id, handler.ic_id, ForwardEventFlag::SYNCHRONOUS, e.key)?;
+                        }
+                    }
+                    _ => {}
+                }
             }
-            // } else if let Event::Error(err) = e {
-            //     return Err(ClientError::X11Error(err).into());
-            // } else {
-            //     match e {
-            //         Event::KeyPress(e) | Event::KeyRelease(e) => {
-            //             if handler.connected {
-            //                 client.forward_event(
-            //                     handler.im_id,
-            //                     handler.ic_id,
-            //                     ForwardEventFlag::SYNCHRONOUS,
-            //                     e,
-            //                 )?;
-            //             }
-            //         }
-            //         _ => {}
-            //     }
-            // }
         }
     }
 }

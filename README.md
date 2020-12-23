@@ -1,5 +1,7 @@
 # xim-rs
 
+XIM protocol handler in Rust
+
 ## project structure
 
 ### xim

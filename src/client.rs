@@ -1,11 +1,128 @@
 use crate::AttributeBuilder;
 use std::collections::HashMap;
-use xim_parser::{Attribute, AttributeName, Extension, ForwardEventFlag, Request};
+use xim_parser::{
+    bstr::BString, Attr, Attribute, AttributeName, CommitData, ErrorCode, Extension,
+    ForwardEventFlag, Request,
+};
+
+pub fn handle_request<C: ClientCore>(
+    client: &mut C,
+    handler: &mut impl ClientHandler<C>,
+    req: Request,
+) -> Result<(), C::Error> {
+    log::trace!("Recv: {:?}", req);
+    match req {
+        Request::ConnectReply {
+            server_major_protocol_version: _,
+            server_minor_protocol_version: _,
+        } => handler.handle_connect(client),
+        Request::OpenReply {
+            input_method_id,
+            im_attrs,
+            ic_attrs,
+        } => {
+            client.set_attrs(im_attrs, ic_attrs);
+            // Require for uim
+            client.send_req(Request::EncodingNegotiation {
+                encodings: vec!["COMPOUND_TEXT".into(), "".into()],
+                encoding_infos: vec![],
+                input_method_id,
+            })
+        }
+        Request::EncodingNegotiationReply {
+            input_method_id, ..
+        } => handler.handle_open(client, input_method_id),
+        Request::QueryExtensionReply {
+            input_method_id: _,
+            extensions,
+        } => handler.handle_query_extension(client, &extensions),
+        Request::CreateIcReply {
+            input_method_id,
+            input_context_id,
+        } => handler.handle_create_ic(client, input_method_id, input_context_id),
+        Request::SetEventMask {
+            input_method_id: _,
+            input_context_id: _,
+            forward_event_mask,
+            synchronous_event_mask,
+        } => {
+            client.set_event_mask(forward_event_mask, synchronous_event_mask);
+            Ok(())
+        }
+        Request::CloseReply { input_method_id } => handler.handle_close(client, input_method_id),
+        Request::DisconnectReply {} => {
+            handler.handle_disconnect();
+            Ok(())
+        }
+        Request::Error { code, detail, .. } => Err(client.xim_error(code, detail)),
+        Request::ForwardEvent {
+            xev,
+            input_method_id,
+            input_context_id,
+            flag,
+            ..
+        } => {
+            handler.handle_forward_event(
+                client,
+                input_method_id,
+                input_context_id,
+                flag,
+                client.deserialize_event(xev),
+            )?;
+
+            if flag.contains(ForwardEventFlag::SYNCHRONOUS) {
+                client.send_req(Request::SyncReply {
+                    input_method_id,
+                    input_context_id,
+                })?;
+            }
+
+            Ok(())
+        }
+        Request::Commit {
+            input_method_id,
+            input_context_id,
+            data,
+        } => match data {
+            CommitData::Keysym { keysym: _, .. } => {
+                todo!()
+            }
+            CommitData::Chars {
+                commited,
+                syncronous,
+            } => {
+                handler.handle_commit(
+                    client,
+                    input_method_id,
+                    input_context_id,
+                    ctext::compound_text_to_utf8(&commited).unwrap(),
+                )?;
+
+                if syncronous {
+                    client.send_req(Request::SyncReply {
+                        input_method_id,
+                        input_context_id,
+                    })?;
+                }
+
+                Ok(())
+            }
+            _ => todo!(),
+        },
+        _ => {
+            log::warn!("Unknown request {:?}", req);
+            Ok(())
+        }
+    }
+}
 
 pub trait ClientCore {
     type Error: std::error::Error;
     type XEvent;
 
+    fn xim_error(&self, code: ErrorCode, detail: BString) -> Self::Error;
+    fn set_attrs(&mut self, ic_attrs: Vec<Attr>, im_attrs: Vec<Attr>);
+    fn set_event_mask(&mut self, forward_event_mask: u32, synchronous_event_mask: u32);
     fn ic_attributes(&self) -> &HashMap<AttributeName, u16>;
     fn im_attributes(&self) -> &HashMap<AttributeName, u16>;
     fn serialize_event(&self, xev: Self::XEvent) -> xim_parser::XEvent;

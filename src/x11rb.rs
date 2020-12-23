@@ -1,7 +1,7 @@
 use std::{collections::HashMap, convert::TryInto};
 
 use crate::{
-    client::{ClientCore, ClientHandler},
+    client::{handle_request, ClientCore, ClientHandler},
     Atoms,
 };
 #[cfg(feature = "x11rb-xcb")]
@@ -51,6 +51,22 @@ pub enum ClientError {
 impl<C: HasConnection> ClientCore for X11rbClient<C> {
     type Error = ClientError;
     type XEvent = KeyPressEvent;
+
+    #[inline]
+    fn set_event_mask(&mut self, forward_event_mask: u32, synchronous_event_mask: u32) {
+        self.forward_event_mask = forward_event_mask;
+        self.synchronous_event_mask = synchronous_event_mask;
+    }
+
+    fn set_attrs(&mut self, im_attrs: Vec<Attr>, ic_attrs: Vec<Attr>) {
+        for im_attr in im_attrs {
+            self.im_attributes.insert(im_attr.name, im_attr.id);
+        }
+
+        for ic_attr in ic_attrs {
+            self.ic_attributes.insert(ic_attr.name, ic_attr.id);
+        }
+    }
 
     #[inline]
     fn ic_attributes(&self) -> &HashMap<AttributeName, u16> {
@@ -103,6 +119,10 @@ impl<C: HasConnection> ClientCore for X11rbClient<C> {
     #[inline]
     fn send_req(&mut self, req: Request) -> Result<(), Self::Error> {
         self.send_req_impl(req)
+    }
+
+    fn xim_error(&self, code: xim_parser::ErrorCode, detail: BString) -> Self::Error {
+        ClientError::XimError(code, detail)
     }
 }
 
@@ -249,16 +269,6 @@ impl<C: HasConnection> X11rbClient<C> {
         }
     }
 
-    fn set_attrs(&mut self, im_attrs: Vec<Attr>, ic_attrs: Vec<Attr>) {
-        for im_attr in im_attrs {
-            self.im_attributes.insert(im_attr.name, im_attr.id);
-        }
-
-        for ic_attr in ic_attrs {
-            self.ic_attributes.insert(ic_attr.name, ic_attr.id);
-        }
-    }
-
     pub fn filter_event(
         &mut self,
         e: &Event,
@@ -268,6 +278,17 @@ impl<C: HasConnection> X11rbClient<C> {
             Event::SelectionNotify(e) if e.requestor == self.client_window => {
                 if e.property == self.atoms.LOCALES {
                     // TODO: set locale
+                    let _locale = self
+                        .conn()
+                        .get_property(
+                            true,
+                            self.client_window,
+                            self.atoms.LOCALES,
+                            self.atoms.LOCALES,
+                            0,
+                            u32::MAX,
+                        )?
+                        .reply()?;
 
                     self.xconnect()?;
 
@@ -332,11 +353,6 @@ impl<C: HasConnection> X11rbClient<C> {
             }
             _ => Ok(false),
         }
-    }
-
-    fn set_event_mask(&mut self, forward_event_mask: u32, synchronous_event_mask: u32) {
-        self.forward_event_mask = forward_event_mask;
-        self.synchronous_event_mask = synchronous_event_mask;
     }
 
     fn send_req_impl(&mut self, req: Request) -> Result<(), ClientError> {
@@ -404,122 +420,14 @@ impl<C: HasConnection> X11rbClient<C> {
                 .reply()?
                 .value;
             let req = xim_parser::read(&data)?;
-            self.handle_request(req, handler)?;
+            handle_request(self, handler, req)?;
         } else if msg.format == 8 {
             let data = msg.data.as_data8();
             let req = xim_parser::read(&data)?;
-            self.handle_request(req, handler)?;
+            handle_request(self, handler, req)?;
         }
 
         Ok(())
-    }
-
-    fn handle_request(
-        &mut self,
-        req: Request,
-        handler: &mut impl ClientHandler<Self>,
-    ) -> Result<(), ClientError> {
-        log::trace!("Recv: {:?}", req);
-        match req {
-            Request::ConnectReply {
-                server_major_protocol_version: _,
-                server_minor_protocol_version: _,
-            } => handler.handle_connect(self),
-            Request::OpenReply {
-                input_method_id,
-                im_attrs,
-                ic_attrs,
-            } => {
-                self.set_attrs(im_attrs, ic_attrs);
-                // Require for uim
-                self.send_req(Request::EncodingNegotiation {
-                    encodings: vec!["COMPOUND_TEXT".into(), "".into()],
-                    encoding_infos: vec![],
-                    input_method_id,
-                })
-            }
-            Request::EncodingNegotiationReply {
-                input_method_id, ..
-            } => handler.handle_open(self, input_method_id),
-            Request::QueryExtensionReply {
-                input_method_id: _,
-                extensions,
-            } => handler.handle_query_extension(self, &extensions),
-            Request::CreateIcReply {
-                input_method_id,
-                input_context_id,
-            } => handler.handle_create_ic(self, input_method_id, input_context_id),
-            Request::SetEventMask {
-                input_method_id: _,
-                input_context_id: _,
-                forward_event_mask,
-                synchronous_event_mask,
-            } => {
-                self.set_event_mask(forward_event_mask, synchronous_event_mask);
-                Ok(())
-            }
-            Request::CloseReply { input_method_id } => handler.handle_close(self, input_method_id),
-            Request::DisconnectReply {} => {
-                handler.handle_disconnect();
-                Ok(())
-            }
-            Request::Error { code, detail, .. } => Err(ClientError::XimError(code, detail)),
-            Request::ForwardEvent {
-                xev,
-                input_method_id,
-                input_context_id,
-                flag,
-                ..
-            } => {
-                handler.handle_forward_event(
-                    self,
-                    input_method_id,
-                    input_context_id,
-                    flag,
-                    self.deserialize_event(xev),
-                )?;
-
-                if flag.contains(ForwardEventFlag::SYNCHRONOUS) {
-                    self.send_req(Request::SyncReply {
-                        input_method_id,
-                        input_context_id,
-                    })?;
-                }
-
-                Ok(())
-            }
-            Request::Commit {
-                input_method_id,
-                input_context_id,
-                data,
-            } => match data {
-                CommitData::Keysym { keysym: _, .. } => {
-                    todo!()
-                }
-                CommitData::Chars {
-                    commited,
-                    syncronous,
-                } => {
-                    handler.handle_commit(
-                        self,
-                        input_method_id,
-                        input_context_id,
-                        crate::compound_text_to_utf8(&commited).unwrap(),
-                    )?;
-
-                    if syncronous {
-                        self.send_req(Request::SyncReply {
-                            input_method_id,
-                            input_context_id,
-                        })?;
-                    }
-
-                    Ok(())
-                }
-                _ => todo!(),
-            },
-            _ => Err(ClientError::InvalidReply),
-        }
     }
 
     fn xconnect(&mut self) -> Result<(), ClientError> {
@@ -528,7 +436,7 @@ impl<C: HasConnection> X11rbClient<C> {
             self.server_owner_window,
             0u32,
             ClientMessageEvent {
-                data: ClientMessageData::from([self.client_window, 0, 0, 0, 0]),
+                data: [self.client_window, 0, 0, 0, 0].into(),
                 format: 32,
                 response_type: CLIENT_MESSAGE_EVENT,
                 sequence: 0,

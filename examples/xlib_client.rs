@@ -19,7 +19,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let root = (xlib.XDefaultRootWindow)(display);
         let mut attributes: xlib::XSetWindowAttributes = std::mem::zeroed();
         attributes.background_pixel = (xlib.XBlackPixel)(display, screen);
-        let window = (xlib.XCreateWindow)(display, root, 0, 0, 800, 600, 0, 0, xlib::InputOutput as _, ptr::null_mut(), xlib::CWBackPixel, &mut attributes);
+        let window = (xlib.XCreateWindow)(
+            display,
+            root,
+            0,
+            0,
+            800,
+            600,
+            0,
+            0,
+            xlib::InputOutput as _,
+            ptr::null_mut(),
+            xlib::CWBackPixel,
+            &mut attributes,
+        );
         (xlib.XMapWindow)(display, window);
 
         let mut client = XlibClient::init(&xlib, display, None)?;
@@ -36,8 +49,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             log::trace!("Get event: {:?}", e);
 
-            // if client.filter_event(&e, &mut handler)? {
-            //     continue;
+            if client.filter_event(&e)? {
+                continue;
+            }
             // } else if let Event::Error(err) = e {
             //     return Err(ClientError::X11Error(err).into());
             // } else {

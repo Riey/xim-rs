@@ -1,14 +1,14 @@
-use std::collections::HashMap;
 use std::ffi::CStr;
 use std::mem::MaybeUninit;
+use std::{collections::HashMap, convert::TryInto, os::raw::c_long};
 
 use crate::{
-    client::{ClientCore, ClientHandler},
+    client::{handle_request, ClientCore, ClientHandler},
     Atoms,
 };
 use thiserror::Error;
 use x11_dl::xlib;
-use xim_parser::{bstr::BString, AttributeName};
+use xim_parser::{bstr::BString, AttributeName, Request, XimWrite};
 
 #[derive(Debug, Error)]
 pub enum ClientError {
@@ -82,7 +82,26 @@ impl<X: XlibRef> ClientCore for XlibClient<X> {
 
     #[inline]
     fn send_req(&mut self, req: xim_parser::Request) -> Result<(), Self::Error> {
-        todo!()
+        self.send_req_impl(req)
+    }
+
+    fn xim_error(&self, code: xim_parser::ErrorCode, detail: BString) -> Self::Error {
+        ClientError::XimError(code, detail)
+    }
+
+    fn set_attrs(&mut self, ic_attrs: Vec<xim_parser::Attr>, im_attrs: Vec<xim_parser::Attr>) {
+        for im_attr in im_attrs {
+            self.im_attributes.insert(im_attr.name, im_attr.id);
+        }
+
+        for ic_attr in ic_attrs {
+            self.ic_attributes.insert(ic_attr.name, ic_attr.id);
+        }
+    }
+
+    fn set_event_mask(&mut self, forward_event_mask: u32, synchronous_event_mask: u32) {
+        self.forward_event_mask = forward_event_mask;
+        self.synchronous_event_mask = synchronous_event_mask;
     }
 }
 
@@ -141,8 +160,8 @@ impl<X: XlibRef> XlibClient<X> {
             }
         })?;
 
-        let mut act_ty = MaybeUninit::uninit();
-        let mut act_format = MaybeUninit::uninit();
+        let mut ty = MaybeUninit::uninit();
+        let mut format = MaybeUninit::uninit();
         let mut items = MaybeUninit::uninit();
         let mut bytes = MaybeUninit::uninit();
         let mut prop = MaybeUninit::uninit();
@@ -152,11 +171,11 @@ impl<X: XlibRef> XlibClient<X> {
             root,
             atoms.XIM_SERVERS,
             0,
-            8196,
+            i64::MAX,
             xlib::False,
             xlib::XA_ATOM,
-            act_ty.as_mut_ptr(),
-            act_format.as_mut_ptr(),
+            ty.as_mut_ptr(),
+            format.as_mut_ptr(),
             items.as_mut_ptr(),
             bytes.as_mut_ptr(),
             prop.as_mut_ptr(),
@@ -166,17 +185,17 @@ impl<X: XlibRef> XlibClient<X> {
             return Err(ClientError::InvalidReply);
         }
 
-        let ty = act_ty.assume_init();
-        let format = act_format.assume_init();
+        let ty = ty.assume_init();
+        let format = format.assume_init();
         let items = items.assume_init();
         let bytes = bytes.assume_init();
-        let prop = prop.assume_init() as *mut u32;
+        let prop = prop.assume_init() as *mut xlib::Atom;
 
         if ty != xlib::XA_ATOM || format != 32 {
             Err(ClientError::InvalidReply)
         } else {
             for i in 0..items {
-                let server_atom = prop.add(i as usize).read() as xlib::Atom;
+                let server_atom = prop.add(i as usize).read();
                 let server_owner = (xlib.XGetSelectionOwner)(display, server_atom);
                 let name_ptr = (xlib.XGetAtomName)(display, server_atom);
                 let name = CStr::from_ptr(name_ptr);
@@ -224,5 +243,219 @@ impl<X: XlibRef> XlibClient<X> {
 
             Err(ClientError::NoXimServer)
         }
+    }
+
+    pub unsafe fn filter_event(
+        &mut self,
+        e: &xlib::XEvent,
+        handler: &mut impl ClientHandler<Self>,
+    ) -> Result<bool, ClientError> {
+        match e.get_type() {
+            xlib::SelectionNotify if e.selection.requestor == self.client_window => {
+                let mut ty = MaybeUninit::uninit();
+                let mut format = MaybeUninit::uninit();
+                let mut items = MaybeUninit::uninit();
+                let mut bytes = MaybeUninit::uninit();
+                let mut prop = MaybeUninit::uninit();
+                (self.x.xlib().XGetWindowProperty)(
+                    self.display,
+                    self.client_window,
+                    self.atoms.TRANSPORT,
+                    0,
+                    i64::MAX,
+                    xlib::True,
+                    self.atoms.TRANSPORT,
+                    ty.as_mut_ptr(),
+                    format.as_mut_ptr(),
+                    items.as_mut_ptr(),
+                    bytes.as_mut_ptr(),
+                    prop.as_mut_ptr(),
+                );
+
+                let _ty = ty.assume_init();
+                let _format = format.assume_init();
+                let items = items.assume_init();
+                let _bytes = bytes.assume_init();
+                let prop = prop.assume_init();
+
+                if e.selection.property == dbg!(self.atoms.LOCALES) {
+                    log::trace!("Get LOCALES");
+                    // TODO: set locale
+                    self.xconnect()?;
+                } else if e.selection.property == self.atoms.TRANSPORT {
+                    log::trace!("Get TRANSPORT");
+
+                    let transport = std::slice::from_raw_parts(prop, items as usize);
+
+                    if !transport.starts_with(b"@transport=X/") {
+                        return Err(ClientError::UnsupportedTransport);
+                    }
+
+                    (self.x.xlib().XConvertSelection)(
+                        self.display,
+                        self.server_atom,
+                        self.atoms.LOCALES,
+                        self.atoms.LOCALES,
+                        self.client_window,
+                        xlib::CurrentTime,
+                    );
+                }
+
+                (self.x.xlib().XFree)(prop as _);
+
+                Ok(true)
+            }
+            xlib::ClientMessage if e.client_message.window == self.client_window => {
+                if e.client_message.message_type == self.atoms.XIM_XCONNECT as _ {
+                    let [im_window, major, minor, max, _]: [c_long; 5] =
+                        e.client_message.data.as_longs().try_into().unwrap();
+
+                    log::info!(
+                        "XConnected server on {}, transport version: {}.{}, TRANSPORT_MAX: {}",
+                        im_window,
+                        major,
+                        minor,
+                        max
+                    );
+
+                    self.im_window = im_window as xlib::Window;
+                    self.transport_max = max as usize;
+                    self.send_req(Request::Connect {
+                        client_major_protocol_version: 1,
+                        client_minor_protocol_version: 0,
+                        endian: xim_parser::Endian::Native,
+                        client_auth_protocol_names: Vec::new(),
+                    })?;
+
+                    Ok(true)
+                } else if e.client_message.message_type == self.atoms.XIM_PROTOCOL {
+                    self.handle_xim_protocol(&e.client_message, handler)?;
+                    Ok(true)
+                } else {
+                    Ok(false)
+                }
+            }
+            _ => Ok(false),
+        }
+    }
+
+    fn handle_xim_protocol(
+        &mut self,
+        msg: &xlib::XClientMessageEvent,
+        handler: &mut impl ClientHandler<Self>,
+    ) -> Result<(), ClientError> {
+        if msg.format == 32 {
+            // let [length, atom, ..] = msg.data.as_data32();
+            // let data = self
+            //     .conn()
+            //     .get_property(true, msg.window, atom, AtomEnum::Any, 0, length)?
+            //     .reply()?
+            //     .value;
+            // let req = xim_parser::read(&data)?;
+            // handle_request(self, handler, req)?;
+        } else if msg.format == 8 {
+            // let data = msg.data.as_data8();
+            // let req = xim_parser::read(&data)?;
+            // handle_request(self, handler, req)?;
+        }
+
+        Ok(())
+    }
+
+    fn xconnect(&mut self) -> Result<(), ClientError> {
+        let mut ev = xlib::XClientMessageEvent {
+            display: self.display,
+            data: [self.client_window, 0, 0, 0, 0].into(),
+            format: 32,
+            message_type: self.atoms.XIM_XCONNECT,
+            serial: 0,
+            type_: xlib::ClientMessage,
+            send_event: xlib::True,
+            window: self.server_owner_window,
+        }
+        .into();
+
+        unsafe {
+            log::trace!("Send event");
+            (self.x.xlib().XSendEvent)(
+                self.display,
+                self.server_owner_window,
+                xlib::False,
+                xlib::NoEventMask,
+                &mut ev,
+            );
+
+            (self.x.xlib().XFlush)(self.display);
+        }
+        Ok(())
+    }
+
+    fn send_req_impl(&mut self, req: Request) -> Result<(), ClientError> {
+        self.buf.resize(req.size(), 0);
+        xim_parser::write(&req, &mut self.buf);
+
+        if self.buf.len() < self.transport_max {
+            if self.buf.len() > 20 {
+                todo!("multi-CM");
+            }
+            self.buf.resize(20, 0);
+            let buf: [u8; 20] = self.buf.as_slice().try_into().unwrap();
+            let mut ev = xlib::XClientMessageEvent {
+                type_: xlib::ClientMessage,
+                display: self.display,
+                message_type: self.atoms.XIM_PROTOCOL,
+                data: buf.into(),
+                format: 8,
+                serial: 0,
+                send_event: xlib::True,
+                window: self.im_window,
+            }
+            .into();
+            unsafe {
+                (self.x.xlib().XSendEvent)(
+                    self.display,
+                    self.im_window,
+                    xlib::False,
+                    xlib::NoEventMask,
+                    &mut ev,
+                );
+            }
+        } else {
+            unsafe {
+                (self.x.xlib().XChangeProperty)(
+                    self.display,
+                    self.im_window,
+                    self.atoms.DATA,
+                    xlib::XA_STRING,
+                    8,
+                    xlib::PropModeAppend,
+                    self.buf.as_ptr(),
+                    self.buf.len() as _,
+                );
+            }
+            let mut ev = xlib::XClientMessageEvent {
+                type_: xlib::ClientMessage,
+                display: self.display,
+                message_type: self.atoms.XIM_PROTOCOL,
+                data: [self.buf.len() as _, self.atoms.DATA, 0, 0, 0].into(),
+                format: 32,
+                serial: 0,
+                send_event: xlib::True,
+                window: self.im_window,
+            }
+            .into();
+            unsafe {
+                (self.x.xlib().XSendEvent)(
+                    self.display,
+                    self.im_window,
+                    xlib::False,
+                    xlib::NoEventMask,
+                    &mut ev,
+                );
+            }
+        }
+        self.buf.clear();
+
+        Ok(())
     }
 }

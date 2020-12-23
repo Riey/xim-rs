@@ -11,5 +11,10 @@
 
 ### binding for X client
 
-- [ ] xlib
-- [ ] x11rb
+#### xlib
+- [x] client
+- [ ] server
+
+#### x11rb
+- [x] client
+- [ ] server

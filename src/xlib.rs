@@ -7,7 +7,7 @@ use crate::{
     Atoms,
 };
 use x11_dl::xlib;
-use xim_parser::{bstr::BString, AttributeName, Request, XimWrite};
+use xim_parser::{AttributeName, Request, XimWrite};
 
 impl<X: XlibRef> ClientCore for XlibClient<X> {
     type XEvent = xlib::XKeyEvent;
@@ -66,10 +66,6 @@ impl<X: XlibRef> ClientCore for XlibClient<X> {
     fn send_req(&mut self, req: xim_parser::Request) -> Result<(), ClientError> {
         self.send_req_impl(req);
         Ok(())
-    }
-
-    fn xim_error(&self, code: xim_parser::ErrorCode, detail: BString) -> ClientError {
-        ClientError::XimError(code, detail)
     }
 
     fn set_attrs(&mut self, ic_attrs: Vec<xim_parser::Attr>, im_attrs: Vec<xim_parser::Attr>) {

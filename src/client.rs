@@ -1,7 +1,7 @@
 use crate::AttributeBuilder;
 use std::collections::HashMap;
 use xim_parser::{
-    bstr::BString, Attr, Attribute, AttributeName, CommitData, ErrorCode, Extension,
+    bstr::BString, Attr, Attribute, AttributeName, CommitData, Extension,
     ForwardEventFlag, Request,
 };
 
@@ -70,7 +70,7 @@ pub fn handle_request<C: ClientCore>(
             handler.handle_disconnect();
             Ok(())
         }
-        Request::Error { code, detail, .. } => Err(client.xim_error(code, detail)),
+        Request::Error { code, detail, .. } => Err(ClientError::XimError(code, detail)),
         Request::ForwardEvent {
             xev,
             input_method_id,
@@ -135,7 +135,6 @@ pub fn handle_request<C: ClientCore>(
 pub trait ClientCore {
     type XEvent;
 
-    fn xim_error(&self, code: ErrorCode, detail: BString) -> ClientError;
     fn set_attrs(&mut self, ic_attrs: Vec<Attr>, im_attrs: Vec<Attr>);
     fn set_event_mask(&mut self, forward_event_mask: u32, synchronous_event_mask: u32);
     fn ic_attributes(&self) -> &HashMap<AttributeName, u16>;

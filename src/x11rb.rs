@@ -20,7 +20,7 @@ use x11rb::{
     COPY_DEPTH_FROM_PARENT, CURRENT_TIME,
 };
 
-use xim_parser::{bstr::BString, Attr, AttributeName, Request, XimWrite};
+use xim_parser::{Attr, AttributeName, Request, XimWrite};
 
 macro_rules! convert_error {
     ($($ty:ty,)+) => {
@@ -112,10 +112,6 @@ impl<C: HasConnection> ClientCore for X11rbClient<C> {
     #[inline]
     fn send_req(&mut self, req: Request) -> Result<(), ClientError> {
         self.send_req_impl(req)
-    }
-
-    fn xim_error(&self, code: xim_parser::ErrorCode, detail: BString) -> ClientError {
-        ClientError::XimError(code, detail)
     }
 }
 

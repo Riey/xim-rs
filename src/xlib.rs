@@ -392,7 +392,8 @@ impl<X: XlibRef> XlibClient<X> {
             }
         } else if msg.format == 8 {
             let bytes = msg.data.as_bytes();
-            let data: &[u8] = unsafe { std::slice::from_raw_parts(bytes.as_ptr() as _, bytes.len()) };
+            let data: &[u8] =
+                unsafe { std::slice::from_raw_parts(bytes.as_ptr() as _, bytes.len()) };
             let req = xim_parser::read(data)?;
             handle_request(self, handler, req)?;
         }

@@ -51,7 +51,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 match e.get_type() {
                     xlib::KeyPress | xlib::KeyRelease => {
                         if handler.connected {
-                            client.forward_event(handler.im_id, handler.ic_id, ForwardEventFlag::SYNCHRONOUS, e.key)?;
+                            client.forward_event(
+                                handler.im_id,
+                                handler.ic_id,
+                                ForwardEventFlag::SYNCHRONOUS,
+                                e.key,
+                            )?;
                         }
                     }
                     _ => {}

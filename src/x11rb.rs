@@ -10,8 +10,8 @@ use x11rb::{
     connection::Connection,
     protocol::{
         xproto::{
-            Atom, AtomEnum, ClientMessageEvent, ConnectionExt, KeyPressEvent,
-            PropMode, Screen, WindowClass, CLIENT_MESSAGE_EVENT,
+            Atom, AtomEnum, ClientMessageEvent, ConnectionExt, KeyPressEvent, PropMode, Screen,
+            WindowClass, CLIENT_MESSAGE_EVENT,
         },
         Event,
     },
@@ -20,9 +20,7 @@ use x11rb::{
     COPY_DEPTH_FROM_PARENT, CURRENT_TIME,
 };
 
-use xim_parser::{
-    bstr::BString, Attr, AttributeName, Request, XimWrite,
-};
+use xim_parser::{bstr::BString, Attr, AttributeName, Request, XimWrite};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ClientError {

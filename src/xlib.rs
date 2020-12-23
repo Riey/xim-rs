@@ -345,18 +345,54 @@ impl<X: XlibRef> XlibClient<X> {
         handler: &mut impl ClientHandler<Self>,
     ) -> Result<(), ClientError> {
         if msg.format == 32 {
-            // let [length, atom, ..] = msg.data.as_data32();
-            // let data = self
-            //     .conn()
-            //     .get_property(true, msg.window, atom, AtomEnum::Any, 0, length)?
-            //     .reply()?
-            //     .value;
-            // let req = xim_parser::read(&data)?;
-            // handle_request(self, handler, req)?;
+            let length = msg.data.get_long(0);
+            let atom = msg.data.get_long(1);
+
+            let mut ty = MaybeUninit::uninit();
+            let mut format = MaybeUninit::uninit();
+            let mut items = MaybeUninit::uninit();
+            let mut bytes = MaybeUninit::uninit();
+            let mut prop = MaybeUninit::uninit();
+
+            unsafe {
+                let code = (self.x.xlib().XGetWindowProperty)(
+                    self.display,
+                    msg.window,
+                    atom as _,
+                    0,
+                    length,
+                    xlib::True,
+                    0,
+                    ty.as_mut_ptr(),
+                    format.as_mut_ptr(),
+                    items.as_mut_ptr(),
+                    bytes.as_mut_ptr(),
+                    prop.as_mut_ptr(),
+                );
+
+                if code != 0 {
+                    return Err(ClientError::InvalidReply);
+                }
+
+                let _ty = ty.assume_init();
+                let _format = format.assume_init();
+                let items = items.assume_init();
+                let _bytes = bytes.assume_init();
+                let prop = prop.assume_init();
+
+                let data = std::slice::from_raw_parts(prop, items as usize);
+
+                let req = xim_parser::read(data)?;
+
+                handle_request(self, handler, req)?;
+
+                (self.x.xlib().XFree)(prop as _);
+            }
         } else if msg.format == 8 {
-            // let data = msg.data.as_data8();
-            // let req = xim_parser::read(&data)?;
-            // handle_request(self, handler, req)?;
+            let bytes = msg.data.as_bytes();
+            let data: &[u8] = unsafe { std::slice::from_raw_parts(bytes.as_ptr() as _, bytes.len()) };
+            let req = xim_parser::read(data)?;
+            handle_request(self, handler, req)?;
         }
 
         Ok(())

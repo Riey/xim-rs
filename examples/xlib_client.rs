@@ -49,7 +49,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             log::trace!("Get event: {:?}", e);
 
-            if client.filter_event(&e)? {
+            if client.filter_event(&e, &mut handler)? {
                 continue;
             }
             // } else if let Event::Error(err) = e {

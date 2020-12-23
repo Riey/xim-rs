@@ -82,7 +82,8 @@ impl<X: XlibRef> ClientCore for XlibClient<X> {
 
     #[inline]
     fn send_req(&mut self, req: xim_parser::Request) -> Result<(), Self::Error> {
-        self.send_req_impl(req)
+        self.send_req_impl(req);
+        Ok(())
     }
 
     fn xim_error(&self, code: xim_parser::ErrorCode, detail: BString) -> Self::Error {
@@ -138,6 +139,8 @@ pub struct XlibClient<X: XlibRef> {
 }
 
 impl<X: XlibRef> XlibClient<X> {
+    /// # Safety
+    /// display must avaliable
     pub unsafe fn init(
         x: X,
         display: *mut xlib::Display,
@@ -245,6 +248,8 @@ impl<X: XlibRef> XlibClient<X> {
         }
     }
 
+    /// # Safety
+    /// e must have valid format
     pub unsafe fn filter_event(
         &mut self,
         e: &xlib::XEvent,
@@ -280,7 +285,7 @@ impl<X: XlibRef> XlibClient<X> {
 
                 if e.selection.property == dbg!(self.atoms.LOCALES) {
                     // TODO: set locale
-                    self.xconnect()?;
+                    self.xconnect();
                 } else if e.selection.property == self.atoms.TRANSPORT {
                     let transport = std::slice::from_raw_parts(prop, items as usize);
 
@@ -395,7 +400,7 @@ impl<X: XlibRef> XlibClient<X> {
         Ok(())
     }
 
-    fn xconnect(&mut self) -> Result<(), ClientError> {
+    fn xconnect(&mut self) {
         let mut ev = xlib::XClientMessageEvent {
             display: self.display,
             data: [self.client_window, 0, 0, 0, 0].into(),
@@ -417,10 +422,9 @@ impl<X: XlibRef> XlibClient<X> {
                 &mut ev,
             );
         }
-        Ok(())
     }
 
-    fn send_req_impl(&mut self, req: Request) -> Result<(), ClientError> {
+    fn send_req_impl(&mut self, req: Request) {
         self.buf.resize(req.size(), 0);
         xim_parser::write(&req, &mut self.buf);
 
@@ -485,7 +489,5 @@ impl<X: XlibRef> XlibClient<X> {
             }
         }
         self.buf.clear();
-
-        Ok(())
     }
 }

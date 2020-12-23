@@ -10,7 +10,7 @@ use x11rb::{
     connection::Connection,
     protocol::{
         xproto::{
-            Atom, AtomEnum, ClientMessageData, ClientMessageEvent, ConnectionExt, KeyPressEvent,
+            Atom, AtomEnum, ClientMessageEvent, ConnectionExt, KeyPressEvent,
             PropMode, Screen, WindowClass, CLIENT_MESSAGE_EVENT,
         },
         Event,
@@ -21,7 +21,7 @@ use x11rb::{
 };
 
 use xim_parser::{
-    bstr::BString, Attr, AttributeName, CommitData, ForwardEventFlag, Request, XimWrite,
+    bstr::BString, Attr, AttributeName, Request, XimWrite,
 };
 
 #[derive(Debug, thiserror::Error)]

@@ -15,7 +15,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     unsafe {
         let display = (xlib.XOpenDisplay)(ptr::null());
-        let screen = (xlib.XDefaultScreen)(display);
         let root = (xlib.XDefaultRootWindow)(display);
         let window = (xlib.XCreateSimpleWindow)(
             display,

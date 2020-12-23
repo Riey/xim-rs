@@ -1,4 +1,4 @@
-use xim::{Client, ClientHandler};
+use xim::{Client, ClientError, ClientHandler};
 use xim_parser::{AttributeName, InputStyle, Spot};
 
 #[derive(Default)]
@@ -10,12 +10,12 @@ pub struct ExampleHandler {
 }
 
 impl<C: Client> ClientHandler<C> for ExampleHandler {
-    fn handle_connect(&mut self, client: &mut C) -> Result<(), C::Error> {
+    fn handle_connect(&mut self, client: &mut C) -> Result<(), ClientError> {
         log::trace!("Connected");
         client.open(b"en_US")
     }
 
-    fn handle_open(&mut self, client: &mut C, input_method_id: u16) -> Result<(), C::Error> {
+    fn handle_open(&mut self, client: &mut C, input_method_id: u16) -> Result<(), ClientError> {
         log::trace!("Opened");
         self.im_id = input_method_id;
         let ic_attributes = client
@@ -37,7 +37,7 @@ impl<C: Client> ClientHandler<C> for ExampleHandler {
         &mut self,
         _client: &mut C,
         _extensions: &[xim_parser::Extension],
-    ) -> Result<(), C::Error> {
+    ) -> Result<(), ClientError> {
         Ok(())
     }
 
@@ -46,7 +46,7 @@ impl<C: Client> ClientHandler<C> for ExampleHandler {
         _client: &mut C,
         input_method_id: u16,
         input_context_id: u16,
-    ) -> Result<(), C::Error> {
+    ) -> Result<(), ClientError> {
         self.connected = true;
         self.ic_id = input_context_id;
         log::info!("IC created {}, {}", input_method_id, input_context_id);
@@ -59,7 +59,7 @@ impl<C: Client> ClientHandler<C> for ExampleHandler {
         _input_method_id: u16,
         _input_context_id: u16,
         text: &str,
-    ) -> Result<(), C::Error> {
+    ) -> Result<(), ClientError> {
         log::info!("Commited {}", text);
         Ok(())
     }
@@ -68,7 +68,7 @@ impl<C: Client> ClientHandler<C> for ExampleHandler {
         log::info!("disconnected");
     }
 
-    fn handle_close(&mut self, client: &mut C, _input_method_id: u16) -> Result<(), C::Error> {
+    fn handle_close(&mut self, client: &mut C, _input_method_id: u16) -> Result<(), ClientError> {
         log::info!("closed");
         client.disconnect()
     }
@@ -78,7 +78,7 @@ impl<C: Client> ClientHandler<C> for ExampleHandler {
         client: &mut C,
         input_method_id: u16,
         _input_context_id: u16,
-    ) -> Result<(), C::Error> {
+    ) -> Result<(), ClientError> {
         client.close(input_method_id)
     }
 
@@ -89,7 +89,7 @@ impl<C: Client> ClientHandler<C> for ExampleHandler {
         _input_context_id: u16,
         _flag: xim_parser::ForwardEventFlag,
         _xev: C::XEvent,
-    ) -> Result<(), C::Error> {
+    ) -> Result<(), ClientError> {
         Ok(())
     }
 }

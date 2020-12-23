@@ -1,13 +1,14 @@
 use std::{collections::HashMap, convert::TryInto};
 
 use crate::{
-    client::{handle_request, ClientCore, ClientHandler},
+    client::{handle_request, ClientCore, ClientError, ClientHandler},
     Atoms,
 };
 #[cfg(feature = "x11rb-xcb")]
 use x11rb::xcb_ffi::XCBConnection;
 use x11rb::{
     connection::Connection,
+    errors::{ConnectError, ConnectionError, ParseError, ReplyError, ReplyOrIdError},
     protocol::{
         xproto::{
             Atom, AtomEnum, ClientMessageEvent, ConnectionExt, KeyPressEvent, PropMode, Screen,
@@ -16,38 +17,32 @@ use x11rb::{
         Event,
     },
     rust_connection::RustConnection,
-    x11_utils::X11Error,
     COPY_DEPTH_FROM_PARENT, CURRENT_TIME,
 };
 
 use xim_parser::{bstr::BString, Attr, AttributeName, Request, XimWrite};
 
-#[derive(Debug, thiserror::Error)]
-pub enum ClientError {
-    #[error("Connect error: {0}")]
-    Connect(#[from] x11rb::errors::ConnectError),
-    #[error("Reply error: {0}")]
-    Reply(#[from] x11rb::errors::ReplyError),
-    #[error("Connection error: {0}")]
-    Connection(#[from] x11rb::errors::ConnectionError),
-    #[error("ReplyOrId error: {0}")]
-    ReplyOrId(#[from] x11rb::errors::ReplyOrIdError),
-    #[error("X11 error {0:?}")]
-    X11Error(X11Error),
-    #[error("Can't read xim message {0}")]
-    ReadProtocol(#[from] xim_parser::ReadError),
-    #[error("Server send error code: {0:?}, detail: {1}")]
-    XimError(xim_parser::ErrorCode, BString),
-    #[error("Server Transport is not supported")]
-    UnsupportedTransport,
-    #[error("Invalid reply from server")]
-    InvalidReply,
-    #[error("Can't connect xim server")]
-    NoXimServer,
+macro_rules! convert_error {
+    ($($ty:ty,)+) => {
+        $(
+        impl From<$ty> for ClientError {
+            fn from(err: $ty) -> Self {
+                ClientError::Other(err.into())
+            }
+        }
+        )+
+    };
 }
 
+convert_error!(
+    ConnectError,
+    ConnectionError,
+    ReplyError,
+    ReplyOrIdError,
+    ParseError,
+);
+
 impl<C: HasConnection> ClientCore for X11rbClient<C> {
-    type Error = ClientError;
     type XEvent = KeyPressEvent;
 
     #[inline]
@@ -115,11 +110,11 @@ impl<C: HasConnection> ClientCore for X11rbClient<C> {
     }
 
     #[inline]
-    fn send_req(&mut self, req: Request) -> Result<(), Self::Error> {
+    fn send_req(&mut self, req: Request) -> Result<(), ClientError> {
         self.send_req_impl(req)
     }
 
-    fn xim_error(&self, code: xim_parser::ErrorCode, detail: BString) -> Self::Error {
+    fn xim_error(&self, code: xim_parser::ErrorCode, detail: BString) -> ClientError {
         ClientError::XimError(code, detail)
     }
 }

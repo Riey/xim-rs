@@ -5,11 +5,27 @@ use xim_parser::{
     ForwardEventFlag, Request,
 };
 
+#[derive(Debug, thiserror::Error)]
+pub enum ClientError {
+    #[error("Can't read xim message {0}")]
+    ReadProtocol(#[from] xim_parser::ReadError),
+    #[error("Server send error code: {0:?}, detail: {1}")]
+    XimError(xim_parser::ErrorCode, BString),
+    #[error("Server Transport is not supported")]
+    UnsupportedTransport,
+    #[error("Invalid reply from server")]
+    InvalidReply,
+    #[error("Can't connect xim server")]
+    NoXimServer,
+    #[error(transparent)]
+    Other(Box<dyn std::error::Error>),
+}
+
 pub fn handle_request<C: ClientCore>(
     client: &mut C,
     handler: &mut impl ClientHandler<C>,
     req: Request,
-) -> Result<(), C::Error> {
+) -> Result<(), ClientError> {
     log::trace!("Recv: {:?}", req);
     match req {
         Request::ConnectReply {
@@ -117,58 +133,55 @@ pub fn handle_request<C: ClientCore>(
 }
 
 pub trait ClientCore {
-    type Error: std::error::Error;
     type XEvent;
 
-    fn xim_error(&self, code: ErrorCode, detail: BString) -> Self::Error;
+    fn xim_error(&self, code: ErrorCode, detail: BString) -> ClientError;
     fn set_attrs(&mut self, ic_attrs: Vec<Attr>, im_attrs: Vec<Attr>);
     fn set_event_mask(&mut self, forward_event_mask: u32, synchronous_event_mask: u32);
     fn ic_attributes(&self) -> &HashMap<AttributeName, u16>;
     fn im_attributes(&self) -> &HashMap<AttributeName, u16>;
     fn serialize_event(&self, xev: Self::XEvent) -> xim_parser::XEvent;
     fn deserialize_event(&self, xev: xim_parser::XEvent) -> Self::XEvent;
-    fn send_req(&mut self, req: Request) -> Result<(), Self::Error>;
+    fn send_req(&mut self, req: Request) -> Result<(), ClientError>;
 }
 
 pub trait Client {
-    type Error: std::error::Error;
     type XEvent;
 
     fn build_ic_attributes(&self) -> AttributeBuilder;
     fn build_im_attributes(&self) -> AttributeBuilder;
 
-    fn disconnect(&mut self) -> Result<(), Self::Error>;
-    fn open(&mut self, locale: &[u8]) -> Result<(), Self::Error>;
-    fn close(&mut self, input_method_id: u16) -> Result<(), Self::Error>;
+    fn disconnect(&mut self) -> Result<(), ClientError>;
+    fn open(&mut self, locale: &[u8]) -> Result<(), ClientError>;
+    fn close(&mut self, input_method_id: u16) -> Result<(), ClientError>;
     fn quert_extension(
         &mut self,
         input_method_id: u16,
         extensions: &[&str],
-    ) -> Result<(), Self::Error>;
+    ) -> Result<(), ClientError>;
     fn create_ic(
         &mut self,
         input_method_id: u16,
         ic_attributes: Vec<Attribute>,
-    ) -> Result<(), Self::Error>;
+    ) -> Result<(), ClientError>;
     fn destory_ic(
         &mut self,
         input_method_id: u16,
         input_context_id: u16,
-    ) -> Result<(), Self::Error>;
+    ) -> Result<(), ClientError>;
     fn forward_event(
         &mut self,
         input_method_id: u16,
         input_context_id: u16,
         flag: ForwardEventFlag,
         xev: Self::XEvent,
-    ) -> Result<(), Self::Error>;
+    ) -> Result<(), ClientError>;
 }
 
 impl<C> Client for C
 where
     C: ClientCore,
 {
-    type Error = C::Error;
     type XEvent = C::XEvent;
 
     fn build_ic_attributes(&self) -> AttributeBuilder {
@@ -179,7 +192,7 @@ where
         AttributeBuilder::new(self.im_attributes())
     }
 
-    fn open(&mut self, locale: &[u8]) -> Result<(), Self::Error> {
+    fn open(&mut self, locale: &[u8]) -> Result<(), ClientError> {
         self.send_req(Request::Open {
             locale: locale.into(),
         })
@@ -189,7 +202,7 @@ where
         &mut self,
         input_method_id: u16,
         extensions: &[&str],
-    ) -> Result<(), Self::Error> {
+    ) -> Result<(), ClientError> {
         self.send_req(Request::QueryExtension {
             input_method_id,
             extensions: extensions.iter().map(|&e| e.into()).collect(),
@@ -200,7 +213,7 @@ where
         &mut self,
         input_method_id: u16,
         ic_attributes: Vec<Attribute>,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<(), ClientError> {
         self.send_req(Request::CreateIc {
             input_method_id,
             ic_attributes,
@@ -213,7 +226,7 @@ where
         input_context_id: u16,
         flag: ForwardEventFlag,
         xev: Self::XEvent,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<(), ClientError> {
         let ev = self.serialize_event(xev);
         self.send_req(Request::ForwardEvent {
             input_method_id,
@@ -224,11 +237,11 @@ where
         })
     }
 
-    fn disconnect(&mut self) -> Result<(), Self::Error> {
+    fn disconnect(&mut self) -> Result<(), ClientError> {
         self.send_req(Request::Disconnect {})
     }
 
-    fn close(&mut self, input_method_id: u16) -> Result<(), Self::Error> {
+    fn close(&mut self, input_method_id: u16) -> Result<(), ClientError> {
         self.send_req(Request::Close { input_method_id })
     }
 
@@ -236,7 +249,7 @@ where
         &mut self,
         input_method_id: u16,
         input_context_id: u16,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<(), ClientError> {
         self.send_req(Request::DestoryIc {
             input_method_id,
             input_context_id,
@@ -245,34 +258,34 @@ where
 }
 
 pub trait ClientHandler<C: Client> {
-    fn handle_connect(&mut self, client: &mut C) -> Result<(), C::Error>;
+    fn handle_connect(&mut self, client: &mut C) -> Result<(), ClientError>;
     fn handle_disconnect(&mut self);
-    fn handle_open(&mut self, client: &mut C, input_method_id: u16) -> Result<(), C::Error>;
-    fn handle_close(&mut self, client: &mut C, input_method_id: u16) -> Result<(), C::Error>;
+    fn handle_open(&mut self, client: &mut C, input_method_id: u16) -> Result<(), ClientError>;
+    fn handle_close(&mut self, client: &mut C, input_method_id: u16) -> Result<(), ClientError>;
     fn handle_query_extension(
         &mut self,
         client: &mut C,
         extensions: &[Extension],
-    ) -> Result<(), C::Error>;
+    ) -> Result<(), ClientError>;
     fn handle_create_ic(
         &mut self,
         client: &mut C,
         input_method_id: u16,
         input_context_id: u16,
-    ) -> Result<(), C::Error>;
+    ) -> Result<(), ClientError>;
     fn handle_destory_ic(
         &mut self,
         client: &mut C,
         input_method_id: u16,
         input_context_id: u16,
-    ) -> Result<(), C::Error>;
+    ) -> Result<(), ClientError>;
     fn handle_commit(
         &mut self,
         client: &mut C,
         input_method_id: u16,
         input_context_id: u16,
         text: &str,
-    ) -> Result<(), C::Error>;
+    ) -> Result<(), ClientError>;
     fn handle_forward_event(
         &mut self,
         client: &mut C,
@@ -280,5 +293,5 @@ pub trait ClientHandler<C: Client> {
         input_context_id: u16,
         flag: ForwardEventFlag,
         xev: C::XEvent,
-    ) -> Result<(), C::Error>;
+    ) -> Result<(), ClientError>;
 }

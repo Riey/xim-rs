@@ -21,6 +21,7 @@ xim protocol parser generator
 - [x] Parse messages
 - [x] Basic protocol
 - [ ] Extension protocol
+- [x] AttributeBuilder
 
 ## binding for X client
 

@@ -14,7 +14,8 @@ mod handler;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     pretty_env_logger::init();
 
-    let (conn, screen_num) = x11rb::connect(None).expect("Connect X");
+    let (conn, screen_num) =
+        x11rb::rust_connection::RustConnection::connect(None).expect("Connect X");
     let screen = &conn.setup().roots[screen_num];
     let window = conn.generate_id()?;
     conn.create_window(

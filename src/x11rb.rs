@@ -13,9 +13,13 @@ use x11rb::{
         },
         Event,
     },
+    rust_connection::RustConnection,
     x11_utils::X11Error,
     COPY_DEPTH_FROM_PARENT, CURRENT_TIME,
 };
+#[cfg(feature = "x11rb-xcb")]
+use x11rb::xcb_ffi::XCBConnection;
+
 use xim_parser::{
     bstr::BString, Attr, AttributeName, CommitData, ForwardEventFlag, Request, XimWrite,
 };
@@ -44,7 +48,7 @@ pub enum ClientError {
     NoXimServer,
 }
 
-impl<'x, C: Connection + ConnectionExt> ClientCore for X11rbClient<'x, C> {
+impl<C: HasConnection> ClientCore for X11rbClient<C> {
     type Error = ClientError;
     type XEvent = KeyPressEvent;
 
@@ -102,8 +106,51 @@ impl<'x, C: Connection + ConnectionExt> ClientCore for X11rbClient<'x, C> {
     }
 }
 
-pub struct X11rbClient<'x, C: Connection + ConnectionExt> {
-    conn: &'x C,
+pub trait HasConnection {
+    type Connection: Connection + ConnectionExt;
+
+    fn conn(&self) -> &Self::Connection;
+}
+
+#[cfg(feature = "x11rb-xcb")]
+impl HasConnection for XCBConnection {
+    type Connection = Self;
+
+    #[inline(always)]
+    fn conn(&self) -> &Self::Connection {
+        self
+    }
+}
+
+impl HasConnection for RustConnection {
+    type Connection = Self;
+
+    #[inline(always)]
+    fn conn(&self) -> &Self::Connection {
+        self
+    }
+}
+
+impl<C: HasConnection> HasConnection for X11rbClient<C> {
+    type Connection = C::Connection;
+
+    #[inline(always)]
+    fn conn(&self) -> &Self::Connection {
+        self.has_conn.conn()
+    }
+}
+
+impl<'x, C: HasConnection> HasConnection for &'x C {
+    type Connection = C::Connection;
+
+    #[inline(always)]
+    fn conn(&self) -> &Self::Connection {
+        (**self).conn()
+    }
+}
+
+pub struct X11rbClient<C: HasConnection> {
+    has_conn: C,
     server_owner_window: u32,
     im_window: u32,
     server_atom: Atom,
@@ -117,12 +164,9 @@ pub struct X11rbClient<'x, C: Connection + ConnectionExt> {
     buf: Vec<u8>,
 }
 
-impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
-    pub fn init(
-        conn: &'x C,
-        screen: &'x Screen,
-        im_name: Option<&str>,
-    ) -> Result<Self, ClientError> {
+impl<C: HasConnection> X11rbClient<C> {
+    pub fn init(has_conn: C, screen: &Screen, im_name: Option<&str>) -> Result<Self, ClientError> {
+        let conn = has_conn.conn();
         let client_window = conn.generate_id()?;
 
         conn.create_window(
@@ -184,7 +228,7 @@ impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
                         conn.flush()?;
 
                         return Ok(Self {
-                            conn,
+                            has_conn,
                             atoms,
                             server_atom,
                             server_owner_window: server_owner,
@@ -203,14 +247,6 @@ impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
 
             Err(ClientError::NoXimServer)
         }
-    }
-
-    pub fn conn(&self) -> &'x C {
-        self.conn
-    }
-
-    pub fn im_window(&self) -> u32 {
-        self.im_window
     }
 
     fn set_attrs(&mut self, im_attrs: Vec<Attr>, ic_attrs: Vec<Attr>) {
@@ -238,7 +274,7 @@ impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
                     Ok(true)
                 } else if e.property == self.atoms.TRANSPORT {
                     let transport = self
-                        .conn
+                        .conn()
                         .get_property(
                             true,
                             self.client_window,
@@ -253,7 +289,7 @@ impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
                         return Err(ClientError::UnsupportedTransport);
                     }
 
-                    self.conn.convert_selection(
+                    self.conn().convert_selection(
                         self.client_window,
                         self.server_atom,
                         self.atoms.LOCALES,
@@ -261,7 +297,7 @@ impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
                         CURRENT_TIME,
                     )?;
 
-                    self.conn.flush()?;
+                    self.conn().flush()?;
 
                     Ok(true)
                 } else {
@@ -313,7 +349,7 @@ impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
             }
             self.buf.resize(20, 0);
             let buf: [u8; 20] = self.buf.as_slice().try_into().unwrap();
-            self.conn.send_event(
+            self.conn().send_event(
                 false,
                 self.im_window,
                 0u32,
@@ -327,7 +363,7 @@ impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
                 },
             )?;
         } else {
-            self.conn.change_property(
+            self.conn().change_property(
                 PropMode::Append,
                 self.im_window,
                 self.atoms.DATA,
@@ -336,7 +372,7 @@ impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
                 self.buf.len() as u32,
                 &self.buf,
             )?;
-            self.conn.send_event(
+            self.conn().send_event(
                 false,
                 self.im_window,
                 0u32,
@@ -350,7 +386,7 @@ impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
                 },
             )?;
         }
-        self.conn.flush()?;
+        self.conn().flush()?;
         self.buf.clear();
         Ok(())
     }
@@ -363,7 +399,7 @@ impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
         if msg.format == 32 {
             let [length, atom, ..] = msg.data.as_data32();
             let data = self
-                .conn
+                .conn()
                 .get_property(true, msg.window, atom, AtomEnum::Any, 0, length)?
                 .reply()?
                 .value;
@@ -487,7 +523,7 @@ impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
     }
 
     fn xconnect(&mut self) -> Result<(), ClientError> {
-        self.conn.send_event(
+        self.conn().send_event(
             false,
             self.server_owner_window,
             0u32,
@@ -501,7 +537,7 @@ impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
             },
         )?;
 
-        self.conn.flush()?;
+        self.conn().flush()?;
 
         Ok(())
     }

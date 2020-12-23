@@ -13,7 +13,10 @@ edition = "2018"
 license = "MIT"
 
 [features]
-default = ["x11rb"]
+default = ["x11rb-client"]
+x11rb-xcb = ["x11rb/allow-unsafe-code"]
+x11rb-client = ["x11rb"]
+xlib-client = ["x11-dl"]
 
 [dependencies]
 xim-parser = { path = "./xim-parser" }

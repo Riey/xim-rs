@@ -1,7 +1,6 @@
 use std::{mem::MaybeUninit, ptr};
 use x11_dl::xlib;
 use xim::{
-    x11rb::{ClientError, X11rbClient},
     xlib::XlibClient,
     Client,
 };
@@ -24,7 +23,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         (xlib.XMapWindow)(display, window);
         (xlib.XFlush)(display);
 
-        // this is not working now!
         let mut client = XlibClient::init(&xlib, display, None)?;
 
         log::info!("Start event loop");

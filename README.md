@@ -32,3 +32,9 @@ xim protocol parser generator
 #### x11rb
 - [x] client
 - [ ] server
+
+## limitations
+
+* Only native endian is supported
+* Only support utf-8 mode of CTEXT
+* Auth, StrConvertion doesn't supported since they are not used in real world

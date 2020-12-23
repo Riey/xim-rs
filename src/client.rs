@@ -1,8 +1,7 @@
 use crate::AttributeBuilder;
 use std::collections::HashMap;
 use xim_parser::{
-    bstr::BString, Attr, Attribute, AttributeName, CommitData, Extension,
-    ForwardEventFlag, Request,
+    bstr::BString, Attr, Attribute, AttributeName, CommitData, Extension, ForwardEventFlag, Request,
 };
 
 #[derive(Debug, thiserror::Error)]

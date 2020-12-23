@@ -26,7 +26,7 @@ impl<'a> NestedListBuilder<'a> {
             let attr = Attribute { id, value: buf };
             let from = self.out.len();
             self.out.extend(iter::repeat(0).take(attr.size()));
-            value.write(&mut Writer::new(&mut self.out[from..]));
+            attr.write(&mut Writer::new(&mut self.out[from..]));
         }
 
         self

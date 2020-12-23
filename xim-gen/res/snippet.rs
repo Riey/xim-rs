@@ -289,7 +289,10 @@ impl XimRead for CommitData {
 impl XimWrite for CommitData {
     fn write(&self, writer: &mut Writer) {
         match self {
-            Self::Chars { commited, syncronous } => {
+            Self::Chars {
+                commited,
+                syncronous,
+            } => {
                 let flag = if *syncronous { 3u16 } else { 2u16 };
                 flag.write(writer);
                 (commited.len() as u16).write(writer);
@@ -302,7 +305,11 @@ impl XimWrite for CommitData {
                 0u16.write(writer);
                 keysym.write(writer);
             }
-            Self::Both { keysym, commited, syncronous } => {
+            Self::Both {
+                keysym,
+                commited,
+                syncronous,
+            } => {
                 let flag = if *syncronous { 7u16 } else { 6u16 };
                 flag.write(writer);
                 0u16.write(writer);

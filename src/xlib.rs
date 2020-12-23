@@ -261,7 +261,7 @@ impl<X: XlibRef> XlibClient<X> {
                 let _bytes = bytes.assume_init();
                 let prop = prop.assume_init();
 
-                if e.selection.property == dbg!(self.atoms.LOCALES) {
+                if e.selection.property == self.atoms.LOCALES {
                     // TODO: set locale
                     self.xconnect();
                 } else if e.selection.property == self.atoms.TRANSPORT {

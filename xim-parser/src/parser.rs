@@ -838,6 +838,44 @@ impl XimWrite for Extension {
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct InputStyleList {
+    pub styles: Vec<InputStyle>,
+}
+impl XimRead for InputStyleList {
+    fn read(reader: &mut Reader) -> Result<Self, ReadError> {
+        Ok(Self {
+            styles: {
+                let inner = {
+                    let mut out = Vec::new();
+                    let len = u16::read(reader)? as usize;
+                    let end = reader.cursor() - len;
+                    while reader.cursor() > end {
+                        out.push(InputStyle::read(reader)?);
+                    }
+                    out
+                };
+                reader.pad4()?;
+                inner
+            },
+        })
+    }
+}
+impl XimWrite for InputStyleList {
+    fn write(&self, writer: &mut Writer) {
+        ((self.styles.iter().map(|e| e.size()).sum::<usize>() + 0 + 2 - 2 - 0) as u16)
+            .write(writer);
+        for elem in self.styles.iter() {
+            elem.write(writer);
+        }
+        writer.write_pad4();
+    }
+    fn size(&self) -> usize {
+        let mut content_size = 0;
+        content_size += with_pad4(self.styles.iter().map(|e| e.size()).sum::<usize>() + 0 + 2);
+        content_size
+    }
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Spot {
     pub x: i16,
     pub y: i16,

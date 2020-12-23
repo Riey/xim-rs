@@ -194,6 +194,8 @@ Structs:
   Spot:
     - "x i16"
     - "y i16"
+  InputStyleList:
+    - "styles @pad @list InputStyle"
 
   XEvent:
     - "response_type u8"

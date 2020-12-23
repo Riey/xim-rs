@@ -4,6 +4,8 @@ use crate::{
     client::{ClientCore, ClientHandler},
     Atoms,
 };
+#[cfg(feature = "x11rb-xcb")]
+use x11rb::xcb_ffi::XCBConnection;
 use x11rb::{
     connection::Connection,
     protocol::{
@@ -17,8 +19,6 @@ use x11rb::{
     x11_utils::X11Error,
     COPY_DEPTH_FROM_PARENT, CURRENT_TIME,
 };
-#[cfg(feature = "x11rb-xcb")]
-use x11rb::xcb_ffi::XCBConnection;
 
 use xim_parser::{
     bstr::BString, Attr, AttributeName, CommitData, ForwardEventFlag, Request, XimWrite,

@@ -132,8 +132,8 @@ impl<X: XlibRef> XlibClient<X> {
         let var = var.as_ref().and_then(|n| n.strip_prefix("@im="));
         let im_name = im_name.or(var).ok_or(ClientError::NoXimServer)?;
 
-        let atoms = Atoms::new::<ClientError, _>(|name| {
-            let atom = unsafe { (xlib.XInternAtom)(display, name.as_ptr() as *const _, 0) };
+        let atoms = Atoms::new_null::<ClientError, _>(|name| {
+            let atom = (xlib.XInternAtom)(display, name.as_ptr() as *const _, 0);
             if atom == 0 {
                 Err(ClientError::InternAtomError)
             } else {
@@ -162,9 +162,11 @@ impl<X: XlibRef> XlibClient<X> {
             prop.as_mut_ptr(),
         );
 
-        assert_eq!(code, 0);
+        if code != 0 {
+            return Err(ClientError::InvalidReply);
+        }
 
-        let ty = dbg!(act_ty.assume_init());
+        let ty = act_ty.assume_init();
         let format = act_format.assume_init();
         let items = items.assume_init();
         let bytes = bytes.assume_init();
@@ -176,7 +178,8 @@ impl<X: XlibRef> XlibClient<X> {
             for i in 0..items {
                 let server_atom = prop.add(i as usize).read() as xlib::Atom;
                 let server_owner = (xlib.XGetSelectionOwner)(display, server_atom);
-                let name = CStr::from_ptr((xlib.XGetAtomName)(display, server_atom));
+                let name_ptr = (xlib.XGetAtomName)(display, server_atom);
+                let name = CStr::from_ptr(name_ptr);
                 let name = match name.to_str() {
                     Ok(s) => s,
                     _ => continue,
@@ -186,13 +189,14 @@ impl<X: XlibRef> XlibClient<X> {
                     if name == im_name {
                         (xlib.XConvertSelection)(
                             display,
-                            client_window,
                             server_atom,
                             atoms.TRANSPORT,
                             atoms.TRANSPORT,
+                            client_window,
                             xlib::CurrentTime,
                         );
                         (xlib.XFlush)(display);
+                        (xlib.XFree)(name_ptr as _);
                         (xlib.XFree)(prop as _);
 
                         return Ok(Self {
@@ -211,6 +215,8 @@ impl<X: XlibRef> XlibClient<X> {
                             buf: Vec::with_capacity(1024),
                         });
                     }
+                } else {
+                    (xlib.XFree)(name_ptr as _);
                 }
             }
 

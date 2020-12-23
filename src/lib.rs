@@ -101,4 +101,19 @@ impl<Atom> Atoms<Atom> {
             DATA: f("XIM_RS_DATA")?,
         })
     }
+
+    #[allow(unused)]
+    pub fn new_null<E, F>(f: F) -> Result<Self, E>
+    where
+        F: Fn(&'static str) -> Result<Atom, E>,
+    {
+        Ok(Self {
+            XIM_SERVERS: f("XIM_SERVERS\0")?,
+            LOCALES: f("LOCALES\0")?,
+            TRANSPORT: f("TRANSPORT\0")?,
+            XIM_XCONNECT: f("_XIM_XCONNECT\0")?,
+            XIM_PROTOCOL: f("_XIM_PROTOCOL\0")?,
+            DATA: f("XIM_RS_DATA\0")?,
+        })
+    }
 }

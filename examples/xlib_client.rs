@@ -1,9 +1,6 @@
 use std::{mem::MaybeUninit, ptr};
 use x11_dl::xlib;
-use xim::{
-    xlib::XlibClient,
-    Client,
-};
+use xim::{xlib::XlibClient, Client};
 use xim_parser::ForwardEventFlag;
 
 use self::handler::ExampleHandler;
@@ -18,10 +15,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     unsafe {
         let display = (xlib.XOpenDisplay)(ptr::null());
+        let screen = (xlib.XDefaultScreen)(display);
         let root = (xlib.XDefaultRootWindow)(display);
-        let window = (xlib.XCreateSimpleWindow)(display, root, 0, 0, 800, 600, 0, 0, 0);
+        let mut attributes: xlib::XSetWindowAttributes = std::mem::zeroed();
+        attributes.background_pixel = (xlib.XBlackPixel)(display, screen);
+        let window = (xlib.XCreateWindow)(display, root, 0, 0, 800, 600, 0, 0, xlib::InputOutput as _, ptr::null_mut(), xlib::CWBackPixel, &mut attributes);
         (xlib.XMapWindow)(display, window);
-        (xlib.XFlush)(display);
 
         let mut client = XlibClient::init(&xlib, display, None)?;
 

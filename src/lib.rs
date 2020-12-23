@@ -8,7 +8,7 @@ pub mod xlib;
 use std::collections::HashMap;
 use std::iter;
 
-pub use crate::client::{Client, ClientHandler};
+pub use crate::client::{Client, ClientError, ClientHandler};
 pub use ctext::{compound_text_to_utf8, utf8_to_compound_text};
 use xim_parser::{Attribute, AttributeName, Writer, XimWrite};
 

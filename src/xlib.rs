@@ -3,31 +3,13 @@ use std::mem::MaybeUninit;
 use std::{collections::HashMap, convert::TryInto, os::raw::c_long};
 
 use crate::{
-    client::{handle_request, ClientCore, ClientHandler},
+    client::{handle_request, ClientCore, ClientError, ClientHandler},
     Atoms,
 };
-use thiserror::Error;
 use x11_dl::xlib;
 use xim_parser::{bstr::BString, AttributeName, Request, XimWrite};
 
-#[derive(Debug, Error)]
-pub enum ClientError {
-    #[error("Can't Intern atom")]
-    InternAtomError,
-    #[error("Can't read xim message {0}")]
-    ReadProtocol(#[from] xim_parser::ReadError),
-    #[error("Server send error code: {0:?}, detail: {1}")]
-    XimError(xim_parser::ErrorCode, BString),
-    #[error("Server Transport is not supported")]
-    UnsupportedTransport,
-    #[error("Invalid reply from server")]
-    InvalidReply,
-    #[error("Can't connect xim server")]
-    NoXimServer,
-}
-
 impl<X: XlibRef> ClientCore for XlibClient<X> {
-    type Error = ClientError;
     type XEvent = xlib::XKeyEvent;
 
     #[inline]
@@ -81,12 +63,12 @@ impl<X: XlibRef> ClientCore for XlibClient<X> {
     }
 
     #[inline]
-    fn send_req(&mut self, req: xim_parser::Request) -> Result<(), Self::Error> {
+    fn send_req(&mut self, req: xim_parser::Request) -> Result<(), ClientError> {
         self.send_req_impl(req);
         Ok(())
     }
 
-    fn xim_error(&self, code: xim_parser::ErrorCode, detail: BString) -> Self::Error {
+    fn xim_error(&self, code: xim_parser::ErrorCode, detail: BString) -> ClientError {
         ClientError::XimError(code, detail)
     }
 
@@ -157,7 +139,7 @@ impl<X: XlibRef> XlibClient<X> {
         let atoms = Atoms::new_null::<ClientError, _>(|name| {
             let atom = (xlib.XInternAtom)(display, name.as_ptr() as *const _, 0);
             if atom == 0 {
-                Err(ClientError::InternAtomError)
+                Err(ClientError::InvalidReply)
             } else {
                 Ok(atom)
             }

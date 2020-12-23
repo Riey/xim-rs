@@ -1,6 +1,11 @@
 use std::{collections::HashMap, convert::TryInto};
 
-use crate::{Atoms, AttributeBuilder, ClientHandler};
+use crate::{
+    client::{handle_request, ClientCore, ClientHandler},
+    Atoms,
+};
+#[cfg(feature = "x11rb-xcb")]
+use x11rb::xcb_ffi::XCBConnection;
 use x11rb::{
     connection::Connection,
     protocol::{
@@ -10,11 +15,13 @@ use x11rb::{
         },
         Event,
     },
+    rust_connection::RustConnection,
     x11_utils::X11Error,
     COPY_DEPTH_FROM_PARENT, CURRENT_TIME,
 };
+
 use xim_parser::{
-    bstr::BString, Attr, Attribute, AttributeName, CommitData, ForwardEventFlag, Request, XimWrite,
+    bstr::BString, Attr, AttributeName, CommitData, ForwardEventFlag, Request, XimWrite,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -27,12 +34,12 @@ pub enum ClientError {
     Connection(#[from] x11rb::errors::ConnectionError),
     #[error("ReplyOrId error: {0}")]
     ReplyOrId(#[from] x11rb::errors::ReplyOrIdError),
+    #[error("X11 error {0:?}")]
+    X11Error(X11Error),
     #[error("Can't read xim message {0}")]
     ReadProtocol(#[from] xim_parser::ReadError),
     #[error("Server send error code: {0:?}, detail: {1}")]
     XimError(xim_parser::ErrorCode, BString),
-    #[error("X11 error {0:?}")]
-    X11Error(X11Error),
     #[error("Server Transport is not supported")]
     UnsupportedTransport,
     #[error("Invalid reply from server")]
@@ -41,90 +48,129 @@ pub enum ClientError {
     NoXimServer,
 }
 
-impl<'x, C: Connection + ConnectionExt> crate::Client for X11rbClient<'x, C> {
+impl<C: HasConnection> ClientCore for X11rbClient<C> {
     type Error = ClientError;
     type XEvent = KeyPressEvent;
 
-    fn build_ic_attributes(&self) -> AttributeBuilder {
-        AttributeBuilder {
-            id_map: &self.ic_attributes,
-            out: Vec::new(),
+    #[inline]
+    fn set_event_mask(&mut self, forward_event_mask: u32, synchronous_event_mask: u32) {
+        self.forward_event_mask = forward_event_mask;
+        self.synchronous_event_mask = synchronous_event_mask;
+    }
+
+    fn set_attrs(&mut self, im_attrs: Vec<Attr>, ic_attrs: Vec<Attr>) {
+        for im_attr in im_attrs {
+            self.im_attributes.insert(im_attr.name, im_attr.id);
+        }
+
+        for ic_attr in ic_attrs {
+            self.ic_attributes.insert(ic_attr.name, ic_attr.id);
         }
     }
 
-    fn build_im_attributes(&self) -> AttributeBuilder {
-        AttributeBuilder {
-            id_map: &self.im_attributes,
-            out: Vec::new(),
+    #[inline]
+    fn ic_attributes(&self) -> &HashMap<AttributeName, u16> {
+        &self.ic_attributes
+    }
+
+    #[inline]
+    fn im_attributes(&self) -> &HashMap<AttributeName, u16> {
+        &self.im_attributes
+    }
+
+    #[inline]
+    fn serialize_event(&self, xev: Self::XEvent) -> xim_parser::XEvent {
+        xim_parser::XEvent {
+            response_type: xev.response_type,
+            detail: xev.detail,
+            sequence: xev.sequence,
+            time: xev.time,
+            root: xev.root,
+            event: xev.event,
+            child: xev.child,
+            root_x: xev.root_x,
+            root_y: xev.root_y,
+            event_x: xev.event_x,
+            event_y: xev.event_y,
+            state: xev.state,
+            same_screen: xev.same_screen,
         }
     }
 
-    fn open(&mut self, locale: &[u8]) -> Result<(), Self::Error> {
-        self.send_req(Request::Open {
-            locale: locale.into(),
-        })
+    #[inline]
+    fn deserialize_event(&self, xev: xim_parser::XEvent) -> Self::XEvent {
+        KeyPressEvent {
+            response_type: xev.response_type,
+            detail: xev.detail,
+            sequence: xev.sequence,
+            time: xev.time,
+            root: xev.root,
+            event: xev.event,
+            child: xev.child,
+            root_x: xev.root_x,
+            root_y: xev.root_y,
+            event_x: xev.event_x,
+            event_y: xev.event_y,
+            state: xev.state,
+            same_screen: xev.same_screen,
+        }
     }
 
-    fn quert_extension(
-        &mut self,
-        input_method_id: u16,
-        extensions: &[&str],
-    ) -> Result<(), Self::Error> {
-        self.send_req(Request::QueryExtension {
-            input_method_id,
-            extensions: extensions.iter().map(|&e| e.into()).collect(),
-        })
+    #[inline]
+    fn send_req(&mut self, req: Request) -> Result<(), Self::Error> {
+        self.send_req_impl(req)
     }
 
-    fn create_ic(
-        &mut self,
-        input_method_id: u16,
-        ic_attributes: Vec<Attribute>,
-    ) -> Result<(), Self::Error> {
-        self.send_req(Request::CreateIc {
-            input_method_id,
-            ic_attributes,
-        })
-    }
-
-    fn forward_event(
-        &mut self,
-        input_method_id: u16,
-        input_context_id: u16,
-        flag: ForwardEventFlag,
-        xev: Self::XEvent,
-    ) -> Result<(), Self::Error> {
-        self.send_req(Request::ForwardEvent {
-            input_method_id,
-            input_context_id,
-            flag,
-            serial_number: xev.sequence,
-            xev: xev.into(),
-        })
-    }
-
-    fn disconnect(&mut self) -> Result<(), Self::Error> {
-        self.send_req(Request::Disconnect {})
-    }
-
-    fn close(&mut self, input_method_id: u16) -> Result<(), Self::Error> {
-        self.send_req(Request::Close { input_method_id })
-    }
-
-    fn destory_ic(
-        &mut self,
-        input_method_id: u16,
-        input_context_id: u16,
-    ) -> Result<(), Self::Error> {
-        self.send_req(Request::DestoryIc {
-            input_method_id,
-            input_context_id,
-        })
+    fn xim_error(&self, code: xim_parser::ErrorCode, detail: BString) -> Self::Error {
+        ClientError::XimError(code, detail)
     }
 }
 
-pub struct X11rbClient<'x, C: Connection + ConnectionExt> {
-    conn: &'x C,
+pub trait HasConnection {
+    type Connection: Connection + ConnectionExt;
+
+    fn conn(&self) -> &Self::Connection;
+}
+
+#[cfg(feature = "x11rb-xcb")]
+impl HasConnection for XCBConnection {
+    type Connection = Self;
+
+    #[inline(always)]
+    fn conn(&self) -> &Self::Connection {
+        self
+    }
+}
+
+impl HasConnection for RustConnection {
+    type Connection = Self;
+
+    #[inline(always)]
+    fn conn(&self) -> &Self::Connection {
+        self
+    }
+}
+
+impl<C: HasConnection> HasConnection for X11rbClient<C> {
+    type Connection = C::Connection;
+
+    #[inline(always)]
+    fn conn(&self) -> &Self::Connection {
+        self.has_conn.conn()
+    }
+}
+
+impl<'x, C: HasConnection> HasConnection for &'x C {
+    type Connection = C::Connection;
+
+    #[inline(always)]
+    fn conn(&self) -> &Self::Connection {
+        (**self).conn()
+    }
+}
+
+pub struct X11rbClient<C: HasConnection> {
+    has_conn: C,
     server_owner_window: u32,
     im_window: u32,
     server_atom: Atom,
@@ -138,12 +184,9 @@ pub struct X11rbClient<'x, C: Connection + ConnectionExt> {
     buf: Vec<u8>,
 }
 
-impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
-    pub fn init(
-        conn: &'x C,
-        screen: &'x Screen,
-        im_name: Option<&str>,
-    ) -> Result<Self, ClientError> {
+impl<C: HasConnection> X11rbClient<C> {
+    pub fn init(has_conn: C, screen: &Screen, im_name: Option<&str>) -> Result<Self, ClientError> {
+        let conn = has_conn.conn();
         let client_window = conn.generate_id()?;
 
         conn.create_window(
@@ -205,7 +248,7 @@ impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
                         conn.flush()?;
 
                         return Ok(Self {
-                            conn,
+                            has_conn,
                             atoms,
                             server_atom,
                             server_owner_window: server_owner,
@@ -226,24 +269,6 @@ impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
         }
     }
 
-    pub fn conn(&self) -> &'x C {
-        self.conn
-    }
-
-    pub fn im_window(&self) -> u32 {
-        self.im_window
-    }
-
-    fn set_attrs(&mut self, im_attrs: Vec<Attr>, ic_attrs: Vec<Attr>) {
-        for im_attr in im_attrs {
-            self.im_attributes.insert(im_attr.name, im_attr.id);
-        }
-
-        for ic_attr in ic_attrs {
-            self.ic_attributes.insert(ic_attr.name, ic_attr.id);
-        }
-    }
-
     pub fn filter_event(
         &mut self,
         e: &Event,
@@ -253,13 +278,24 @@ impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
             Event::SelectionNotify(e) if e.requestor == self.client_window => {
                 if e.property == self.atoms.LOCALES {
                     // TODO: set locale
+                    let _locale = self
+                        .conn()
+                        .get_property(
+                            true,
+                            self.client_window,
+                            self.atoms.LOCALES,
+                            self.atoms.LOCALES,
+                            0,
+                            u32::MAX,
+                        )?
+                        .reply()?;
 
                     self.xconnect()?;
 
                     Ok(true)
                 } else if e.property == self.atoms.TRANSPORT {
                     let transport = self
-                        .conn
+                        .conn()
                         .get_property(
                             true,
                             self.client_window,
@@ -274,7 +310,7 @@ impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
                         return Err(ClientError::UnsupportedTransport);
                     }
 
-                    self.conn.convert_selection(
+                    self.conn().convert_selection(
                         self.client_window,
                         self.server_atom,
                         self.atoms.LOCALES,
@@ -282,7 +318,7 @@ impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
                         CURRENT_TIME,
                     )?;
 
-                    self.conn.flush()?;
+                    self.conn().flush()?;
 
                     Ok(true)
                 } else {
@@ -319,12 +355,7 @@ impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
         }
     }
 
-    fn set_event_mask(&mut self, forward_event_mask: u32, synchronous_event_mask: u32) {
-        self.forward_event_mask = forward_event_mask;
-        self.synchronous_event_mask = synchronous_event_mask;
-    }
-
-    fn send_req(&mut self, req: Request) -> Result<(), ClientError> {
+    fn send_req_impl(&mut self, req: Request) -> Result<(), ClientError> {
         self.buf.resize(req.size(), 0);
         xim_parser::write(&req, &mut self.buf);
 
@@ -334,7 +365,7 @@ impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
             }
             self.buf.resize(20, 0);
             let buf: [u8; 20] = self.buf.as_slice().try_into().unwrap();
-            self.conn.send_event(
+            self.conn().send_event(
                 false,
                 self.im_window,
                 0u32,
@@ -348,7 +379,7 @@ impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
                 },
             )?;
         } else {
-            self.conn.change_property(
+            self.conn().change_property(
                 PropMode::Append,
                 self.im_window,
                 self.atoms.DATA,
@@ -357,7 +388,7 @@ impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
                 self.buf.len() as u32,
                 &self.buf,
             )?;
-            self.conn.send_event(
+            self.conn().send_event(
                 false,
                 self.im_window,
                 0u32,
@@ -371,7 +402,7 @@ impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
                 },
             )?;
         }
-        self.conn.flush()?;
+        self.conn().flush()?;
         self.buf.clear();
         Ok(())
     }
@@ -384,109 +415,28 @@ impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
         if msg.format == 32 {
             let [length, atom, ..] = msg.data.as_data32();
             let data = self
-                .conn
+                .conn()
                 .get_property(true, msg.window, atom, AtomEnum::Any, 0, length)?
                 .reply()?
                 .value;
             let req = xim_parser::read(&data)?;
-            self.handle_request(req, handler)?;
+            handle_request(self, handler, req)?;
         } else if msg.format == 8 {
             let data = msg.data.as_data8();
             let req = xim_parser::read(&data)?;
-            self.handle_request(req, handler)?;
+            handle_request(self, handler, req)?;
         }
 
         Ok(())
     }
 
-    fn handle_request(
-        &mut self,
-        req: Request,
-        handler: &mut impl ClientHandler<Self>,
-    ) -> Result<(), ClientError> {
-        log::trace!("Recv: {:?}", req);
-        match req {
-            Request::ConnectReply {
-                server_major_protocol_version: _,
-                server_minor_protocol_version: _,
-            } => handler.handle_connect(self),
-            Request::OpenReply {
-                input_method_id,
-                im_attrs,
-                ic_attrs,
-            } => {
-                self.set_attrs(im_attrs, ic_attrs);
-                handler.handle_open(self, input_method_id)
-            }
-            Request::QueryExtensionReply {
-                input_method_id: _,
-                extensions,
-            } => handler.handle_query_extension(self, &extensions),
-            Request::CreateIcReply {
-                input_method_id,
-                input_context_id,
-            } => handler.handle_create_ic(self, input_method_id, input_context_id),
-            Request::SetEventMask {
-                input_method_id: _,
-                input_context_id: _,
-                forward_event_mask,
-                synchronous_event_mask,
-            } => {
-                self.set_event_mask(forward_event_mask, synchronous_event_mask);
-                Ok(())
-            }
-            Request::CloseReply { input_method_id } => handler.handle_close(self, input_method_id),
-            Request::DisconnectReply {} => {
-                handler.handle_disconnect();
-                Ok(())
-            }
-            Request::Error { code, detail, .. } => Err(ClientError::XimError(code, detail)),
-            Request::ForwardEvent {
-                xev,
-                input_method_id,
-                input_context_id,
-                flag,
-                ..
-            } => handler.handle_forward_event(self, input_method_id, input_context_id, flag, xev),
-            Request::Commit {
-                input_method_id,
-                input_context_id,
-                data,
-            } => match data {
-                CommitData::Keysym { keysym: _, .. } => {
-                    todo!()
-                }
-                CommitData::Chars {
-                    commited,
-                    syncronous,
-                } => {
-                    if syncronous {
-                        self.send_req(Request::SyncReply {
-                            input_method_id,
-                            input_context_id,
-                        })?;
-                    }
-
-                    handler.handle_commit(
-                        self,
-                        input_method_id,
-                        input_context_id,
-                        crate::compound_text_to_utf8(&commited).unwrap(),
-                    )
-                }
-                _ => todo!(),
-            },
-            _ => Err(ClientError::InvalidReply),
-        }
-    }
-
     fn xconnect(&mut self) -> Result<(), ClientError> {
-        self.conn.send_event(
+        self.conn().send_event(
             false,
             self.server_owner_window,
             0u32,
             ClientMessageEvent {
-                data: ClientMessageData::from([self.client_window, 0, 0, 0, 0]),
+                data: [self.client_window, 0, 0, 0, 0].into(),
                 format: 32,
                 response_type: CLIENT_MESSAGE_EVENT,
                 sequence: 0,
@@ -495,8 +445,46 @@ impl<'x, C: Connection + ConnectionExt> X11rbClient<'x, C> {
             },
         )?;
 
-        self.conn.flush()?;
+        self.conn().flush()?;
 
         Ok(())
     }
+}
+
+#[test]
+fn event_check() {
+    use xim_parser::{Writer, XimWrite};
+    let e = KeyPressEvent {
+        sequence: 1,
+        child: 1,
+        detail: 0,
+        event: 4,
+        event_x: 1,
+        event_y: 4,
+        response_type: 2,
+        root_x: 1,
+        root_y: 5,
+        same_screen: false,
+        state: 1,
+        time: 4,
+        root: 12,
+    };
+    let xev = xim_parser::XEvent {
+        sequence: 1,
+        child: 1,
+        detail: 0,
+        event: 4,
+        event_x: 1,
+        event_y: 4,
+        response_type: 2,
+        root_x: 1,
+        root_y: 5,
+        same_screen: false,
+        state: 1,
+        time: 4,
+        root: 12,
+    };
+    let mut buf = [0; 32];
+    xev.write(&mut Writer::new(&mut buf));
+    assert_eq!(<[u8; 32]>::from(e), buf);
 }

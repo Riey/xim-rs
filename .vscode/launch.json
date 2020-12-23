@@ -26,15 +26,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug example 'x11rb_client'",
+            "name": "Debug example 'xlib_client'",
             "cargo": {
                 "args": [
                     "build",
-                    "--example=x11rb_client",
+                    "--example=xlib_client",
+                    "--all-features",
                     "--package=xim"
                 ],
                 "filter": {
-                    "name": "x11rb_client",
+                    "name": "xlib_client",
                     "kind": "example"
                 }
             },

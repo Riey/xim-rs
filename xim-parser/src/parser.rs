@@ -6,8 +6,6 @@
 use bstr::{BString, ByteSlice};
 use std::convert::TryInto;
 
-pub type RawXEvent = [u8; 32];
-
 pub fn read(b: &[u8]) -> Result<Request, ReadError> {
     Request::read(&mut Reader::new(b))
 }
@@ -191,22 +189,6 @@ where
     }
 }
 
-impl XimRead for RawXEvent {
-    fn read(reader: &mut Reader) -> Result<Self, ReadError> {
-        Ok(reader.consume(32)?.try_into().unwrap())
-    }
-}
-
-impl XimWrite for RawXEvent {
-    fn write(&self, writer: &mut Writer) {
-        writer.write(&self[..])
-    }
-
-    fn size(&self) -> usize {
-        std::mem::size_of::<Self>()
-    }
-}
-
 impl XimRead for Endian {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
         let n = u8::read(reader)?;
@@ -357,6 +339,22 @@ impl XimRead for u8 {
 impl XimWrite for u8 {
     fn write(&self, writer: &mut Writer) {
         writer.write_u8(*self)
+    }
+
+    fn size(&self) -> usize {
+        1
+    }
+}
+
+impl XimRead for bool {
+    fn read(reader: &mut Reader) -> Result<Self, ReadError> {
+        Ok(reader.u8()? != 0)
+    }
+}
+
+impl XimWrite for bool {
+    fn write(&self, writer: &mut Writer) {
+        writer.write_u8(*self as u8)
     }
 
     fn size(&self) -> usize {
@@ -945,6 +943,80 @@ impl XimWrite for TriggerKey {
         content_size
     }
 }
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct XEvent {
+    pub response_type: u8,
+    pub detail: u8,
+    pub sequence: u16,
+    pub time: u32,
+    pub root: u32,
+    pub event: u32,
+    pub child: u32,
+    pub root_x: i16,
+    pub root_y: i16,
+    pub event_x: i16,
+    pub event_y: i16,
+    pub state: u16,
+    pub same_screen: bool,
+}
+impl XimRead for XEvent {
+    fn read(reader: &mut Reader) -> Result<Self, ReadError> {
+        Ok(Self {
+            response_type: u8::read(reader)?,
+            detail: u8::read(reader)?,
+            sequence: u16::read(reader)?,
+            time: u32::read(reader)?,
+            root: u32::read(reader)?,
+            event: u32::read(reader)?,
+            child: u32::read(reader)?,
+            root_x: i16::read(reader)?,
+            root_y: i16::read(reader)?,
+            event_x: i16::read(reader)?,
+            event_y: i16::read(reader)?,
+            state: u16::read(reader)?,
+            same_screen: {
+                let inner = bool::read(reader)?;
+                reader.consume(1)?;
+                inner
+            },
+        })
+    }
+}
+impl XimWrite for XEvent {
+    fn write(&self, writer: &mut Writer) {
+        self.response_type.write(writer);
+        self.detail.write(writer);
+        self.sequence.write(writer);
+        self.time.write(writer);
+        self.root.write(writer);
+        self.event.write(writer);
+        self.child.write(writer);
+        self.root_x.write(writer);
+        self.root_y.write(writer);
+        self.event_x.write(writer);
+        self.event_y.write(writer);
+        self.state.write(writer);
+        self.same_screen.write(writer);
+        writer.write(&[0u8; 1]);
+    }
+    fn size(&self) -> usize {
+        let mut content_size = 0;
+        content_size += self.response_type.size();
+        content_size += self.detail.size();
+        content_size += self.sequence.size();
+        content_size += self.time.size();
+        content_size += self.root.size();
+        content_size += self.event.size();
+        content_size += self.child.size();
+        content_size += self.root_x.size();
+        content_size += self.root_y.size();
+        content_size += self.event_x.size();
+        content_size += self.event_y.size();
+        content_size += self.state.size();
+        content_size += self.same_screen.size() + 1;
+        content_size
+    }
+}
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub enum AttributeName {
     Area,
@@ -1169,7 +1241,7 @@ pub enum Request {
         input_context_id: u16,
         flag: ForwardEventFlag,
         serial_number: u16,
-        xev: RawXEvent,
+        xev: XEvent,
     },
     Geometry {
         input_method_id: u16,
@@ -1543,7 +1615,7 @@ impl XimRead for Request {
                 input_context_id: u16::read(reader)?,
                 flag: ForwardEventFlag::read(reader)?,
                 serial_number: u16::read(reader)?,
-                xev: RawXEvent::read(reader)?,
+                xev: XEvent::read(reader)?,
             }),
             (70, _) => Ok(Request::Geometry {
                 input_method_id: u16::read(reader)?,

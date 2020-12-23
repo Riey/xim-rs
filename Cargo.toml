@@ -12,13 +12,20 @@ authors = ["Riey <creeper844@gmail.com>"]
 edition = "2018"
 license = "MIT"
 
+[features]
+default = ["x11rb-client"]
+x11rb-xcb = ["x11rb/allow-unsafe-code"]
+x11rb-client = ["x11rb"]
+xlib-client = ["x11-dl"]
+
 [dependencies]
 xim-parser = { path = "./xim-parser" }
 thiserror = "1.0.22"
-x11rb = "0.7.0"
 log = "0.4.11"
 ctext = { git = "https://github.com/Riey/ctext-rs" }
-xkb = "0.2.1"
+
+x11rb = { version = "0.7.0", optional = true }
+x11-dl = { version = "2.18.5", optional = true }
 
 [dev-dependencies]
 criterion = "0.3.3"

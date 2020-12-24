@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use xim::{Client, ClientError, ClientHandler};
-use xim_parser::{AttributeName, InputStyle, InputStyleList, Spot};
+use xim_parser::{AttributeName, InputStyle, Point};
 
 #[derive(Default)]
 pub struct ExampleHandler {
@@ -40,7 +40,7 @@ impl<C: Client> ClientHandler<C> for ExampleHandler {
             .push(AttributeName::ClientWindow, self.window)
             .push(AttributeName::FocusWindow, self.window)
             .nested_list(AttributeName::PreeditAttributes, |b| {
-                b.push(AttributeName::SpotLocation, Spot { x: 0, y: 0 });
+                b.push(AttributeName::SpotLocation, Point { x: 0, y: 0 });
             })
             .build();
         client.create_ic(input_method_id, ic_attributes)

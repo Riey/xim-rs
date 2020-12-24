@@ -50,7 +50,7 @@ pub enum CommitData {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct HotKeyTriggers {
-    pub triggers: Vec<(HotKeyTrigger, bool)>,
+    pub triggers: Vec<(TriggerKey, HotKeyState)>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -332,6 +332,41 @@ impl XimWrite for CommitData {
             Self::Chars { commited, .. } => with_pad4(commited.len() + 2),
             Self::Both { commited, .. } => with_pad4(commited.len() + 2) + 6,
         }
+    }
+}
+
+impl XimRead for HotKeyTriggers {
+    fn read(reader: &mut Reader) -> Result<Self, ReadError> {
+        let n = reader.u32()? as usize;
+        let mut out = Vec::with_capacity(n);
+
+        for _ in 0..n {
+            out.push((TriggerKey::read(reader)?, HotKeyState::Off));
+        }
+
+        for _ in 0..n {
+            out[n].1 = HotKeyState::read(reader)?;
+        }
+
+        Ok(Self { triggers: out })
+    }
+}
+
+impl XimWrite for HotKeyTriggers {
+    fn write(&self, writer: &mut Writer) {
+        (self.triggers.len() as u32).write(writer);
+
+        for (trigger, _) in self.triggers.iter() {
+            trigger.write(writer);
+        }
+
+        for (_, state) in self.triggers.iter() {
+            state.write(writer);
+        }
+    }
+
+    fn size(&self) -> usize {
+        self.triggers.len() * 8 + 4
     }
 }
 
@@ -642,6 +677,30 @@ impl XimWrite for ForwardEventFlag {
     }
     fn size(&self) -> usize {
         std::mem::size_of::<u16>()
+    }
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u32)]
+pub enum HotKeyState {
+    On = 1,
+    Off = 2,
+}
+impl XimRead for HotKeyState {
+    fn read(reader: &mut Reader) -> Result<Self, ReadError> {
+        let repr = u32::read(reader)?;
+        match repr {
+            1 => Ok(Self::On),
+            2 => Ok(Self::Off),
+            _ => Err(reader.invalid_data("HotKeyState", repr)),
+        }
+    }
+}
+impl XimWrite for HotKeyState {
+    fn write(&self, writer: &mut Writer) {
+        (*self as u32).write(writer);
+    }
+    fn size(&self) -> usize {
+        std::mem::size_of::<u32>()
     }
 }
 bitflags::bitflags! {

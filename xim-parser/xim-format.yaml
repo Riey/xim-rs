@@ -71,6 +71,12 @@ Enums:
       OnKeyList: 0
       OffKeyList: 1
 
+  HotKeyState:
+    repr: u32
+    variants:
+      On: 1
+      Off: 2
+
   AttrType:
     repr: u16
     variants:

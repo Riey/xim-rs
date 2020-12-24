@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use x11rb::connection::Connection;
 use xim::{x11rb::X11rbServer, Server, ServerError, ServerHandler};
-use xim_parser::{Attr, AttrType, Attribute, AttributeName, ErrorCode, InputStyle, InputStyleList};
+use xim_parser::InputStyle;
 
 struct InputContext {}
 
@@ -63,6 +63,12 @@ impl Handler {
 }
 
 impl<S: Server> ServerHandler<S> for Handler {
+    type InputStyleArray = [InputStyle; 1];
+
+    fn input_styles(&self) -> Self::InputStyleArray {
+        [InputStyle::PREEDITNOTHING | InputStyle::STATUSNOTHING]
+    }
+
     fn handle_xconnect(
         &mut self,
         _server: &mut S,
@@ -87,59 +93,6 @@ impl<S: Server> ServerHandler<S> for Handler {
 
     fn get_client_window(&self, com_win: u32) -> Result<u32, ServerError> {
         self.get_connection(com_win).map(|c| c.client_win)
-    }
-
-    const IM_ATTRS: &'static [Attr] = &[Attr {
-        id: 0,
-        name: AttributeName::QueryInputStyle,
-        ty: AttrType::Style,
-    }];
-    const IC_ATTRS: &'static [Attr] = &[Attr {
-        id: 0,
-        name: AttributeName::InputStyle,
-        ty: AttrType::Long,
-    }];
-
-    fn get_im_attributes(
-        &mut self,
-        server: &mut S,
-        com_win: u32,
-        input_method_id: u16,
-        attributes: Vec<u16>,
-    ) -> Result<(u32, Vec<xim_parser::Attribute>), ServerError> {
-        let connection = self.get_connection(com_win)?;
-        let mut out = Vec::with_capacity(attributes.len());
-
-        for id in attributes {
-            let attr = match <Handler as ServerHandler<S>>::IM_ATTRS.get(id as usize) {
-                Some(attr) => attr,
-                None => {
-                    server.error(
-                        connection.client_win,
-                        ErrorCode::BadName,
-                        "id not found".into(),
-                        Some(input_method_id),
-                        None,
-                    )?;
-                    continue;
-                }
-            };
-
-            match attr.name {
-                AttributeName::QueryInputStyle => {
-                    let styles = InputStyleList {
-                        styles: vec![InputStyle::PREEDITNOTHING | InputStyle::STATUSNOTHING],
-                    };
-
-                    let value = xim_parser::write_to_vec(styles);
-
-                    out.push(Attribute { id, value });
-                }
-                _ => {}
-            }
-        }
-
-        Ok((connection.client_win, out))
     }
 }
 

@@ -1,4 +1,7 @@
-use xim_parser::{bstr::BString, Attr, Attribute, CommitData, ErrorCode, ErrorFlag, Request};
+use xim_parser::{
+    bstr::BString, Attr, AttrType, Attribute, AttributeName, CommitData, ErrorCode, ErrorFlag,
+    InputStyle, InputStyleList, Request,
+};
 
 pub fn handle_request<S: ServerCore + Server, H: ServerHandler<S>>(
     server: &mut S,
@@ -23,8 +26,16 @@ pub fn handle_request<S: ServerCore + Server, H: ServerHandler<S>>(
                 client_win,
                 Request::OpenReply {
                     input_method_id,
-                    im_attrs: H::IM_ATTRS.to_vec(),
-                    ic_attrs: H::IC_ATTRS.to_vec(),
+                    im_attrs: vec![Attr {
+                        id: 0,
+                        name: AttributeName::QueryInputStyle,
+                        ty: AttrType::Style,
+                    }],
+                    ic_attrs: vec![Attr {
+                        id: 0,
+                        name: AttributeName::InputStyle,
+                        ty: AttrType::Long,
+                    }],
                 },
             )?;
         }
@@ -79,14 +90,37 @@ pub fn handle_request<S: ServerCore + Server, H: ServerHandler<S>>(
             input_method_id,
             im_attributes,
         } => {
-            let (client_win, attributes) =
-                handler.get_im_attributes(server, com_win, input_method_id, im_attributes)?;
+            let client_win = handler.get_client_window(com_win)?;
+
+            let mut out = Vec::with_capacity(im_attributes.len());
+
+            for id in im_attributes {
+                match id {
+                    0 => {
+                        out.push(Attribute {
+                            id,
+                            value: xim_parser::write_to_vec(InputStyleList {
+                                styles: handler.input_styles().as_ref().to_vec(),
+                            }),
+                        });
+                    }
+                    _ => {
+                        return server.error(
+                            client_win,
+                            ErrorCode::BadName,
+                            "Unknown im attribute id".into(),
+                            Some(input_method_id),
+                            None,
+                        );
+                    }
+                }
+            }
 
             server.send_req(
                 client_win,
                 Request::GetImValuesReply {
                     input_method_id,
-                    im_attributes: attributes,
+                    im_attributes: out,
                 },
             )?;
         }
@@ -115,17 +149,8 @@ pub enum ServerError {
 }
 
 pub trait ServerHandler<S: Server> {
-    const IM_ATTRS: &'static [Attr];
-    const IC_ATTRS: &'static [Attr];
-
-    /// Return (client_win, attributes)
-    fn get_im_attributes(
-        &mut self,
-        server: &mut S,
-        com_win: u32,
-        input_method_id: u16,
-        attributes: Vec<u16>,
-    ) -> Result<(u32, Vec<Attribute>), ServerError>;
+    type InputStyleArray: AsRef<[InputStyle]>;
+    fn input_styles(&self) -> Self::InputStyleArray;
 
     fn get_client_window(&self, com_win: u32) -> Result<u32, ServerError>;
 

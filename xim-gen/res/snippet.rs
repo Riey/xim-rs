@@ -64,7 +64,10 @@ pub enum ReadError {
 }
 
 fn pad4(len: usize) -> usize {
-    (4 - (len % 4)) % 4
+    match len % 4 {
+        0 => 0,
+        x => 4 - x,
+    }
 }
 
 fn with_pad4(len: usize) -> usize {

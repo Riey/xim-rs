@@ -81,6 +81,26 @@ mod tests {
     }
 
     #[test]
+    fn im_reply() {
+        let req = Request::GetImValuesReply {
+            input_method_id: 3,
+            im_attributes: vec![Attribute {
+                id: 0,
+                value: write_to_vec(InputStyleList {
+                    styles: vec![InputStyle::PREEDITPOSITION | InputStyle::STATUSAREA],
+                }),
+            }],
+        };
+
+        let out = write_to_vec(&req);
+        assert_eq!(req.size(), out.len());
+
+        let new_req = read(&out).unwrap();
+
+        assert_eq!(req, new_req);
+    }
+
+    #[test]
     fn read_error() {
         let req = read(&[
             20, 0, 7, 0, 2, 0, 1, 0, 3, 0, 2, 0, 16, 0, 0, 0, 105, 110, 118, 97, 108, 105, 100, 32,

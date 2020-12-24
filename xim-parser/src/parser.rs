@@ -64,7 +64,10 @@ pub enum ReadError {
 }
 
 fn pad4(len: usize) -> usize {
-    (4 - (len % 4)) % 4
+    match len % 4 {
+        0 => 0,
+        x => 4 - x,
+    }
 }
 
 fn with_pad4(len: usize) -> usize {
@@ -825,7 +828,7 @@ impl XimWrite for Attr {
         let mut content_size = 0;
         content_size += self.id.size();
         content_size += self.ty.size();
-        content_size += with_pad4(self.name.size());
+        content_size += with_pad4(self.name.size() - 0);
         content_size
     }
 }
@@ -859,7 +862,7 @@ impl XimWrite for Attribute {
     fn size(&self) -> usize {
         let mut content_size = 0;
         content_size += self.id.size();
-        content_size += with_pad4(self.value.len() + 2);
+        content_size += with_pad4(self.value.len() + 2 - 2) + 2;
         content_size
     }
 }
@@ -897,7 +900,7 @@ impl XimWrite for Extension {
         let mut content_size = 0;
         content_size += self.major_opcode.size();
         content_size += self.minor_opcode.size();
-        content_size += with_pad4(self.name.len() + 2 + 0);
+        content_size += with_pad4(self.name.len() + 2 + 0 - 0);
         content_size
     }
 }
@@ -927,7 +930,7 @@ impl XimWrite for FontSet {
     }
     fn size(&self) -> usize {
         let mut content_size = 0;
-        content_size += with_pad4(self.name.len() + 2 + 0);
+        content_size += with_pad4(self.name.len() + 2 + 0 - 0);
         content_size
     }
 }
@@ -1071,7 +1074,7 @@ impl XimWrite for StatusTextContent {
     fn size(&self) -> usize {
         let mut content_size = 0;
         content_size += self.status.size();
-        content_size += with_pad4(self.status_string.len() + 2 + 0);
+        content_size += with_pad4(self.status_string.len() + 2 + 0 - 0);
         content_size += self.feedbacks.iter().map(|e| e.size()).sum::<usize>() + 2 + 2;
         content_size
     }
@@ -2158,7 +2161,7 @@ impl XimWrite for Request {
                 client_minor_protocol_version.write(writer);
                 ((client_auth_protocol_names
                     .iter()
-                    .map(|e| with_pad4(e.len() + 2 + 0))
+                    .map(|e| with_pad4(e.len() + 2 + 0 - 0))
                     .sum::<usize>()
                     + 0
                     + 2
@@ -2253,7 +2256,7 @@ impl XimWrite for Request {
                 writer.write_pad4();
                 ((encoding_infos
                     .iter()
-                    .map(|e| with_pad4(e.len() + 2 + 0))
+                    .map(|e| with_pad4(e.len() + 2 + 0 - 0))
                     .sum::<usize>()
                     + 2
                     + 2
@@ -2800,7 +2803,7 @@ impl XimWrite for Request {
                 content_size += client_minor_protocol_version.size();
                 content_size += client_auth_protocol_names
                     .iter()
-                    .map(|e| with_pad4(e.len() + 2 + 0))
+                    .map(|e| with_pad4(e.len() + 2 + 0 - 0))
                     .sum::<usize>()
                     + 0
                     + 2;
@@ -2849,10 +2852,11 @@ impl XimWrite for Request {
             } => {
                 content_size += input_method_id.size();
                 content_size +=
-                    with_pad4(encodings.iter().map(|e| e.len() + 1 + 0).sum::<usize>() + 0 + 2) + 2;
+                    with_pad4(encodings.iter().map(|e| e.len() + 1 + 0).sum::<usize>() + 0 + 2 - 2)
+                        + 2;
                 content_size += encoding_infos
                     .iter()
-                    .map(|e| with_pad4(e.len() + 2 + 0))
+                    .map(|e| with_pad4(e.len() + 2 + 0 - 0))
                     .sum::<usize>()
                     + 2
                     + 2;
@@ -2877,7 +2881,7 @@ impl XimWrite for Request {
                 content_size += input_context_id.size();
                 content_size += flag.size();
                 content_size += code.size();
-                content_size += with_pad4(detail.len() + 2 + 2);
+                content_size += with_pad4(detail.len() + 2 + 2 - 0);
             }
             Request::ForwardEvent {
                 input_method_id,
@@ -2907,7 +2911,7 @@ impl XimWrite for Request {
                 content_size += input_method_id.size();
                 content_size += input_context_id.size();
                 content_size +=
-                    with_pad4(ic_attributes.iter().map(|e| e.size()).sum::<usize>() + 0 + 2);
+                    with_pad4(ic_attributes.iter().map(|e| e.size()).sum::<usize>() + 0 + 2 - 0);
             }
             Request::GetIcValuesReply {
                 input_method_id,
@@ -2924,7 +2928,8 @@ impl XimWrite for Request {
             } => {
                 content_size += input_method_id.size();
                 content_size +=
-                    with_pad4(im_attributes.iter().map(|e| e.size()).sum::<usize>() + 0 + 2) + 2;
+                    with_pad4(im_attributes.iter().map(|e| e.size()).sum::<usize>() + 0 + 2 - 2)
+                        + 2;
             }
             Request::GetImValuesReply {
                 input_method_id,
@@ -2934,7 +2939,7 @@ impl XimWrite for Request {
                 content_size += im_attributes.iter().map(|e| e.size()).sum::<usize>() + 0 + 2;
             }
             Request::Open { locale } => {
-                content_size += with_pad4(locale.len() + 1 + 0);
+                content_size += with_pad4(locale.len() + 1 + 0 - 0);
             }
             Request::OpenReply {
                 input_method_id,
@@ -2990,7 +2995,7 @@ impl XimWrite for Request {
                 content_size += chg_first.size();
                 content_size += chg_length.size();
                 content_size += status.size();
-                content_size += with_pad4(preedit_string.len() + 2);
+                content_size += with_pad4(preedit_string.len() + 2 - 0);
                 content_size += feedbacks.iter().map(|e| e.size()).sum::<usize>() + 2 + 2;
             }
             Request::PreeditStart {
@@ -3023,8 +3028,9 @@ impl XimWrite for Request {
                 extensions,
             } => {
                 content_size += input_method_id.size();
-                content_size +=
-                    with_pad4(extensions.iter().map(|e| e.len() + 1 + 0).sum::<usize>() + 0 + 2);
+                content_size += with_pad4(
+                    extensions.iter().map(|e| e.len() + 1 + 0).sum::<usize>() + 0 + 2 - 0,
+                );
             }
             Request::QueryExtensionReply {
                 input_method_id,
@@ -3056,7 +3062,7 @@ impl XimWrite for Request {
             } => {
                 content_size += input_method_id.size();
                 content_size += input_context_id.size();
-                content_size += with_pad4(preedit_string.len() + 2);
+                content_size += with_pad4(preedit_string.len() + 2 - 0);
             }
             Request::SetEventMask {
                 input_method_id,

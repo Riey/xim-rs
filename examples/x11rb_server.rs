@@ -2,9 +2,7 @@ use std::collections::HashMap;
 
 use x11rb::connection::Connection;
 use xim::{x11rb::X11rbServer, Server, ServerError, ServerHandler};
-use xim_parser::{
-    Attr, AttrType, Attribute, AttributeName, ErrorCode, InputStyle, InputStyleList, XimWrite,
-};
+use xim_parser::{Attr, AttrType, Attribute, AttributeName, ErrorCode, InputStyle, InputStyleList};
 
 struct InputContext {}
 

@@ -1,7 +1,4 @@
-use xim_parser::{
-    bstr::BString, Attr, AttrType, Attribute, AttributeName, CommitData, ErrorCode, ErrorFlag,
-    Request,
-};
+use xim_parser::{bstr::BString, Attr, Attribute, CommitData, ErrorCode, ErrorFlag, Request};
 
 pub fn handle_request<S: ServerCore + Server, H: ServerHandler<S>>(
     server: &mut S,

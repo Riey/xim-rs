@@ -48,6 +48,11 @@ pub enum CommitData {
     },
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct HotKeyTriggers {
+    pub triggers: Vec<(HotKeyTrigger, bool)>,
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum ReadError {
     #[error("End of Stream")]
@@ -838,21 +843,16 @@ impl XimWrite for Extension {
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct InputStyleList {
-    pub styles: Vec<InputStyle>,
+pub struct FontSet {
+    pub name: BString,
 }
-impl XimRead for InputStyleList {
+impl XimRead for FontSet {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
         Ok(Self {
-            styles: {
+            name: {
                 let inner = {
-                    let mut out = Vec::new();
-                    let len = u16::read(reader)? as usize;
-                    let end = reader.cursor() - len;
-                    while reader.cursor() > end {
-                        out.push(InputStyle::read(reader)?);
-                    }
-                    out
+                    let len = u16::read(reader)?;
+                    reader.consume(len as usize)?.to_vec().into()
                 };
                 reader.pad4()?;
                 inner
@@ -860,27 +860,59 @@ impl XimRead for InputStyleList {
         })
     }
 }
-impl XimWrite for InputStyleList {
+impl XimWrite for FontSet {
     fn write(&self, writer: &mut Writer) {
-        ((self.styles.iter().map(|e| e.size()).sum::<usize>() + 0 + 2 - 2 - 0) as u16)
-            .write(writer);
-        for elem in self.styles.iter() {
-            elem.write(writer);
-        }
+        (self.name.len() as u16).write(writer);
+        writer.write(self.name.as_bytes());
         writer.write_pad4();
     }
     fn size(&self) -> usize {
         let mut content_size = 0;
-        content_size += with_pad4(self.styles.iter().map(|e| e.size()).sum::<usize>() + 0 + 2);
+        content_size += with_pad4(self.name.len() + 2 + 0);
         content_size
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Spot {
+pub struct InputStyleList {
+    pub styles: Vec<InputStyle>,
+}
+impl XimRead for InputStyleList {
+    fn read(reader: &mut Reader) -> Result<Self, ReadError> {
+        Ok(Self {
+            styles: {
+                let mut out = Vec::new();
+                let len = u16::read(reader)? as usize;
+                let end = reader.cursor() - len;
+                u16::read(reader)?;
+                while reader.cursor() > end {
+                    out.push(InputStyle::read(reader)?);
+                }
+                out
+            },
+        })
+    }
+}
+impl XimWrite for InputStyleList {
+    fn write(&self, writer: &mut Writer) {
+        ((self.styles.iter().map(|e| e.size()).sum::<usize>() + 2 + 2 - 2 - 2) as u16)
+            .write(writer);
+        0u16.write(writer);
+        for elem in self.styles.iter() {
+            elem.write(writer);
+        }
+    }
+    fn size(&self) -> usize {
+        let mut content_size = 0;
+        content_size += self.styles.iter().map(|e| e.size()).sum::<usize>() + 2 + 2;
+        content_size
+    }
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Point {
     pub x: i16,
     pub y: i16,
 }
-impl XimRead for Spot {
+impl XimRead for Point {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
         Ok(Self {
             x: i16::read(reader)?,
@@ -888,7 +920,7 @@ impl XimRead for Spot {
         })
     }
 }
-impl XimWrite for Spot {
+impl XimWrite for Point {
     fn write(&self, writer: &mut Writer) {
         self.x.write(writer);
         self.y.write(writer);
@@ -897,6 +929,39 @@ impl XimWrite for Spot {
         let mut content_size = 0;
         content_size += self.x.size();
         content_size += self.y.size();
+        content_size
+    }
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Rectangle {
+    pub x: i16,
+    pub y: i16,
+    pub width: u16,
+    pub height: u16,
+}
+impl XimRead for Rectangle {
+    fn read(reader: &mut Reader) -> Result<Self, ReadError> {
+        Ok(Self {
+            x: i16::read(reader)?,
+            y: i16::read(reader)?,
+            width: u16::read(reader)?,
+            height: u16::read(reader)?,
+        })
+    }
+}
+impl XimWrite for Rectangle {
+    fn write(&self, writer: &mut Writer) {
+        self.x.write(writer);
+        self.y.write(writer);
+        self.width.write(writer);
+        self.height.write(writer);
+    }
+    fn size(&self) -> usize {
+        let mut content_size = 0;
+        content_size += self.x.size();
+        content_size += self.y.size();
+        content_size += self.width.size();
+        content_size += self.height.size();
         content_size
     }
 }
@@ -1561,17 +1626,13 @@ impl XimRead for Request {
             (50, _) => Ok(Request::CreateIc {
                 input_method_id: u16::read(reader)?,
                 ic_attributes: {
-                    let inner = {
-                        let mut out = Vec::new();
-                        let len = u16::read(reader)? as usize;
-                        let end = reader.cursor() - len;
-                        while reader.cursor() > end {
-                            out.push(Attribute::read(reader)?);
-                        }
-                        out
-                    };
-                    reader.pad4()?;
-                    inner
+                    let mut out = Vec::new();
+                    let len = u16::read(reader)? as usize;
+                    let end = reader.cursor() - len;
+                    while reader.cursor() > end {
+                        out.push(Attribute::read(reader)?);
+                    }
+                    out
                 },
             }),
             (51, _) => Ok(Request::CreateIcReply {
@@ -2074,7 +2135,6 @@ impl XimWrite for Request {
                 for elem in ic_attributes.iter() {
                     elem.write(writer);
                 }
-                writer.write_pad4();
             }
             Request::CreateIcReply {
                 input_method_id,
@@ -2698,8 +2758,7 @@ impl XimWrite for Request {
                 ic_attributes,
             } => {
                 content_size += input_method_id.size();
-                content_size +=
-                    with_pad4(ic_attributes.iter().map(|e| e.size()).sum::<usize>() + 0 + 2);
+                content_size += ic_attributes.iter().map(|e| e.size()).sum::<usize>() + 0 + 2;
             }
             Request::CreateIcReply {
                 input_method_id,
@@ -2806,7 +2865,7 @@ impl XimWrite for Request {
             } => {
                 content_size += input_method_id.size();
                 content_size +=
-                    with_pad4(im_attributes.iter().map(|e| e.size()).sum::<usize>() + 0 + 2);
+                    with_pad4(im_attributes.iter().map(|e| e.size()).sum::<usize>() + 0 + 2) + 2;
             }
             Request::GetImValuesReply {
                 input_method_id,

@@ -66,6 +66,21 @@ mod tests {
     }
 
     #[test]
+    fn read_input_styles() {
+        let styles = InputStyleList::read(&mut Reader::new(&[
+            5, 0, 119, 55, 4, 1, 0, 0, 4, 4, 0, 0, 4, 8, 0, 0, 8, 4, 0, 0, 8, 8, 0, 0,
+        ]))
+        .unwrap();
+
+        assert_eq!(
+            styles,
+            InputStyleList {
+                styles: vec![InputStyle::PREEDITPOSITION | InputStyle::STATUSAREA]
+            }
+        );
+    }
+
+    #[test]
     fn read_error() {
         let req = read(&[
             20, 0, 7, 0, 2, 0, 1, 0, 3, 0, 2, 0, 16, 0, 0, 0, 105, 110, 118, 97, 108, 105, 100, 32,
@@ -83,6 +98,18 @@ mod tests {
                 detail: "invalid im style".into(),
             }
         );
+    }
+
+    #[test]
+    fn write_get_im_values() {
+        let req = Request::GetImValues {
+            input_method_id: 1,
+            im_attributes: vec![0],
+        };
+
+        let out = write_to_vec(&req);
+
+        assert_eq!(out.len(), req.size());
     }
 
     #[test]
@@ -107,7 +134,7 @@ mod tests {
             ic_attributes: Vec::new(),
         };
         let out = write_to_vec(&req);
-        assert_eq!(out, b"\x32\x00\x01\x00\x02\x00\x00\x00\x00\x00");
+        assert_eq!(out, b"\x32\x00\x01\x00\x02\x00\x00\x00");
     }
 
     #[test]

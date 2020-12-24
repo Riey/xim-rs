@@ -48,6 +48,11 @@ pub enum CommitData {
     },
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct HotKeyTriggers {
+    pub triggers: Vec<(HotKeyTrigger, bool)>,
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum ReadError {
     #[error("End of Stream")]

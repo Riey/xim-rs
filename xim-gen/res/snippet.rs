@@ -6,12 +6,18 @@
 use bstr::{BString, ByteSlice};
 use std::convert::TryInto;
 
-pub fn read(b: &[u8]) -> Result<Request, ReadError> {
-    Request::read(&mut Reader::new(b))
+pub fn read<T>(b: &[u8]) -> Result<T, ReadError>
+where
+    T: XimRead,
+{
+    T::read(&mut Reader::new(b))
 }
 
-pub fn write(req: &Request, out: &mut [u8]) {
-    req.write(&mut Writer::new(out));
+pub fn write<T>(val: T, out: &mut [u8])
+where
+    T: XimWrite,
+{
+    val.write(&mut Writer::new(out));
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -351,9 +357,7 @@ impl XimRead for HotKeyTriggers {
             out[n].1 = HotKeyState::read(reader)?;
         }
 
-        Ok(Self {
-            triggers: out,
-        })
+        Ok(Self { triggers: out })
     }
 }
 

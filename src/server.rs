@@ -1,136 +1,8 @@
-use xim_parser::{
-    bstr::BString, Attr, AttrType, Attribute, AttributeName, CommitData, ErrorCode, ErrorFlag,
-    InputStyle, InputStyleList, Request,
-};
+mod connection;
 
-pub fn handle_request<S: ServerCore + Server, H: ServerHandler<S>>(
-    server: &mut S,
-    com_win: u32,
-    req: Request,
-    handler: &mut H,
-) -> Result<(), ServerError> {
-    log::trace!("req: {:?}", req);
-    match req {
-        Request::Connect { .. } => {
-            server.send_req(
-                handler.get_client_window(com_win)?,
-                Request::ConnectReply {
-                    server_major_protocol_version: 1,
-                    server_minor_protocol_version: 0,
-                },
-            )?;
-        }
-        Request::Open { locale } => {
-            let (client_win, input_method_id) = handler.handle_open(server, com_win, locale)?;
-            server.send_req(
-                client_win,
-                Request::OpenReply {
-                    input_method_id,
-                    im_attrs: vec![Attr {
-                        id: 0,
-                        name: AttributeName::QueryInputStyle,
-                        ty: AttrType::Style,
-                    }],
-                    ic_attrs: vec![Attr {
-                        id: 0,
-                        name: AttributeName::InputStyle,
-                        ty: AttrType::Long,
-                    }],
-                },
-            )?;
-        }
-        Request::QueryExtension {
-            input_method_id, ..
-        } => {
-            // Extension not supported now
-            server.send_req(
-                handler.get_client_window(com_win)?,
-                Request::QueryExtensionReply {
-                    input_method_id,
-                    extensions: Vec::new(),
-                },
-            )?;
-        }
-        Request::EncodingNegotiation {
-            input_method_id,
-            encodings,
-            ..
-        } => {
-            let client_win = handler.get_client_window(com_win)?;
+use xim_parser::{bstr::BString, CommitData, ErrorCode, ErrorFlag, InputStyle, Request};
 
-            match encodings
-                .iter()
-                .position(|e| e.starts_with(b"COMPOUND_TEXT"))
-            {
-                Some(pos) => {
-                    server.send_req(
-                        client_win,
-                        Request::EncodingNegotiationReply {
-                            input_method_id,
-                            category: 0,
-                            index: pos as u16,
-                        },
-                    )?;
-                }
-                None => {
-                    server.send_req(
-                        client_win,
-                        Request::Error {
-                            input_method_id,
-                            input_context_id: 0,
-                            flag: ErrorFlag::INPUTMETHODIDVALID,
-                            code: ErrorCode::BadName,
-                            detail: "Only COMPOUND_TEXT encoding is supported".into(),
-                        },
-                    )?;
-                }
-            }
-        }
-        Request::GetImValues {
-            input_method_id,
-            im_attributes,
-        } => {
-            let client_win = handler.get_client_window(com_win)?;
-
-            let mut out = Vec::with_capacity(im_attributes.len());
-
-            for id in im_attributes {
-                match id {
-                    0 => {
-                        out.push(Attribute {
-                            id,
-                            value: xim_parser::write_to_vec(InputStyleList {
-                                styles: handler.input_styles().as_ref().to_vec(),
-                            }),
-                        });
-                    }
-                    _ => {
-                        return server.error(
-                            client_win,
-                            ErrorCode::BadName,
-                            "Unknown im attribute id".into(),
-                            Some(input_method_id),
-                            None,
-                        );
-                    }
-                }
-            }
-
-            server.send_req(
-                client_win,
-                Request::GetImValuesReply {
-                    input_method_id,
-                    im_attributes: out,
-                },
-            )?;
-        }
-        _ => {
-            log::warn!("Unknown request: {:?}", req);
-        }
-    }
-
-    Ok(())
-}
+pub use self::connection::{XimConnection, XimConnections};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ServerError {
@@ -149,24 +21,20 @@ pub enum ServerError {
 }
 
 pub trait ServerHandler<S: Server> {
+    type InputContext;
     type InputStyleArray: AsRef<[InputStyle]>;
+
     fn input_styles(&self) -> Self::InputStyleArray;
 
-    fn get_client_window(&self, com_win: u32) -> Result<u32, ServerError>;
+    fn handle_connect(&mut self, server: &mut S) -> Result<(), ServerError>;
 
-    fn handle_xconnect(
+    fn handle_create_ic(
         &mut self,
         server: &mut S,
-        com_win: u32,
-        client_win: u32,
+        connection: &mut XimConnection,
+        input_method_id: u16,
+        input_style: InputStyle,
     ) -> Result<(), ServerError>;
-    /// Return (client_win, input_method_id)
-    fn handle_open(
-        &mut self,
-        server: &mut S,
-        com_win: u32,
-        locale: BString,
-    ) -> Result<(u32, u16), ServerError>;
 }
 
 pub trait Server {

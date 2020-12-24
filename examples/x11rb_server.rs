@@ -4,39 +4,44 @@ use x11rb::connection::Connection;
 use xim::{x11rb::X11rbServer, Server, ServerError, ServerHandler};
 use xim_parser::InputStyle;
 
-struct InputContext {}
+struct InputMethod {
+    next: u16,
+}
 
-impl InputContext {
+impl InputMethod {
     pub fn new() -> Self {
         Self {}
     }
 }
 
 struct ExampleConnection {
-    #[allow(unused)]
-    com_win: u32,
     client_win: u32,
     next: u16,
-    input_methods: HashMap<u16, InputContext>,
+    input_methods: HashMap<u16, InputMethod>,
 }
 
 impl ExampleConnection {
-    pub fn new(com_win: u32, client_win: u32) -> Self {
+    pub fn new(client_win: u32) -> Self {
         Self {
-            com_win,
             client_win,
             next: 0,
             input_methods: HashMap::new(),
         }
     }
 
-    pub fn open_im(&mut self) -> u16 {
+    pub fn new_im(&mut self) -> u16 {
         let id = self.next;
         self.next += 1;
 
         self.input_methods.insert(id, InputContext::new());
 
         id
+    }
+
+    pub fn get_im(&mut self, im_id: u16) -> Result<&mut InputMethod, ServerError> {
+        self.input_methods
+            .get_mut(&im_id)
+            .ok_or(ServerError::ClientNotExists)
     }
 }
 
@@ -77,7 +82,7 @@ impl<S: Server> ServerHandler<S> for Handler {
     ) -> Result<(), ServerError> {
         log::info!("XConnected");
         self.connections
-            .insert(com_win, ExampleConnection::new(com_win, client_win));
+            .insert(com_win, ExampleConnection::new(client_win));
         Ok(())
     }
 
@@ -88,11 +93,22 @@ impl<S: Server> ServerHandler<S> for Handler {
         _locale: xim_parser::bstr::BString,
     ) -> Result<(u32, u16), ServerError> {
         let connection = self.get_connection_mut(com_win)?;
-        Ok((connection.client_win, connection.open_im()))
+        Ok((connection.client_win, connection.new_im()))
     }
 
     fn get_client_window(&self, com_win: u32) -> Result<u32, ServerError> {
         self.get_connection(com_win).map(|c| c.client_win)
+    }
+
+    fn handle_create_ic(
+        &mut self,
+        server: &mut S,
+        com_win: u32,
+        input_method_id: u16,
+        input_style: InputStyle,
+    ) -> Result<(u32, u16), ServerError> {
+        let connection = self.get_connection_mut(com_win)?;
+        let ic = connection.get_im(input_method_id)?;
     }
 }
 

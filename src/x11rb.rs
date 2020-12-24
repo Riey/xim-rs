@@ -2,7 +2,7 @@ use std::{collections::HashMap, convert::TryInto};
 
 use crate::{
     client::{handle_request as client_handle_request, ClientCore, ClientError, ClientHandler},
-    server::{handle_request as server_handle_request, ServerCore, ServerError, ServerHandler},
+    server::{ServerCore, ServerError, ServerHandler, XimConnection, XimConnections},
     Atoms,
 };
 #[cfg(feature = "x11rb-xcb")]
@@ -192,6 +192,7 @@ impl<C: HasConnection> X11rbServer<C> {
     pub fn filter_event(
         &mut self,
         e: &Event,
+        connections: &mut XimConnections,
         handler: &mut impl ServerHandler<Self>,
     ) -> Result<bool, ServerError> {
         match e {
@@ -234,9 +235,13 @@ impl<C: HasConnection> X11rbServer<C> {
                         },
                     )?;
                     self.conn().flush()?;
-                    handler.handle_xconnect(self, com_win, client_win)?;
+                    connections.new_connection(com_win, client_win);
                 } else if msg.type_ == self.atoms.XIM_PROTOCOL {
-                    self.handle_xim_protocol(msg, handler)?;
+                    if let Some(connection) = connections.get_connection(msg.window) {
+                        self.handle_xim_protocol(msg, connection, handler)?;
+                    } else {
+                        log::warn!("Unknown connection");
+                    }
                 }
 
                 Ok(true)
@@ -248,6 +253,7 @@ impl<C: HasConnection> X11rbServer<C> {
     fn handle_xim_protocol(
         &mut self,
         msg: &ClientMessageEvent,
+        connection: &mut XimConnection,
         handler: &mut impl ServerHandler<Self>,
     ) -> Result<(), ServerError> {
         if msg.format == 32 {
@@ -258,10 +264,10 @@ impl<C: HasConnection> X11rbServer<C> {
                 .reply()?
                 .value;
             let req = xim_parser::read(&data)?;
-            server_handle_request(self, msg.window, req, handler)
+            connection.handle_request(self, connection, req, handler)
         } else {
             let req = xim_parser::read(&msg.data.as_data8())?;
-            server_handle_request(self, msg.window, req, handler)
+            connection.handle_request(self, connection, req, handler)
         }
     }
 

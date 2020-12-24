@@ -38,7 +38,7 @@ mod tests {
 
     #[test]
     fn read_open() {
-        let req = read(&[
+        let req = read::<Request>(&[
             30, 0, 2, 0, 5, 101, 110, 95, 85, 83, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         ])
         .unwrap();
@@ -52,7 +52,7 @@ mod tests {
 
     #[test]
     fn read_query() {
-        let req = read(&[
+        let req = read::<Request>(&[
             40, 0, 5, 0, 0, 0, 13, 0, 12, 88, 73, 77, 95, 69, 88, 84, 95, 77, 79, 86, 69, 0, 0, 0,
         ])
         .unwrap();
@@ -67,9 +67,9 @@ mod tests {
 
     #[test]
     fn read_input_styles() {
-        let styles = InputStyleList::read(&mut Reader::new(&[
+        let styles: InputStyleList = read(&[
             5, 0, 119, 55, 4, 1, 0, 0, 4, 4, 0, 0, 4, 8, 0, 0, 8, 4, 0, 0, 8, 8, 0, 0,
-        ]))
+        ])
         .unwrap();
 
         assert_eq!(
@@ -102,7 +102,7 @@ mod tests {
 
     #[test]
     fn read_error() {
-        let req = read(&[
+        let req: Request = read(&[
             20, 0, 7, 0, 2, 0, 1, 0, 3, 0, 2, 0, 16, 0, 0, 0, 105, 110, 118, 97, 108, 105, 100, 32,
             105, 109, 32, 115, 116, 121, 108, 101,
         ])
@@ -269,7 +269,7 @@ mod tests {
 
     #[test]
     fn read_open_reply() {
-        assert_eq!(read(OPEN_REPLY).unwrap(), open_reply_value());
+        assert_eq!(read::<Request>(OPEN_REPLY).unwrap(), open_reply_value());
     }
 
     #[test]

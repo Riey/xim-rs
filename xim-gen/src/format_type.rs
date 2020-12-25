@@ -92,7 +92,7 @@ impl FormatType {
                 inner.write("elem", out)?;
                 writeln!(out, "}}")?;
             }
-            FormatType::Pad(inner, _size_sub) => {
+            FormatType::Pad(inner, _size_add) => {
                 inner.write(this, out)?;
                 writeln!(out, "writer.write_pad4();")?;
             }
@@ -137,7 +137,7 @@ impl FormatType {
             FormatType::Pad(inner, size_add) => {
                 write!(out, "with_pad4(")?;
                 inner.size(this, out)?;
-                write!(out, ")")?;
+                write!(out, "- {})", size_add)?;
                 if *size_add > 0 {
                     write!(out, " + {}", size_add)
                 } else {

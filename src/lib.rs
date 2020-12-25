@@ -1,4 +1,6 @@
 mod client;
+mod server;
+
 #[cfg(feature = "x11rb-client")]
 pub mod x11rb;
 // incomplete
@@ -6,11 +8,13 @@ pub mod x11rb;
 pub mod xlib;
 
 use std::collections::HashMap;
-use std::iter;
 
 pub use crate::client::{Client, ClientError, ClientHandler};
+pub use crate::server::{
+    InputContext, InputMethod, Server, ServerError, ServerHandler, XimConnection, XimConnections,
+};
 pub use ctext::{compound_text_to_utf8, utf8_to_compound_text};
-use xim_parser::{Attribute, AttributeName, Writer, XimWrite};
+use xim_parser::{Attribute, AttributeName, XimWrite};
 
 pub struct NestedListBuilder<'a> {
     id_map: &'a HashMap<AttributeName, u16>,
@@ -20,13 +24,11 @@ pub struct NestedListBuilder<'a> {
 impl<'a> NestedListBuilder<'a> {
     pub fn push<V: XimWrite>(self, name: AttributeName, value: V) -> Self {
         if let Some(id) = self.id_map.get(&name).copied() {
-            let mut buf = Vec::new();
-            buf.resize(value.size(), 0);
-            value.write(&mut Writer::new(&mut buf));
-            let attr = Attribute { id, value: buf };
-            let from = self.out.len();
-            self.out.extend(iter::repeat(0).take(attr.size()));
-            attr.write(&mut Writer::new(&mut self.out[from..]));
+            let attr = Attribute {
+                id,
+                value: xim_parser::write_to_vec(value),
+            };
+            xim_parser::write_extend_vec(attr, self.out);
         }
 
         self
@@ -48,10 +50,10 @@ impl<'a> AttributeBuilder<'a> {
 
     pub fn push<V: XimWrite>(mut self, name: AttributeName, value: V) -> Self {
         if let Some(id) = self.id_map.get(&name).copied() {
-            let mut buf = Vec::new();
-            buf.resize(value.size(), 0);
-            value.write(&mut Writer::new(&mut buf));
-            self.out.push(Attribute { id, value: buf });
+            self.out.push(Attribute {
+                id,
+                value: xim_parser::write_to_vec(value),
+            });
         }
 
         self

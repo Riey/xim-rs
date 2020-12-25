@@ -71,6 +71,12 @@ Enums:
       OnKeyList: 0
       OffKeyList: 1
 
+  HotKeyState:
+    repr: u32
+    variants:
+      On: 1
+      Off: 2
+
   AttrType:
     repr: u16
     variants:
@@ -178,7 +184,7 @@ Structs:
     - "name @pad AttributeName"
   Attribute:
     - "id u16"
-    - "value @pad xstring"
+    - "value @padadd2 xstring"
   Extension:
     - "major_opcode u8"
     - "minor_opcode u8"
@@ -191,9 +197,20 @@ Structs:
     - "status PreeditDrawStatus"
     - "status_string @pad string"
     - "feedbacks @list22 Feedback"
-  Spot:
+
+  # attribute datas
+  Point:
     - "x i16"
     - "y i16"
+  InputStyleList:
+    - "styles @list22 InputStyle"
+  Rectangle:
+    - "x i16"
+    - "y i16"
+    - "width u16"
+    - "height u16"
+  FontSet:
+    - "name @pad string"
 
   XEvent:
     - "response_type u8"
@@ -382,7 +399,7 @@ Requests:
     minor_opcode: ~
     body:
       - "input_method_id u16"
-      - "im_attributes @pad @list u16"
+      - "im_attributes @padadd2 @list u16"
 
   GetImValuesReply:
     major_opcode: 45
@@ -396,7 +413,7 @@ Requests:
     minor_opcode: ~
     body:
       - "input_method_id u16"
-      - "ic_attributes @pad @list Attribute"
+      - "ic_attributes @list Attribute"
 
   CreateIcReply:
     major_opcode: 51

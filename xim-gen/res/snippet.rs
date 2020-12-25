@@ -6,12 +6,18 @@
 use bstr::{BString, ByteSlice};
 use std::convert::TryInto;
 
-pub fn read(b: &[u8]) -> Result<Request, ReadError> {
-    Request::read(&mut Reader::new(b))
+pub fn read<T>(b: &[u8]) -> Result<T, ReadError>
+where
+    T: XimRead,
+{
+    T::read(&mut Reader::new(b))
 }
 
-pub fn write(req: &Request, out: &mut [u8]) {
-    req.write(&mut Writer::new(out));
+pub fn write<T>(val: T, out: &mut [u8])
+where
+    T: XimWrite,
+{
+    val.write(&mut Writer::new(out));
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -48,6 +54,11 @@ pub enum CommitData {
     },
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct HotKeyTriggers {
+    pub triggers: Vec<(TriggerKey, HotKeyState)>,
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum ReadError {
     #[error("End of Stream")]
@@ -59,7 +70,10 @@ pub enum ReadError {
 }
 
 fn pad4(len: usize) -> usize {
-    (4 - (len % 4)) % 4
+    match len % 4 {
+        0 => 0,
+        x => 4 - x,
+    }
 }
 
 fn with_pad4(len: usize) -> usize {
@@ -327,6 +341,41 @@ impl XimWrite for CommitData {
             Self::Chars { commited, .. } => with_pad4(commited.len() + 2),
             Self::Both { commited, .. } => with_pad4(commited.len() + 2) + 6,
         }
+    }
+}
+
+impl XimRead for HotKeyTriggers {
+    fn read(reader: &mut Reader) -> Result<Self, ReadError> {
+        let n = reader.u32()? as usize;
+        let mut out = Vec::with_capacity(n);
+
+        for _ in 0..n {
+            out.push((TriggerKey::read(reader)?, HotKeyState::Off));
+        }
+
+        for _ in 0..n {
+            out[n].1 = HotKeyState::read(reader)?;
+        }
+
+        Ok(Self { triggers: out })
+    }
+}
+
+impl XimWrite for HotKeyTriggers {
+    fn write(&self, writer: &mut Writer) {
+        (self.triggers.len() as u32).write(writer);
+
+        for (trigger, _) in self.triggers.iter() {
+            trigger.write(writer);
+        }
+
+        for (_, state) in self.triggers.iter() {
+            state.write(writer);
+        }
+    }
+
+    fn size(&self) -> usize {
+        self.triggers.len() * 8 + 4
     }
 }
 

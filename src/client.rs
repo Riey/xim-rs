@@ -51,6 +51,23 @@ pub fn handle_request<C: ClientCore>(
             input_method_id: _,
             extensions,
         } => handler.handle_query_extension(client, &extensions),
+        Request::GetImValuesReply {
+            input_method_id,
+            im_attributes,
+        } => handler.handle_get_im_values(
+            client,
+            input_method_id,
+            im_attributes
+                .into_iter()
+                .filter_map(|attr| {
+                    client
+                        .im_attributes()
+                        .iter()
+                        .find(|(_, v)| **v == attr.id)
+                        .map(|(n, _)| (*n, attr.value))
+                })
+                .collect(),
+        ),
         Request::CreateIcReply {
             input_method_id,
             input_context_id,
@@ -157,6 +174,11 @@ pub trait Client {
         input_method_id: u16,
         extensions: &[&str],
     ) -> Result<(), ClientError>;
+    fn get_im_values(
+        &mut self,
+        input_method_id: u16,
+        names: &[AttributeName],
+    ) -> Result<(), ClientError>;
     fn create_ic(
         &mut self,
         input_method_id: u16,
@@ -204,6 +226,20 @@ where
         self.send_req(Request::QueryExtension {
             input_method_id,
             extensions: extensions.iter().map(|&e| e.into()).collect(),
+        })
+    }
+
+    fn get_im_values(
+        &mut self,
+        input_method_id: u16,
+        names: &[AttributeName],
+    ) -> Result<(), ClientError> {
+        self.send_req(Request::GetImValues {
+            input_method_id,
+            im_attributes: names
+                .iter()
+                .filter_map(|name| self.im_attributes().get(name).copied())
+                .collect(),
         })
     }
 
@@ -264,6 +300,12 @@ pub trait ClientHandler<C: Client> {
         &mut self,
         client: &mut C,
         extensions: &[Extension],
+    ) -> Result<(), ClientError>;
+    fn handle_get_im_values(
+        &mut self,
+        client: &mut C,
+        input_method_id: u16,
+        attributes: HashMap<AttributeName, Vec<u8>>,
     ) -> Result<(), ClientError>;
     fn handle_create_ic(
         &mut self,

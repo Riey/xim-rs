@@ -1,5 +1,7 @@
+use std::collections::HashMap;
+
 use xim::{Client, ClientError, ClientHandler};
-use xim_parser::{AttributeName, InputStyle, Spot};
+use xim_parser::{AttributeName, InputStyle, Point};
 
 #[derive(Default)]
 pub struct ExampleHandler {
@@ -18,6 +20,26 @@ impl<C: Client> ClientHandler<C> for ExampleHandler {
     fn handle_open(&mut self, client: &mut C, input_method_id: u16) -> Result<(), ClientError> {
         log::trace!("Opened");
         self.im_id = input_method_id;
+
+        client.get_im_values(input_method_id, &[AttributeName::QueryInputStyle])
+    }
+
+    fn handle_get_im_values(
+        &mut self,
+        client: &mut C,
+        input_method_id: u16,
+        mut attributes: HashMap<AttributeName, Vec<u8>>,
+    ) -> Result<(), ClientError> {
+        log::trace!(
+            "Query: {:?}",
+            xim_parser::write_to_vec(xim_parser::Request::GetImValuesReply {
+                input_method_id,
+                im_attributes: vec![xim_parser::Attribute {
+                    id: 0,
+                    value: attributes.remove(&AttributeName::QueryInputStyle).unwrap(),
+                }]
+            })
+        );
         let ic_attributes = client
             .build_ic_attributes()
             .push(
@@ -27,7 +49,7 @@ impl<C: Client> ClientHandler<C> for ExampleHandler {
             .push(AttributeName::ClientWindow, self.window)
             .push(AttributeName::FocusWindow, self.window)
             .nested_list(AttributeName::PreeditAttributes, |b| {
-                b.push(AttributeName::SpotLocation, Spot { x: 0, y: 0 });
+                b.push(AttributeName::SpotLocation, Point { x: 0, y: 0 });
             })
             .build();
         client.create_ic(input_method_id, ic_attributes)

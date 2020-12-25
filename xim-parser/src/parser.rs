@@ -6,12 +6,18 @@
 use bstr::{BString, ByteSlice};
 use std::convert::TryInto;
 
-pub fn read(b: &[u8]) -> Result<Request, ReadError> {
-    Request::read(&mut Reader::new(b))
+pub fn read<T>(b: &[u8]) -> Result<T, ReadError>
+where
+    T: XimRead,
+{
+    T::read(&mut Reader::new(b))
 }
 
-pub fn write(req: &Request, out: &mut [u8]) {
-    req.write(&mut Writer::new(out));
+pub fn write<T>(val: T, out: &mut [u8])
+where
+    T: XimWrite,
+{
+    val.write(&mut Writer::new(out));
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -48,6 +54,11 @@ pub enum CommitData {
     },
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct HotKeyTriggers {
+    pub triggers: Vec<(TriggerKey, HotKeyState)>,
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum ReadError {
     #[error("End of Stream")]
@@ -59,7 +70,10 @@ pub enum ReadError {
 }
 
 fn pad4(len: usize) -> usize {
-    (4 - (len % 4)) % 4
+    match len % 4 {
+        0 => 0,
+        x => 4 - x,
+    }
 }
 
 fn with_pad4(len: usize) -> usize {
@@ -327,6 +341,41 @@ impl XimWrite for CommitData {
             Self::Chars { commited, .. } => with_pad4(commited.len() + 2),
             Self::Both { commited, .. } => with_pad4(commited.len() + 2) + 6,
         }
+    }
+}
+
+impl XimRead for HotKeyTriggers {
+    fn read(reader: &mut Reader) -> Result<Self, ReadError> {
+        let n = reader.u32()? as usize;
+        let mut out = Vec::with_capacity(n);
+
+        for _ in 0..n {
+            out.push((TriggerKey::read(reader)?, HotKeyState::Off));
+        }
+
+        for _ in 0..n {
+            out[n].1 = HotKeyState::read(reader)?;
+        }
+
+        Ok(Self { triggers: out })
+    }
+}
+
+impl XimWrite for HotKeyTriggers {
+    fn write(&self, writer: &mut Writer) {
+        (self.triggers.len() as u32).write(writer);
+
+        for (trigger, _) in self.triggers.iter() {
+            trigger.write(writer);
+        }
+
+        for (_, state) in self.triggers.iter() {
+            state.write(writer);
+        }
+    }
+
+    fn size(&self) -> usize {
+        self.triggers.len() * 8 + 4
     }
 }
 
@@ -639,6 +688,30 @@ impl XimWrite for ForwardEventFlag {
         std::mem::size_of::<u16>()
     }
 }
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u32)]
+pub enum HotKeyState {
+    On = 1,
+    Off = 2,
+}
+impl XimRead for HotKeyState {
+    fn read(reader: &mut Reader) -> Result<Self, ReadError> {
+        let repr = u32::read(reader)?;
+        match repr {
+            1 => Ok(Self::On),
+            2 => Ok(Self::Off),
+            _ => Err(reader.invalid_data("HotKeyState", repr)),
+        }
+    }
+}
+impl XimWrite for HotKeyState {
+    fn write(&self, writer: &mut Writer) {
+        (*self as u32).write(writer);
+    }
+    fn size(&self) -> usize {
+        std::mem::size_of::<u32>()
+    }
+}
 bitflags::bitflags! {
 pub struct InputStyle: u32 {
 const PREEDITAREA = 1;
@@ -761,7 +834,7 @@ impl XimWrite for Attr {
         let mut content_size = 0;
         content_size += self.id.size();
         content_size += self.ty.size();
-        content_size += with_pad4(self.name.size());
+        content_size += with_pad4(self.name.size() - 0);
         content_size
     }
 }
@@ -795,7 +868,7 @@ impl XimWrite for Attribute {
     fn size(&self) -> usize {
         let mut content_size = 0;
         content_size += self.id.size();
-        content_size += with_pad4(self.value.len() + 2);
+        content_size += with_pad4(self.value.len() + 2 - 2) + 2;
         content_size
     }
 }
@@ -833,16 +906,81 @@ impl XimWrite for Extension {
         let mut content_size = 0;
         content_size += self.major_opcode.size();
         content_size += self.minor_opcode.size();
-        content_size += with_pad4(self.name.len() + 2 + 0);
+        content_size += with_pad4(self.name.len() + 2 + 0 - 0);
         content_size
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Spot {
+pub struct FontSet {
+    pub name: BString,
+}
+impl XimRead for FontSet {
+    fn read(reader: &mut Reader) -> Result<Self, ReadError> {
+        Ok(Self {
+            name: {
+                let inner = {
+                    let len = u16::read(reader)?;
+                    reader.consume(len as usize)?.to_vec().into()
+                };
+                reader.pad4()?;
+                inner
+            },
+        })
+    }
+}
+impl XimWrite for FontSet {
+    fn write(&self, writer: &mut Writer) {
+        (self.name.len() as u16).write(writer);
+        writer.write(self.name.as_bytes());
+        writer.write_pad4();
+    }
+    fn size(&self) -> usize {
+        let mut content_size = 0;
+        content_size += with_pad4(self.name.len() + 2 + 0 - 0);
+        content_size
+    }
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct InputStyleList {
+    pub styles: Vec<InputStyle>,
+}
+impl XimRead for InputStyleList {
+    fn read(reader: &mut Reader) -> Result<Self, ReadError> {
+        Ok(Self {
+            styles: {
+                let mut out = Vec::new();
+                let len = u16::read(reader)? as usize;
+                let end = reader.cursor() - len;
+                u16::read(reader)?;
+                while reader.cursor() > end {
+                    out.push(InputStyle::read(reader)?);
+                }
+                out
+            },
+        })
+    }
+}
+impl XimWrite for InputStyleList {
+    fn write(&self, writer: &mut Writer) {
+        ((self.styles.iter().map(|e| e.size()).sum::<usize>() + 2 + 2 - 2 - 2) as u16)
+            .write(writer);
+        0u16.write(writer);
+        for elem in self.styles.iter() {
+            elem.write(writer);
+        }
+    }
+    fn size(&self) -> usize {
+        let mut content_size = 0;
+        content_size += self.styles.iter().map(|e| e.size()).sum::<usize>() + 2 + 2;
+        content_size
+    }
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Point {
     pub x: i16,
     pub y: i16,
 }
-impl XimRead for Spot {
+impl XimRead for Point {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
         Ok(Self {
             x: i16::read(reader)?,
@@ -850,7 +988,7 @@ impl XimRead for Spot {
         })
     }
 }
-impl XimWrite for Spot {
+impl XimWrite for Point {
     fn write(&self, writer: &mut Writer) {
         self.x.write(writer);
         self.y.write(writer);
@@ -859,6 +997,39 @@ impl XimWrite for Spot {
         let mut content_size = 0;
         content_size += self.x.size();
         content_size += self.y.size();
+        content_size
+    }
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Rectangle {
+    pub x: i16,
+    pub y: i16,
+    pub width: u16,
+    pub height: u16,
+}
+impl XimRead for Rectangle {
+    fn read(reader: &mut Reader) -> Result<Self, ReadError> {
+        Ok(Self {
+            x: i16::read(reader)?,
+            y: i16::read(reader)?,
+            width: u16::read(reader)?,
+            height: u16::read(reader)?,
+        })
+    }
+}
+impl XimWrite for Rectangle {
+    fn write(&self, writer: &mut Writer) {
+        self.x.write(writer);
+        self.y.write(writer);
+        self.width.write(writer);
+        self.height.write(writer);
+    }
+    fn size(&self) -> usize {
+        let mut content_size = 0;
+        content_size += self.x.size();
+        content_size += self.y.size();
+        content_size += self.width.size();
+        content_size += self.height.size();
         content_size
     }
 }
@@ -909,7 +1080,7 @@ impl XimWrite for StatusTextContent {
     fn size(&self) -> usize {
         let mut content_size = 0;
         content_size += self.status.size();
-        content_size += with_pad4(self.status_string.len() + 2 + 0);
+        content_size += with_pad4(self.status_string.len() + 2 + 0 - 0);
         content_size += self.feedbacks.iter().map(|e| e.size()).sum::<usize>() + 2 + 2;
         content_size
     }
@@ -1523,17 +1694,13 @@ impl XimRead for Request {
             (50, _) => Ok(Request::CreateIc {
                 input_method_id: u16::read(reader)?,
                 ic_attributes: {
-                    let inner = {
-                        let mut out = Vec::new();
-                        let len = u16::read(reader)? as usize;
-                        let end = reader.cursor() - len;
-                        while reader.cursor() > end {
-                            out.push(Attribute::read(reader)?);
-                        }
-                        out
-                    };
-                    reader.pad4()?;
-                    inner
+                    let mut out = Vec::new();
+                    let len = u16::read(reader)? as usize;
+                    let end = reader.cursor() - len;
+                    while reader.cursor() > end {
+                        out.push(Attribute::read(reader)?);
+                    }
+                    out
                 },
             }),
             (51, _) => Ok(Request::CreateIcReply {
@@ -2000,7 +2167,7 @@ impl XimWrite for Request {
                 client_minor_protocol_version.write(writer);
                 ((client_auth_protocol_names
                     .iter()
-                    .map(|e| with_pad4(e.len() + 2 + 0))
+                    .map(|e| with_pad4(e.len() + 2 + 0 - 0))
                     .sum::<usize>()
                     + 0
                     + 2
@@ -2036,7 +2203,6 @@ impl XimWrite for Request {
                 for elem in ic_attributes.iter() {
                     elem.write(writer);
                 }
-                writer.write_pad4();
             }
             Request::CreateIcReply {
                 input_method_id,
@@ -2096,7 +2262,7 @@ impl XimWrite for Request {
                 writer.write_pad4();
                 ((encoding_infos
                     .iter()
-                    .map(|e| with_pad4(e.len() + 2 + 0))
+                    .map(|e| with_pad4(e.len() + 2 + 0 - 0))
                     .sum::<usize>()
                     + 2
                     + 2
@@ -2643,7 +2809,7 @@ impl XimWrite for Request {
                 content_size += client_minor_protocol_version.size();
                 content_size += client_auth_protocol_names
                     .iter()
-                    .map(|e| with_pad4(e.len() + 2 + 0))
+                    .map(|e| with_pad4(e.len() + 2 + 0 - 0))
                     .sum::<usize>()
                     + 0
                     + 2;
@@ -2660,8 +2826,7 @@ impl XimWrite for Request {
                 ic_attributes,
             } => {
                 content_size += input_method_id.size();
-                content_size +=
-                    with_pad4(ic_attributes.iter().map(|e| e.size()).sum::<usize>() + 0 + 2);
+                content_size += ic_attributes.iter().map(|e| e.size()).sum::<usize>() + 0 + 2;
             }
             Request::CreateIcReply {
                 input_method_id,
@@ -2693,10 +2858,11 @@ impl XimWrite for Request {
             } => {
                 content_size += input_method_id.size();
                 content_size +=
-                    with_pad4(encodings.iter().map(|e| e.len() + 1 + 0).sum::<usize>() + 0 + 2) + 2;
+                    with_pad4(encodings.iter().map(|e| e.len() + 1 + 0).sum::<usize>() + 0 + 2 - 2)
+                        + 2;
                 content_size += encoding_infos
                     .iter()
-                    .map(|e| with_pad4(e.len() + 2 + 0))
+                    .map(|e| with_pad4(e.len() + 2 + 0 - 0))
                     .sum::<usize>()
                     + 2
                     + 2;
@@ -2721,7 +2887,7 @@ impl XimWrite for Request {
                 content_size += input_context_id.size();
                 content_size += flag.size();
                 content_size += code.size();
-                content_size += with_pad4(detail.len() + 2 + 2);
+                content_size += with_pad4(detail.len() + 2 + 2 - 0);
             }
             Request::ForwardEvent {
                 input_method_id,
@@ -2751,7 +2917,7 @@ impl XimWrite for Request {
                 content_size += input_method_id.size();
                 content_size += input_context_id.size();
                 content_size +=
-                    with_pad4(ic_attributes.iter().map(|e| e.size()).sum::<usize>() + 0 + 2);
+                    with_pad4(ic_attributes.iter().map(|e| e.size()).sum::<usize>() + 0 + 2 - 0);
             }
             Request::GetIcValuesReply {
                 input_method_id,
@@ -2768,7 +2934,8 @@ impl XimWrite for Request {
             } => {
                 content_size += input_method_id.size();
                 content_size +=
-                    with_pad4(im_attributes.iter().map(|e| e.size()).sum::<usize>() + 0 + 2);
+                    with_pad4(im_attributes.iter().map(|e| e.size()).sum::<usize>() + 0 + 2 - 2)
+                        + 2;
             }
             Request::GetImValuesReply {
                 input_method_id,
@@ -2778,7 +2945,7 @@ impl XimWrite for Request {
                 content_size += im_attributes.iter().map(|e| e.size()).sum::<usize>() + 0 + 2;
             }
             Request::Open { locale } => {
-                content_size += with_pad4(locale.len() + 1 + 0);
+                content_size += with_pad4(locale.len() + 1 + 0 - 0);
             }
             Request::OpenReply {
                 input_method_id,
@@ -2834,7 +3001,7 @@ impl XimWrite for Request {
                 content_size += chg_first.size();
                 content_size += chg_length.size();
                 content_size += status.size();
-                content_size += with_pad4(preedit_string.len() + 2);
+                content_size += with_pad4(preedit_string.len() + 2 - 0);
                 content_size += feedbacks.iter().map(|e| e.size()).sum::<usize>() + 2 + 2;
             }
             Request::PreeditStart {
@@ -2867,8 +3034,9 @@ impl XimWrite for Request {
                 extensions,
             } => {
                 content_size += input_method_id.size();
-                content_size +=
-                    with_pad4(extensions.iter().map(|e| e.len() + 1 + 0).sum::<usize>() + 0 + 2);
+                content_size += with_pad4(
+                    extensions.iter().map(|e| e.len() + 1 + 0).sum::<usize>() + 0 + 2 - 0,
+                );
             }
             Request::QueryExtensionReply {
                 input_method_id,
@@ -2900,7 +3068,7 @@ impl XimWrite for Request {
             } => {
                 content_size += input_method_id.size();
                 content_size += input_context_id.size();
-                content_size += with_pad4(preedit_string.len() + 2);
+                content_size += with_pad4(preedit_string.len() + 2 - 0);
             }
             Request::SetEventMask {
                 input_method_id,

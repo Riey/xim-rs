@@ -3,9 +3,21 @@ mod parser;
 pub use bstr;
 pub use parser::*;
 
+pub fn write_extend_vec(f: impl XimWrite, out: &mut Vec<u8>) {
+    let from = out.len();
+    out.extend(std::iter::repeat(0).take(f.size()));
+    f.write(&mut Writer::new(&mut out[from..]));
+}
+
+pub fn write_to_vec(f: impl XimWrite) -> Vec<u8> {
+    let mut out: Vec<u8> = std::iter::repeat(0).take(f.size()).collect();
+    f.write(&mut Writer::new(&mut out));
+    out
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::parser::*;
+    use crate::{parser::*, write_to_vec};
     use pretty_assertions::assert_eq;
 
     #[cfg(target_endian = "little")]
@@ -26,7 +38,7 @@ mod tests {
 
     #[test]
     fn read_open() {
-        let req = read(&[
+        let req = read::<Request>(&[
             30, 0, 2, 0, 5, 101, 110, 95, 85, 83, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         ])
         .unwrap();
@@ -40,7 +52,7 @@ mod tests {
 
     #[test]
     fn read_query() {
-        let req = read(&[
+        let req = read::<Request>(&[
             40, 0, 5, 0, 0, 0, 13, 0, 12, 88, 73, 77, 95, 69, 88, 84, 95, 77, 79, 86, 69, 0, 0, 0,
         ])
         .unwrap();
@@ -54,8 +66,43 @@ mod tests {
     }
 
     #[test]
+    fn read_input_styles() {
+        let styles: InputStyleList = read(&[
+            5, 0, 119, 55, 4, 1, 0, 0, 4, 4, 0, 0, 4, 8, 0, 0, 8, 4, 0, 0, 8, 8, 0, 0,
+        ])
+        .unwrap();
+
+        assert_eq!(
+            styles,
+            InputStyleList {
+                styles: vec![InputStyle::PREEDITPOSITION | InputStyle::STATUSAREA]
+            }
+        );
+    }
+
+    #[test]
+    fn im_reply() {
+        let req = Request::GetImValuesReply {
+            input_method_id: 3,
+            im_attributes: vec![Attribute {
+                id: 0,
+                value: write_to_vec(InputStyleList {
+                    styles: vec![InputStyle::PREEDITPOSITION | InputStyle::STATUSAREA],
+                }),
+            }],
+        };
+
+        let out = write_to_vec(&req);
+        assert_eq!(req.size(), out.len());
+
+        let new_req = read(&out).unwrap();
+
+        assert_eq!(req, new_req);
+    }
+
+    #[test]
     fn read_error() {
-        let req = read(&[
+        let req: Request = read(&[
             20, 0, 7, 0, 2, 0, 1, 0, 3, 0, 2, 0, 16, 0, 0, 0, 105, 110, 118, 97, 108, 105, 100, 32,
             105, 109, 32, 115, 116, 121, 108, 101,
         ])
@@ -74,8 +121,19 @@ mod tests {
     }
 
     #[test]
+    fn write_get_im_values() {
+        let req = Request::GetImValues {
+            input_method_id: 1,
+            im_attributes: vec![0],
+        };
+
+        let out = write_to_vec(&req);
+
+        assert_eq!(out.len(), req.size());
+    }
+
+    #[test]
     fn write_forward_event() {
-        let mut out = Vec::new();
         let req = Request::ForwardEvent {
             input_method_id: 0,
             input_context_id: 0,
@@ -83,35 +141,29 @@ mod tests {
             serial_number: 0,
             xev: unsafe { std::mem::zeroed() },
         };
-
         assert_eq!(req.size(), 4 + 8 + 32);
-        out.resize(req.size(), 0);
-        write(&req, &mut out);
+
+        let out = write_to_vec(&req);
         assert!(out.starts_with(b"\x3c\x00\x0a\x00"));
     }
 
     #[test]
     fn write_create_ic() {
-        let mut out = Vec::new();
         let req = Request::CreateIc {
             input_method_id: 2,
             ic_attributes: Vec::new(),
         };
-        out.resize(req.size(), 0);
-        write(&req, &mut out);
-        assert_eq!(out, b"\x32\x00\x01\x00\x02\x00\x00\x00\x00\x00");
+        let out = write_to_vec(&req);
+        assert_eq!(out, b"\x32\x00\x01\x00\x02\x00\x00\x00");
     }
 
     #[test]
     fn write_connect_reply() {
-        let reply = Request::ConnectReply {
+        let req = Request::ConnectReply {
             server_minor_protocol_version: 0,
             server_major_protocol_version: 1,
         };
-        let mut out = Vec::new();
-        out.resize(reply.size(), 0);
-        write(&reply, &mut out);
-
+        let out = write_to_vec(&req);
         assert_eq!(out, b"\x02\x00\x01\x00\x01\x00\x00\x00");
     }
 
@@ -217,13 +269,7 @@ mod tests {
 
     #[test]
     fn read_open_reply() {
-        assert_eq!(read(OPEN_REPLY).unwrap(), open_reply_value());
-    }
-
-    fn check_size(r: Request) {
-        let mut out = Vec::new();
-        out.resize(r.size(), 0);
-        write(&r, &mut out);
+        assert_eq!(read::<Request>(OPEN_REPLY).unwrap(), open_reply_value());
     }
 
     #[test]
@@ -232,25 +278,9 @@ mod tests {
     }
 
     #[test]
-    fn size_open_reply_bytes() {
-        check_size(open_reply_value());
-    }
-
-    #[test]
-    fn size_encoding_nego() {
-        check_size(Request::EncodingNegotiation {
-            encodings: vec!["COMPOUND_TEXT".into()],
-            encoding_infos: vec![],
-            input_method_id: 0,
-        });
-    }
-
-    #[test]
     fn write_open_reply() {
-        let mut out = Vec::new();
         let value = open_reply_value();
-        out.resize(value.size(), 0);
-        write(&value, &mut out);
+        let out = write_to_vec(&value);
         assert_eq!(OPEN_REPLY.len(), out.len());
         assert_eq!(OPEN_REPLY, out);
         let new: Request = read(&out).unwrap();

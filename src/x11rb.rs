@@ -1,7 +1,8 @@
 use std::{collections::HashMap, convert::TryInto};
 
 use crate::{
-    client::{handle_request, ClientCore, ClientError, ClientHandler},
+    client::{handle_request as client_handle_request, ClientCore, ClientError, ClientHandler},
+    server::{ServerCore, ServerError, ServerHandler, XimConnection, XimConnections},
     Atoms,
 };
 #[cfg(feature = "x11rb-xcb")]
@@ -12,11 +13,13 @@ use x11rb::{
     protocol::{
         xproto::{
             Atom, AtomEnum, ClientMessageEvent, ConnectionExt, KeyPressEvent, PropMode, Screen,
-            WindowClass, CLIENT_MESSAGE_EVENT,
+            SelectionNotifyEvent, SelectionRequestEvent, Window, WindowClass, CLIENT_MESSAGE_EVENT,
+            SELECTION_NOTIFY_EVENT,
         },
         Event,
     },
     rust_connection::RustConnection,
+    wrapper::ConnectionExt as _,
     COPY_DEPTH_FROM_PARENT, CURRENT_TIME,
 };
 
@@ -30,6 +33,12 @@ macro_rules! convert_error {
                 ClientError::Other(err.into())
             }
         }
+
+        impl From<$ty> for ServerError {
+            fn from(err: $ty) -> Self {
+                ServerError::Other(err.into())
+            }
+        }
         )+
     };
 }
@@ -41,79 +50,6 @@ convert_error!(
     ReplyOrIdError,
     ParseError,
 );
-
-impl<C: HasConnection> ClientCore for X11rbClient<C> {
-    type XEvent = KeyPressEvent;
-
-    #[inline]
-    fn set_event_mask(&mut self, forward_event_mask: u32, synchronous_event_mask: u32) {
-        self.forward_event_mask = forward_event_mask;
-        self.synchronous_event_mask = synchronous_event_mask;
-    }
-
-    fn set_attrs(&mut self, im_attrs: Vec<Attr>, ic_attrs: Vec<Attr>) {
-        for im_attr in im_attrs {
-            self.im_attributes.insert(im_attr.name, im_attr.id);
-        }
-
-        for ic_attr in ic_attrs {
-            self.ic_attributes.insert(ic_attr.name, ic_attr.id);
-        }
-    }
-
-    #[inline]
-    fn ic_attributes(&self) -> &HashMap<AttributeName, u16> {
-        &self.ic_attributes
-    }
-
-    #[inline]
-    fn im_attributes(&self) -> &HashMap<AttributeName, u16> {
-        &self.im_attributes
-    }
-
-    #[inline]
-    fn serialize_event(&self, xev: Self::XEvent) -> xim_parser::XEvent {
-        xim_parser::XEvent {
-            response_type: xev.response_type,
-            detail: xev.detail,
-            sequence: xev.sequence,
-            time: xev.time,
-            root: xev.root,
-            event: xev.event,
-            child: xev.child,
-            root_x: xev.root_x,
-            root_y: xev.root_y,
-            event_x: xev.event_x,
-            event_y: xev.event_y,
-            state: xev.state,
-            same_screen: xev.same_screen,
-        }
-    }
-
-    #[inline]
-    fn deserialize_event(&self, xev: xim_parser::XEvent) -> Self::XEvent {
-        KeyPressEvent {
-            response_type: xev.response_type,
-            detail: xev.detail,
-            sequence: xev.sequence,
-            time: xev.time,
-            root: xev.root,
-            event: xev.event,
-            child: xev.child,
-            root_x: xev.root_x,
-            root_y: xev.root_y,
-            event_x: xev.event_x,
-            event_y: xev.event_y,
-            state: xev.state,
-            same_screen: xev.same_screen,
-        }
-    }
-
-    #[inline]
-    fn send_req(&mut self, req: Request) -> Result<(), ClientError> {
-        self.send_req_impl(req)
-    }
-}
 
 pub trait HasConnection {
     type Connection: Connection + ConnectionExt;
@@ -149,6 +85,15 @@ impl<C: HasConnection> HasConnection for X11rbClient<C> {
     }
 }
 
+impl<C: HasConnection> HasConnection for X11rbServer<C> {
+    type Connection = C::Connection;
+
+    #[inline(always)]
+    fn conn(&self) -> &Self::Connection {
+        self.has_conn.conn()
+    }
+}
+
 impl<'x, C: HasConnection> HasConnection for &'x C {
     type Connection = C::Connection;
 
@@ -158,10 +103,221 @@ impl<'x, C: HasConnection> HasConnection for &'x C {
     }
 }
 
+pub struct X11rbServer<C: HasConnection> {
+    has_conn: C,
+    im_win: Window,
+    atoms: Atoms<Atom>,
+    buf: Vec<u8>,
+}
+
+impl<C: HasConnection> X11rbServer<C> {
+    pub fn init(has_conn: C, screen: &Screen, im_name: &str) -> Result<Self, ServerError> {
+        let im_name = format!("@server={}", im_name);
+        let conn = has_conn.conn();
+        let im_win = conn.generate_id()?;
+        conn.create_window(
+            COPY_DEPTH_FROM_PARENT,
+            im_win,
+            screen.root,
+            0,
+            0,
+            1,
+            1,
+            0,
+            WindowClass::CopyFromParent,
+            screen.root_visual,
+            &Default::default(),
+        )?;
+        let atoms = Atoms::new::<ServerError, _>(|name| {
+            Ok(conn.intern_atom(false, name.as_bytes())?.reply()?.atom)
+        })?;
+
+        let reply = conn
+            .get_property(
+                false,
+                screen.root,
+                atoms.XIM_SERVERS,
+                AtomEnum::ATOM,
+                0,
+                u32::MAX,
+            )?
+            .reply()?;
+
+        if reply.type_ != x11rb::NONE && (reply.type_ != AtomEnum::ATOM.into()) {
+            return Err(ServerError::InvalidReply);
+        }
+
+        let server_name = conn.intern_atom(false, im_name.as_bytes())?.reply()?.atom;
+
+        let mut found = false;
+
+        for prop in reply.value32().ok_or(ServerError::InvalidReply)? {
+            if prop == server_name {
+                found = true;
+
+                let owner = conn.get_selection_owner(server_name)?.reply()?.owner;
+
+                if owner != x11rb::NONE {
+                    return Err(ServerError::AlreadyRunning);
+                } else {
+                    break;
+                }
+            }
+        }
+
+        conn.set_selection_owner(im_win, server_name, x11rb::CURRENT_TIME)?;
+
+        if !found {
+            conn.change_property32(
+                PropMode::Prepend,
+                screen.root,
+                atoms.XIM_SERVERS,
+                AtomEnum::ATOM,
+                &[server_name],
+            )?;
+        }
+
+        conn.flush()?;
+
+        log::info!("Start server win: {}", im_win);
+
+        Ok(Self {
+            has_conn,
+            im_win,
+            atoms,
+            buf: Vec::with_capacity(1024),
+        })
+    }
+
+    pub fn filter_event(
+        &mut self,
+        e: &Event,
+        connections: &mut XimConnections,
+        handler: &mut impl ServerHandler<Self>,
+    ) -> Result<bool, ServerError> {
+        match e {
+            Event::SelectionRequest(req) if req.owner == self.im_win => {
+                if req.property == self.atoms.LOCALES {
+                    self.send_selection_notify(req, "@locale=en_US")?;
+                } else if req.property == self.atoms.TRANSPORT {
+                    self.send_selection_notify(req, "@transport=X/")?;
+                }
+                Ok(true)
+            }
+            Event::ClientMessage(msg) => {
+                if msg.type_ == self.atoms.XIM_XCONNECT {
+                    let com_win = self.conn().generate_id()?;
+                    self.conn().create_window(
+                        COPY_DEPTH_FROM_PARENT,
+                        com_win,
+                        self.im_win,
+                        0,
+                        0,
+                        1,
+                        1,
+                        0,
+                        WindowClass::CopyFromParent,
+                        0,
+                        &Default::default(),
+                    )?;
+                    let client_win = msg.data.as_data32()[0];
+                    self.conn().send_event(
+                        false,
+                        client_win,
+                        0u32,
+                        ClientMessageEvent {
+                            format: 32,
+                            type_: self.atoms.XIM_XCONNECT,
+                            data: [com_win, 0, 2, 0, 0].into(),
+                            response_type: CLIENT_MESSAGE_EVENT,
+                            sequence: 0,
+                            window: client_win,
+                        },
+                    )?;
+                    self.conn().flush()?;
+                    connections.new_connection(com_win, client_win);
+                } else if msg.type_ == self.atoms.XIM_PROTOCOL {
+                    if let Some(connection) = connections.get_connection(msg.window) {
+                        self.handle_xim_protocol(msg, connection, handler)?;
+                    } else {
+                        log::warn!("Unknown connection");
+                    }
+                }
+
+                Ok(true)
+            }
+            _ => Ok(false),
+        }
+    }
+
+    fn handle_xim_protocol(
+        &mut self,
+        msg: &ClientMessageEvent,
+        connection: &mut XimConnection,
+        handler: &mut impl ServerHandler<Self>,
+    ) -> Result<(), ServerError> {
+        if msg.format == 32 {
+            let [length, atom, ..] = msg.data.as_data32();
+            let data = self
+                .conn()
+                .get_property(true, msg.window, atom, AtomEnum::Any, 0, length)?
+                .reply()?
+                .value;
+            let req = xim_parser::read(&data)?;
+            connection.handle_request(self, req, handler)
+        } else {
+            let req = xim_parser::read(&msg.data.as_data8())?;
+            connection.handle_request(self, req, handler)
+        }
+    }
+
+    fn send_selection_notify(
+        &mut self,
+        req: &SelectionRequestEvent,
+        data: &str,
+    ) -> Result<(), ServerError> {
+        let e = SelectionNotifyEvent {
+            response_type: SELECTION_NOTIFY_EVENT,
+            property: req.property,
+            time: req.time,
+            target: req.target,
+            selection: req.selection,
+            requestor: req.requestor,
+            sequence: 0,
+        };
+
+        self.conn().change_property8(
+            PropMode::Replace,
+            req.requestor,
+            req.property,
+            req.target,
+            data.as_bytes(),
+        )?;
+        self.conn().send_event(false, req.requestor, 0u32, e)?;
+        self.conn().flush()?;
+
+        Ok(())
+    }
+}
+
+impl<C: HasConnection> ServerCore for X11rbServer<C> {
+    fn send_req(&mut self, client_win: u32, req: Request) -> Result<(), ServerError> {
+        send_req_impl(
+            &self.has_conn,
+            &self.atoms,
+            client_win,
+            &mut self.buf,
+            20,
+            &req,
+        )
+        .map_err(Into::into)
+    }
+}
+
 pub struct X11rbClient<C: HasConnection> {
     has_conn: C,
-    server_owner_window: u32,
-    im_window: u32,
+    server_owner_window: Window,
+    im_window: Window,
     server_atom: Atom,
     atoms: Atoms<Atom>,
     transport_max: usize,
@@ -344,58 +500,6 @@ impl<C: HasConnection> X11rbClient<C> {
         }
     }
 
-    fn send_req_impl(&mut self, req: Request) -> Result<(), ClientError> {
-        self.buf.resize(req.size(), 0);
-        xim_parser::write(&req, &mut self.buf);
-
-        if self.buf.len() < self.transport_max {
-            if self.buf.len() > 20 {
-                todo!("multi-CM");
-            }
-            self.buf.resize(20, 0);
-            let buf: [u8; 20] = self.buf.as_slice().try_into().unwrap();
-            self.conn().send_event(
-                false,
-                self.im_window,
-                0u32,
-                ClientMessageEvent {
-                    response_type: CLIENT_MESSAGE_EVENT,
-                    data: buf.into(),
-                    format: 8,
-                    sequence: 0,
-                    type_: self.atoms.XIM_PROTOCOL,
-                    window: self.im_window,
-                },
-            )?;
-        } else {
-            self.conn().change_property(
-                PropMode::Append,
-                self.im_window,
-                self.atoms.DATA,
-                AtomEnum::STRING,
-                8,
-                self.buf.len() as u32,
-                &self.buf,
-            )?;
-            self.conn().send_event(
-                false,
-                self.im_window,
-                0u32,
-                ClientMessageEvent {
-                    data: [self.buf.len() as u32, self.atoms.DATA, 0, 0, 0].into(),
-                    format: 32,
-                    sequence: 0,
-                    response_type: CLIENT_MESSAGE_EVENT,
-                    type_: self.atoms.XIM_PROTOCOL,
-                    window: self.im_window,
-                },
-            )?;
-        }
-        self.conn().flush()?;
-        self.buf.clear();
-        Ok(())
-    }
-
     fn handle_xim_protocol(
         &mut self,
         msg: &ClientMessageEvent,
@@ -409,11 +513,11 @@ impl<C: HasConnection> X11rbClient<C> {
                 .reply()?
                 .value;
             let req = xim_parser::read(&data)?;
-            handle_request(self, handler, req)?;
+            client_handle_request(self, handler, req)?;
         } else if msg.format == 8 {
             let data = msg.data.as_data8();
             let req = xim_parser::read(&data)?;
-            handle_request(self, handler, req)?;
+            client_handle_request(self, handler, req)?;
         }
 
         Ok(())
@@ -440,40 +544,142 @@ impl<C: HasConnection> X11rbClient<C> {
     }
 }
 
-#[test]
-fn event_check() {
-    use xim_parser::{Writer, XimWrite};
-    let e = KeyPressEvent {
-        sequence: 1,
-        child: 1,
-        detail: 0,
-        event: 4,
-        event_x: 1,
-        event_y: 4,
-        response_type: 2,
-        root_x: 1,
-        root_y: 5,
-        same_screen: false,
-        state: 1,
-        time: 4,
-        root: 12,
-    };
-    let xev = xim_parser::XEvent {
-        sequence: 1,
-        child: 1,
-        detail: 0,
-        event: 4,
-        event_x: 1,
-        event_y: 4,
-        response_type: 2,
-        root_x: 1,
-        root_y: 5,
-        same_screen: false,
-        state: 1,
-        time: 4,
-        root: 12,
-    };
-    let mut buf = [0; 32];
-    xev.write(&mut Writer::new(&mut buf));
-    assert_eq!(<[u8; 32]>::from(e), buf);
+fn send_req_impl<C: HasConnection>(
+    c: &C,
+    atoms: &Atoms<Atom>,
+    target: Window,
+    buf: &mut Vec<u8>,
+    transport_max: usize,
+    req: &Request,
+) -> Result<(), ConnectionError> {
+    buf.resize(req.size(), 0);
+    xim_parser::write(req, buf);
+
+    if buf.len() < transport_max {
+        if buf.len() > 20 {
+            todo!("multi-CM");
+        }
+        buf.resize(20, 0);
+        let buf: [u8; 20] = buf.as_slice().try_into().unwrap();
+        c.conn().send_event(
+            false,
+            target,
+            0u32,
+            ClientMessageEvent {
+                response_type: CLIENT_MESSAGE_EVENT,
+                data: buf.into(),
+                format: 8,
+                sequence: 0,
+                type_: atoms.XIM_PROTOCOL,
+                window: target,
+            },
+        )?;
+    } else {
+        c.conn().change_property(
+            PropMode::Append,
+            target,
+            atoms.DATA,
+            AtomEnum::STRING,
+            8,
+            buf.len() as u32,
+            &buf,
+        )?;
+        c.conn().send_event(
+            false,
+            target,
+            0u32,
+            ClientMessageEvent {
+                data: [buf.len() as u32, atoms.DATA, 0, 0, 0].into(),
+                format: 32,
+                sequence: 0,
+                response_type: CLIENT_MESSAGE_EVENT,
+                type_: atoms.XIM_PROTOCOL,
+                window: target,
+            },
+        )?;
+    }
+    buf.clear();
+    c.conn().flush()?;
+    Ok(())
+}
+
+impl<C: HasConnection> ClientCore for X11rbClient<C> {
+    type XEvent = KeyPressEvent;
+
+    #[inline]
+    fn set_event_mask(&mut self, forward_event_mask: u32, synchronous_event_mask: u32) {
+        self.forward_event_mask = forward_event_mask;
+        self.synchronous_event_mask = synchronous_event_mask;
+    }
+
+    fn set_attrs(&mut self, im_attrs: Vec<Attr>, ic_attrs: Vec<Attr>) {
+        for im_attr in im_attrs {
+            self.im_attributes.insert(im_attr.name, im_attr.id);
+        }
+
+        for ic_attr in ic_attrs {
+            self.ic_attributes.insert(ic_attr.name, ic_attr.id);
+        }
+    }
+
+    #[inline]
+    fn ic_attributes(&self) -> &HashMap<AttributeName, u16> {
+        &self.ic_attributes
+    }
+
+    #[inline]
+    fn im_attributes(&self) -> &HashMap<AttributeName, u16> {
+        &self.im_attributes
+    }
+
+    #[inline]
+    fn serialize_event(&self, xev: Self::XEvent) -> xim_parser::XEvent {
+        xim_parser::XEvent {
+            response_type: xev.response_type,
+            detail: xev.detail,
+            sequence: xev.sequence,
+            time: xev.time,
+            root: xev.root,
+            event: xev.event,
+            child: xev.child,
+            root_x: xev.root_x,
+            root_y: xev.root_y,
+            event_x: xev.event_x,
+            event_y: xev.event_y,
+            state: xev.state,
+            same_screen: xev.same_screen,
+        }
+    }
+
+    #[inline]
+    fn deserialize_event(&self, xev: xim_parser::XEvent) -> Self::XEvent {
+        KeyPressEvent {
+            response_type: xev.response_type,
+            detail: xev.detail,
+            sequence: xev.sequence,
+            time: xev.time,
+            root: xev.root,
+            event: xev.event,
+            child: xev.child,
+            root_x: xev.root_x,
+            root_y: xev.root_y,
+            event_x: xev.event_x,
+            event_y: xev.event_y,
+            state: xev.state,
+            same_screen: xev.same_screen,
+        }
+    }
+
+    #[inline]
+    fn send_req(&mut self, req: Request) -> Result<(), ClientError> {
+        send_req_impl(
+            &self.has_conn,
+            &self.atoms,
+            self.im_window,
+            &mut self.buf,
+            self.transport_max,
+            &req,
+        )
+        .map_err(Into::into)
+    }
 }

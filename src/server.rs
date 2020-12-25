@@ -1,8 +1,10 @@
 mod connection;
 
+use std::num::NonZeroU16;
+
 use xim_parser::{bstr::BString, CommitData, ErrorCode, ErrorFlag, InputStyle, Request};
 
-pub use self::connection::{XimConnection, XimConnections};
+pub use self::connection::{InputContext, InputMethod, XimConnection, XimConnections};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ServerError {
@@ -21,7 +23,6 @@ pub enum ServerError {
 }
 
 pub trait ServerHandler<S: Server> {
-    type InputContext;
     type InputStyleArray: AsRef<[InputStyle]>;
 
     fn input_styles(&self) -> Self::InputStyleArray;
@@ -31,9 +32,7 @@ pub trait ServerHandler<S: Server> {
     fn handle_create_ic(
         &mut self,
         server: &mut S,
-        connection: &mut XimConnection,
-        input_method_id: u16,
-        input_style: InputStyle,
+        input_context: &mut InputContext,
     ) -> Result<(), ServerError>;
 }
 
@@ -43,23 +42,23 @@ pub trait Server {
         client_win: u32,
         code: ErrorCode,
         detail: BString,
-        input_method_id: Option<u16>,
-        input_context_id: Option<u16>,
+        input_method_id: Option<NonZeroU16>,
+        input_context_id: Option<NonZeroU16>,
     ) -> Result<(), ServerError>;
 
     fn commit(
         &mut self,
         client_win: u32,
-        input_method_id: u16,
-        input_context_id: u16,
+        input_method_id: NonZeroU16,
+        input_context_id: NonZeroU16,
         s: &str,
     ) -> Result<(), ServerError>;
 
     fn set_event_mask(
         &mut self,
         client_win: u32,
-        input_method_id: u16,
-        input_context_id: u16,
+        input_method_id: NonZeroU16,
+        input_context_id: NonZeroU16,
         forward_event_mask: u32,
         synchronous_event_mask: u32,
     ) -> Result<(), ServerError>;
@@ -71,21 +70,21 @@ impl<S: ServerCore> Server for S {
         client_win: u32,
         code: ErrorCode,
         detail: BString,
-        input_method_id: Option<u16>,
-        input_context_id: Option<u16>,
+        input_method_id: Option<NonZeroU16>,
+        input_context_id: Option<NonZeroU16>,
     ) -> Result<(), ServerError> {
         let mut flag = ErrorFlag::empty();
 
         let input_method_id = if let Some(id) = input_method_id {
             flag |= ErrorFlag::INPUTMETHODIDVALID;
-            id
+            id.get()
         } else {
             0
         };
 
         let input_context_id = if let Some(id) = input_context_id {
             flag |= ErrorFlag::INPUTCONTEXTIDVALID;
-            id
+            id.get()
         } else {
             0
         };
@@ -105,15 +104,15 @@ impl<S: ServerCore> Server for S {
     fn commit(
         &mut self,
         client_win: u32,
-        input_method_id: u16,
-        input_context_id: u16,
+        input_method_id: NonZeroU16,
+        input_context_id: NonZeroU16,
         s: &str,
     ) -> Result<(), ServerError> {
         self.send_req(
             client_win,
             Request::Commit {
-                input_method_id,
-                input_context_id,
+                input_method_id: input_method_id.get(),
+                input_context_id: input_context_id.get(),
                 data: CommitData::Chars {
                     commited: ctext::utf8_to_compound_text(s),
                     syncronous: false,
@@ -125,16 +124,16 @@ impl<S: ServerCore> Server for S {
     fn set_event_mask(
         &mut self,
         client_win: u32,
-        input_method_id: u16,
-        input_context_id: u16,
+        input_method_id: NonZeroU16,
+        input_context_id: NonZeroU16,
         forward_event_mask: u32,
         synchronous_event_mask: u32,
     ) -> Result<(), ServerError> {
         self.send_req(
             client_win,
             Request::SetEventMask {
-                input_method_id,
-                input_context_id,
+                input_method_id: input_method_id.get(),
+                input_context_id: input_context_id.get(),
                 forward_event_mask,
                 synchronous_event_mask,
             },

@@ -10,7 +10,9 @@ pub mod xlib;
 use std::collections::HashMap;
 
 pub use crate::client::{Client, ClientError, ClientHandler};
-pub use crate::server::{Server, ServerError, ServerHandler};
+pub use crate::server::{
+    InputContext, InputMethod, Server, ServerError, ServerHandler, XimConnection, XimConnections,
+};
 pub use ctext::{compound_text_to_utf8, utf8_to_compound_text};
 use xim_parser::{Attribute, AttributeName, XimWrite};
 

@@ -264,10 +264,10 @@ impl<C: HasConnection> X11rbServer<C> {
                 .reply()?
                 .value;
             let req = xim_parser::read(&data)?;
-            connection.handle_request(self, connection, req, handler)
+            connection.handle_request(self, req, handler)
         } else {
             let req = xim_parser::read(&msg.data.as_data8())?;
-            connection.handle_request(self, connection, req, handler)
+            connection.handle_request(self, req, handler)
         }
     }
 

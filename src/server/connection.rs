@@ -1,40 +1,108 @@
-use slab::Slab;
-use std::collections::HashMap;
+mod im_vec;
+
+use std::{collections::HashMap, num::NonZeroU16};
 use xim_parser::{
-    bstr::BString, Attr, AttrType, Attribute, AttributeName, ErrorCode, ErrorFlag, InputStyle,
-    InputStyleList, Request,
+    bstr::{BStr, BString},
+    Attr, AttrType, Attribute, AttributeName, ErrorCode, ErrorFlag, InputStyle, InputStyleList,
+    Request,
 };
 
+use self::im_vec::ImVec;
 use crate::server::{Server, ServerCore, ServerError, ServerHandler};
 
 pub struct InputContext {
-    input_method_id: u16,
+    client_win: u32,
+    input_method_id: NonZeroU16,
+    input_context_id: NonZeroU16,
     input_style: InputStyle,
+    locale: BString,
+}
+
+impl InputContext {
+    pub fn new(
+        client_win: u32,
+        input_method_id: NonZeroU16,
+        input_context_id: NonZeroU16,
+        input_style: InputStyle,
+        locale: BString,
+    ) -> Self {
+        Self {
+            client_win,
+            input_method_id,
+            input_context_id,
+            input_style,
+            locale,
+        }
+    }
+
+    pub fn client_win(&self) -> u32 {
+        self.client_win
+    }
+
+    pub fn input_method_id(&self) -> NonZeroU16 {
+        self.input_method_id
+    }
+
+    pub fn input_context_id(&self) -> NonZeroU16 {
+        self.input_context_id
+    }
+
+    pub fn input_style(&self) -> InputStyle {
+        self.input_style
+    }
+
+    pub fn locale(&self) -> &BStr {
+        self.locale.as_ref()
+    }
 }
 
 pub struct InputMethod {
     locale: BString,
-    input_contexts: Slab<InputContext>,
+    input_contexts: ImVec<InputContext>,
 }
 
 impl InputMethod {
     pub fn new(locale: BString) -> Self {
         Self {
             locale,
-            input_contexts: Slab::new(),
+            input_contexts: ImVec::new(),
         }
+    }
+
+    pub fn clone_locale(&self) -> BString {
+        self.locale.clone()
+    }
+
+    pub fn new_ic(&mut self, ic: InputContext) -> (NonZeroU16, &mut InputContext) {
+        self.input_contexts.new_item(ic)
+    }
+
+    pub fn get_input_context(
+        &mut self,
+        ic_id: NonZeroU16,
+    ) -> Result<&mut InputContext, ServerError> {
+        self.input_contexts
+            .get_item(ic_id)
+            .ok_or(ServerError::ClientNotExists)
     }
 }
 
 pub struct XimConnection {
     client_win: u32,
-    input_methods: Slab<InputMethod>,
+    input_methods: ImVec<InputMethod>,
 }
 
 impl XimConnection {
-    fn get_input_method(&mut self, id: u16) -> Result<&mut InputMethod, ServerError> {
+    pub fn new(client_win: u32) -> Self {
+        Self {
+            client_win,
+            input_methods: ImVec::new(),
+        }
+    }
+
+    fn get_input_method(&mut self, id: NonZeroU16) -> Result<&mut InputMethod, ServerError> {
         self.input_methods
-            .get_mut(id as usize)
+            .get_item(id)
             .ok_or(ServerError::ClientNotExists)
     }
 
@@ -56,12 +124,12 @@ impl XimConnection {
                 )?;
             }
             Request::Open { locale } => {
-                let input_method_id = self.input_methods.insert(InputMethod::new(locale)) as u16;
+                let (input_method_id, _im) = self.input_methods.new_item(InputMethod::new(locale));
 
                 server.send_req(
                     self.client_win,
                     Request::OpenReply {
-                        input_method_id,
+                        input_method_id: input_method_id.get(),
                         im_attrs: vec![Attr {
                             id: 0,
                             name: AttributeName::QueryInputStyle,
@@ -80,19 +148,33 @@ impl XimConnection {
                 input_method_id,
                 ic_attributes,
             } => {
+                let input_method_id =
+                    NonZeroU16::new(input_method_id).ok_or(ServerError::ClientNotExists)?;
                 let input_style = ic_attributes
                     .into_iter()
                     .find(|attr| attr.id == 0)
                     .and_then(|attr| xim_parser::read(&attr.value).ok())
                     .unwrap_or(InputStyle::empty());
 
-                handler.handle_create_ic(server, self, input_method_id, input_style)?;
+                let client_win = self.client_win;
+                let im = self.get_input_method(input_method_id)?;
+                let ic = InputContext::new(
+                    client_win,
+                    input_method_id,
+                    NonZeroU16::new(1).unwrap(),
+                    input_style,
+                    im.clone_locale(),
+                );
+                let (input_context_id, ic) = im.new_ic(ic);
+                ic.input_context_id = input_context_id;
+
+                handler.handle_create_ic(server, ic)?;
 
                 server.send_req(
                     self.client_win,
                     Request::CreateIcReply {
-                        input_method_id,
-                        input_context_id,
+                        input_method_id: input_method_id.get(),
+                        input_context_id: input_context_id.get(),
                     },
                 )?;
             }
@@ -163,7 +245,7 @@ impl XimConnection {
                                 self.client_win,
                                 ErrorCode::BadName,
                                 "Unknown im attribute id".into(),
-                                Some(input_method_id),
+                                NonZeroU16::new(input_method_id),
                                 None,
                             );
                         }
@@ -192,12 +274,18 @@ pub struct XimConnections {
 }
 
 impl XimConnections {
+    pub fn new() -> Self {
+        Self {
+            connections: HashMap::new(),
+        }
+    }
+
     pub fn new_connection(&mut self, com_win: u32, client_win: u32) {
         self.connections.insert(
             com_win,
             XimConnection {
                 client_win,
-                input_methods: Slab::new(),
+                input_methods: ImVec::new(),
             },
         );
     }

@@ -68,7 +68,7 @@ mod tests {
     #[test]
     fn read_input_styles() {
         let styles: InputStyleList = read(&[
-            5, 0, 119, 55, 4, 1, 0, 0, 4, 4, 0, 0, 4, 8, 0, 0, 8, 4, 0, 0, 8, 8, 0, 0,
+            1, 0, 0, 0, 4, 1, 0, 0
         ])
         .unwrap();
 
@@ -78,6 +78,38 @@ mod tests {
                 styles: vec![InputStyle::PREEDITPOSITION | InputStyle::STATUSAREA]
             }
         );
+    }
+
+    #[test]
+    fn set_event_mask() {
+        let req = Request::SetEventMask {
+            input_method_id: 2,
+            input_context_id: 1,
+            forward_event_mask: 3,
+            synchronous_event_mask: 4294967292,
+        };
+        let out = write_to_vec(&req);
+        assert_eq!(
+            out,
+            [37, 0, 3, 0, 2, 0, 1, 0, 3, 0, 0, 0, 252, 255, 255, 255]
+        );
+        assert_eq!(req, read::<Request>(&out).unwrap());
+    }
+
+    #[test]
+    fn attr_size() {
+        let list = InputStyleList {
+            styles: vec![InputStyle::PREEDITPOSITION | InputStyle::STATUSAREA],
+        };
+
+        assert_eq!(list.size(), 8);
+
+        let attr = Attribute {
+            id: 0,
+            value: write_to_vec(list),
+        };
+
+        assert_eq!(attr.size(), 12);
     }
 
     #[test]

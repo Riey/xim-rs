@@ -53,6 +53,37 @@ pub enum CommitData {
         syncronous: bool,
     },
 }
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct InputStyleList {
+    pub styles: Vec<InputStyle>,
+}
+impl XimRead for InputStyleList {
+    fn read(reader: &mut Reader) -> Result<Self, ReadError> {
+        Ok(Self {
+            styles: {
+                let len = u16::read(reader)? as usize;
+                reader.consume(2)?;
+                let mut out = Vec::with_capacity(len);
+                for _ in 0..len {
+                    out.push(InputStyle::read(reader)?);
+                }
+                out
+            },
+        })
+    }
+}
+impl XimWrite for InputStyleList {
+    fn write(&self, writer: &mut Writer) {
+        (self.styles.len() as u16).write(writer);
+        0u16.write(writer);
+        for elem in self.styles.iter() {
+            elem.write(writer);
+        }
+    }
+    fn size(&self) -> usize {
+        self.styles.len() * 4 + 4
+    }
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct HotKeyTriggers {
@@ -937,41 +968,6 @@ impl XimWrite for FontSet {
     fn size(&self) -> usize {
         let mut content_size = 0;
         content_size += with_pad4(self.name.len() + 2 + 0 - 0);
-        content_size
-    }
-}
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct InputStyleList {
-    pub styles: Vec<InputStyle>,
-}
-impl XimRead for InputStyleList {
-    fn read(reader: &mut Reader) -> Result<Self, ReadError> {
-        Ok(Self {
-            styles: {
-                let mut out = Vec::new();
-                let len = u16::read(reader)? as usize;
-                let end = reader.cursor() - len;
-                u16::read(reader)?;
-                while reader.cursor() > end {
-                    out.push(InputStyle::read(reader)?);
-                }
-                out
-            },
-        })
-    }
-}
-impl XimWrite for InputStyleList {
-    fn write(&self, writer: &mut Writer) {
-        ((self.styles.iter().map(|e| e.size()).sum::<usize>() + 2 + 2 - 2 - 2) as u16)
-            .write(writer);
-        0u16.write(writer);
-        for elem in self.styles.iter() {
-            elem.write(writer);
-        }
-    }
-    fn size(&self) -> usize {
-        let mut content_size = 0;
-        content_size += self.styles.iter().map(|e| e.size()).sum::<usize>() + 2 + 2;
         content_size
     }
 }

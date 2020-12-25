@@ -223,15 +223,15 @@ impl<T: Default> XimConnection<T> {
                 let (input_context_id, ic) = im.new_ic(ic);
                 ic.input_context_id = input_context_id;
 
-                handler.handle_create_ic(server, ic)?;
-
                 server.send_req(
-                    self.client_win,
+                    ic.client_win(),
                     Request::CreateIcReply {
                         input_method_id: input_method_id.get(),
                         input_context_id: input_context_id.get(),
                     },
                 )?;
+
+                handler.handle_create_ic(server, ic)?;
             }
 
             Request::QueryExtension {

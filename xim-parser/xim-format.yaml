@@ -202,8 +202,6 @@ Structs:
   Point:
     - "x i16"
     - "y i16"
-  InputStyleList:
-    - "styles @list22 InputStyle"
   Rectangle:
     - "x i16"
     - "y i16"

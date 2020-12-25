@@ -70,6 +70,10 @@ pub fn handle_request<C: ClientCore>(
                 })
                 .collect(),
         ),
+        Request::SetIcValuesReply {
+            input_method_id,
+            input_context_id,
+        } => handler.handle_set_ic_values(client, input_method_id, input_context_id),
         Request::CreateIcReply {
             input_method_id,
             input_context_id,
@@ -181,6 +185,12 @@ pub trait Client {
         input_method_id: u16,
         names: &[AttributeName],
     ) -> Result<(), ClientError>;
+    fn set_ic_values(
+        &mut self,
+        input_method_id: u16,
+        input_context_id: u16,
+        ic_attributes: Vec<Attribute>,
+    ) -> Result<(), ClientError>;
     fn create_ic(
         &mut self,
         input_method_id: u16,
@@ -197,6 +207,13 @@ pub trait Client {
         input_context_id: u16,
         flag: ForwardEventFlag,
         xev: Self::XEvent,
+    ) -> Result<(), ClientError>;
+    fn set_focus(&mut self, input_method_id: u16, input_context_id: u16)
+        -> Result<(), ClientError>;
+    fn unset_focus(
+        &mut self,
+        input_method_id: u16,
+        input_context_id: u16,
     ) -> Result<(), ClientError>;
 }
 
@@ -242,6 +259,19 @@ where
                 .iter()
                 .filter_map(|name| self.im_attributes().get(name).copied())
                 .collect(),
+        })
+    }
+
+    fn set_ic_values(
+        &mut self,
+        input_method_id: u16,
+        input_context_id: u16,
+        ic_attributes: Vec<Attribute>,
+    ) -> Result<(), ClientError> {
+        self.send_req(Request::SetIcValues {
+            input_method_id,
+            input_context_id,
+            ic_attributes,
         })
     }
 
@@ -291,6 +321,27 @@ where
             input_context_id,
         })
     }
+
+    fn set_focus(
+        &mut self,
+        input_method_id: u16,
+        input_context_id: u16,
+    ) -> Result<(), ClientError> {
+        self.send_req(Request::SetIcFocus {
+            input_method_id,
+            input_context_id,
+        })
+    }
+    fn unset_focus(
+        &mut self,
+        input_method_id: u16,
+        input_context_id: u16,
+    ) -> Result<(), ClientError> {
+        self.send_req(Request::UnsetIcFocus {
+            input_method_id,
+            input_context_id,
+        })
+    }
 }
 
 pub trait ClientHandler<C: Client> {
@@ -308,6 +359,12 @@ pub trait ClientHandler<C: Client> {
         client: &mut C,
         input_method_id: u16,
         attributes: HashMap<AttributeName, Vec<u8>>,
+    ) -> Result<(), ClientError>;
+    fn handle_set_ic_values(
+        &mut self,
+        client: &mut C,
+        input_method_id: u16,
+        input_context_id: u16,
     ) -> Result<(), ClientError>;
     fn handle_create_ic(
         &mut self,

@@ -12,7 +12,8 @@ pub mod xlib;
 pub use crate::client::{Client, ClientError, ClientHandler};
 #[cfg(feature = "server")]
 pub use crate::server::{
-    InputContext, InputMethod, Server, ServerError, ServerHandler, XimConnection, XimConnections,
+    InputContext, InputMethod, Server, ServerCore, ServerError, ServerHandler, XimConnection,
+    XimConnections,
 };
 pub use ahash::AHashMap;
 pub use ctext::{compound_text_to_utf8, utf8_to_compound_text};

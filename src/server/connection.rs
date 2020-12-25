@@ -4,8 +4,8 @@ use ahash::AHashMap;
 use std::num::NonZeroU16;
 use xim_parser::{
     bstr::{BStr, BString},
-    Attr, AttrType, Attribute, AttributeName, ErrorCode, ErrorFlag, InputStyle, InputStyleList,
-    Request,
+    Attr, AttrType, Attribute, AttributeName, ErrorCode, ErrorFlag, ForwardEventFlag, InputStyle,
+    InputStyleList, Request,
 };
 
 use self::im_vec::ImVec;
@@ -265,6 +265,59 @@ impl<T: Default> XimConnection<T> {
                         im_attributes: out,
                     },
                 )?;
+            }
+
+            Request::ForwardEvent {
+                input_method_id,
+                input_context_id,
+                serial_number,
+                flag,
+                xev,
+            } => {
+                match (
+                    NonZeroU16::new(input_method_id),
+                    NonZeroU16::new(input_context_id),
+                ) {
+                    (Some(input_method_id), Some(input_context_id)) => {
+                        let ev = server.deserialize_event(&xev);
+                        let input_context = self
+                            .get_input_method(input_method_id)?
+                            .get_input_context(input_context_id)?;
+                        let consumed = handler.handle_forward_event(server, input_context, &ev)?;
+
+                        if !consumed {
+                            server.send_req(
+                                self.client_win,
+                                Request::ForwardEvent {
+                                    input_method_id: input_method_id.get(),
+                                    input_context_id: input_context_id.get(),
+                                    serial_number,
+                                    flag: ForwardEventFlag::empty(),
+                                    xev,
+                                },
+                            )?;
+                        }
+                    }
+                    (im, ic) => {
+                        return server.error(
+                            self.client_win,
+                            ErrorCode::BadSomething,
+                            "Not exists".into(),
+                            im,
+                            ic,
+                        );
+                    }
+                }
+
+                if flag.contains(ForwardEventFlag::SYNCHRONOUS) {
+                    server.send_req(
+                        self.client_win,
+                        Request::SyncReply {
+                            input_method_id,
+                            input_context_id,
+                        },
+                    )?;
+                }
             }
             _ => {
                 log::warn!("Unknown request: {:?}", req);

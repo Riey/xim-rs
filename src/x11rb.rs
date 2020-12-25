@@ -333,6 +333,8 @@ impl<C: HasConnection> X11rbServer<C> {
 
 #[cfg(feature = "x11rb-server")]
 impl<C: HasConnection> ServerCore for X11rbServer<C> {
+    type XEvent = KeyPressEvent;
+
     fn send_req(&mut self, client_win: u32, req: Request) -> Result<(), ServerError> {
         send_req_impl(
             &self.has_conn,
@@ -343,6 +345,11 @@ impl<C: HasConnection> ServerCore for X11rbServer<C> {
             &req,
         )
         .map_err(Into::into)
+    }
+
+    #[inline]
+    fn deserialize_event(&self, ev: &xim_parser::XEvent) -> Self::XEvent {
+        deserialize_event_impl(ev)
     }
 }
 
@@ -599,7 +606,7 @@ impl<C: HasConnection> ClientCore for X11rbClient<C> {
     }
 
     #[inline]
-    fn serialize_event(&self, xev: Self::XEvent) -> xim_parser::XEvent {
+    fn serialize_event(&self, xev: &Self::XEvent) -> xim_parser::XEvent {
         xim_parser::XEvent {
             response_type: xev.response_type,
             detail: xev.detail,
@@ -618,22 +625,8 @@ impl<C: HasConnection> ClientCore for X11rbClient<C> {
     }
 
     #[inline]
-    fn deserialize_event(&self, xev: xim_parser::XEvent) -> Self::XEvent {
-        KeyPressEvent {
-            response_type: xev.response_type,
-            detail: xev.detail,
-            sequence: xev.sequence,
-            time: xev.time,
-            root: xev.root,
-            event: xev.event,
-            child: xev.child,
-            root_x: xev.root_x,
-            root_y: xev.root_y,
-            event_x: xev.event_x,
-            event_y: xev.event_y,
-            state: xev.state,
-            same_screen: xev.same_screen,
-        }
+    fn deserialize_event(&self, xev: &xim_parser::XEvent) -> Self::XEvent {
+        deserialize_event_impl(xev)
     }
 
     #[inline]
@@ -707,4 +700,23 @@ fn send_req_impl<C: HasConnection>(
     buf.clear();
     c.conn().flush()?;
     Ok(())
+}
+
+#[inline]
+fn deserialize_event_impl(xev: &xim_parser::XEvent) -> KeyPressEvent {
+    KeyPressEvent {
+        response_type: xev.response_type,
+        detail: xev.detail,
+        sequence: xev.sequence,
+        time: xev.time,
+        root: xev.root,
+        event: xev.event,
+        child: xev.child,
+        root_x: xev.root_x,
+        root_y: xev.root_y,
+        event_x: xev.event_x,
+        event_y: xev.event_y,
+        state: xev.state,
+        same_screen: xev.same_screen,
+    }
 }

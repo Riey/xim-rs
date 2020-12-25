@@ -55,7 +55,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 handler.im_id,
                                 handler.ic_id,
                                 ForwardEventFlag::SYNCHRONOUS,
-                                e.key,
+                                &e.key,
                             )?;
                         }
                     }

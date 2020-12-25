@@ -108,7 +108,7 @@ pub fn handle_request<C: ClientCore>(
                 input_method_id,
                 input_context_id,
                 flag,
-                client.deserialize_event(xev),
+                client.deserialize_event(&xev),
             )?;
 
             if flag.contains(ForwardEventFlag::SYNCHRONOUS) {
@@ -163,8 +163,8 @@ pub trait ClientCore {
     fn set_attrs(&mut self, ic_attrs: Vec<Attr>, im_attrs: Vec<Attr>);
     fn ic_attributes(&self) -> &AHashMap<AttributeName, u16>;
     fn im_attributes(&self) -> &AHashMap<AttributeName, u16>;
-    fn serialize_event(&self, xev: Self::XEvent) -> xim_parser::XEvent;
-    fn deserialize_event(&self, xev: xim_parser::XEvent) -> Self::XEvent;
+    fn serialize_event(&self, xev: &Self::XEvent) -> xim_parser::XEvent;
+    fn deserialize_event(&self, xev: &xim_parser::XEvent) -> Self::XEvent;
     fn send_req(&mut self, req: Request) -> Result<(), ClientError>;
 }
 
@@ -208,7 +208,7 @@ pub trait Client {
         input_method_id: u16,
         input_context_id: u16,
         flag: ForwardEventFlag,
-        xev: Self::XEvent,
+        xev: &Self::XEvent,
     ) -> Result<(), ClientError>;
     fn set_focus(&mut self, input_method_id: u16, input_context_id: u16)
         -> Result<(), ClientError>;
@@ -293,9 +293,9 @@ where
         input_method_id: u16,
         input_context_id: u16,
         flag: ForwardEventFlag,
-        xev: Self::XEvent,
+        xev: &Self::XEvent,
     ) -> Result<(), ClientError> {
-        let ev = self.serialize_event(xev);
+        let ev = self.serialize_event(&xev);
         self.send_req(Request::ForwardEvent {
             input_method_id,
             input_context_id,

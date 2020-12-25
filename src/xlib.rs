@@ -26,7 +26,7 @@ impl<X: XlibRef> ClientCore for XlibClient<X> {
     }
 
     #[inline]
-    fn serialize_event(&self, xev: Self::XEvent) -> xim_parser::XEvent {
+    fn serialize_event(&self, xev: &Self::XEvent) -> xim_parser::XEvent {
         xim_parser::XEvent {
             response_type: xev.type_ as u8,
             detail: xev.keycode as u8,
@@ -45,7 +45,7 @@ impl<X: XlibRef> ClientCore for XlibClient<X> {
     }
 
     #[inline]
-    fn deserialize_event(&self, xev: xim_parser::XEvent) -> Self::XEvent {
+    fn deserialize_event(&self, xev: &xim_parser::XEvent) -> Self::XEvent {
         xlib::XKeyEvent {
             type_: xev.response_type as _,
             keycode: xev.detail as _,

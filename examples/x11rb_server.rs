@@ -1,5 +1,8 @@
 use x11rb::connection::Connection;
-use xim::{x11rb::X11rbServer, InputContext, Server, ServerError, ServerHandler, XimConnections};
+use xim::{
+    x11rb::X11rbServer, InputContext, Server, ServerCore, ServerError, ServerHandler,
+    XimConnections,
+};
 use xim_parser::InputStyle;
 
 #[derive(Default)]
@@ -7,7 +10,7 @@ struct Handler {}
 
 impl Handler {}
 
-impl<S: Server> ServerHandler<S> for Handler {
+impl<S: Server + ServerCore> ServerHandler<S> for Handler {
     type InputContextData = ();
     type InputStyleArray = [InputStyle; 1];
 
@@ -31,6 +34,15 @@ impl<S: Server> ServerHandler<S> for Handler {
             input_context.input_context_id(),
             "가나다",
         )
+    }
+
+    fn handle_forward_event(
+        &mut self,
+        _server: &mut S,
+        _input_context: &mut InputContext<Self::InputContextData>,
+        _xev: &S::XEvent,
+    ) -> Result<bool, ServerError> {
+        Ok(true)
     }
 }
 

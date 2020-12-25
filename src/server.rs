@@ -22,7 +22,7 @@ pub enum ServerError {
     Other(Box<dyn std::error::Error>),
 }
 
-pub trait ServerHandler<S: Server> {
+pub trait ServerHandler<S: Server + ServerCore> {
     type InputStyleArray: AsRef<[InputStyle]>;
     type InputContextData: Default;
 
@@ -35,6 +35,15 @@ pub trait ServerHandler<S: Server> {
         server: &mut S,
         input_context: &mut InputContext<Self::InputContextData>,
     ) -> Result<(), ServerError>;
+
+    /// return `false` when event back to client
+    /// if return `true` it consumed and don't back to client
+    fn handle_forward_event(
+        &mut self,
+        server: &mut S,
+        input_context: &mut InputContext<Self::InputContextData>,
+        xev: &S::XEvent,
+    ) -> Result<bool, ServerError>;
 }
 
 pub trait Server {
@@ -143,5 +152,8 @@ impl<S: ServerCore> Server for S {
 }
 
 pub trait ServerCore {
+    type XEvent;
+
+    fn deserialize_event(&self, ev: &xim_parser::XEvent) -> Self::XEvent;
     fn send_req(&mut self, client_win: u32, req: Request) -> Result<(), ServerError>;
 }

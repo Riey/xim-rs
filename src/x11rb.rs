@@ -1,16 +1,18 @@
 use std::{collections::HashMap, convert::TryInto};
 
-#[cfg(feature = "client")]
+#[cfg(feature = "x11rb-client")]
 use crate::client::{
     handle_request as client_handle_request, ClientCore, ClientError, ClientHandler,
 };
-#[cfg(feature = "server")]
+#[cfg(feature = "x11rb-server")]
 use crate::server::{ServerCore, ServerError, ServerHandler, XimConnection, XimConnections};
 
 use crate::Atoms;
 
 #[cfg(feature = "x11rb-xcb")]
 use x11rb::xcb_ffi::XCBConnection;
+
+#[allow(unused_imports)]
 use x11rb::{
     connection::Connection,
     errors::{ConnectError, ConnectionError, ParseError, ReplyError, ReplyOrIdError},
@@ -32,17 +34,19 @@ use xim_parser::{Attr, AttributeName, Request, XimWrite};
 macro_rules! convert_error {
     ($($ty:ty,)+) => {
         $(
-        impl From<$ty> for ClientError {
-            fn from(err: $ty) -> Self {
-                ClientError::Other(err.into())
+            #[cfg(feature = "x11rb-client")]
+            impl From<$ty> for ClientError {
+                fn from(err: $ty) -> Self {
+                    ClientError::Other(err.into())
+                }
             }
-        }
 
-        impl From<$ty> for ServerError {
-            fn from(err: $ty) -> Self {
-                ServerError::Other(err.into())
+            #[cfg(feature = "x11rb-server")]
+            impl From<$ty> for ServerError {
+                fn from(err: $ty) -> Self {
+                    ServerError::Other(err.into())
+                }
             }
-        }
         )+
     };
 }
@@ -80,6 +84,7 @@ impl HasConnection for RustConnection {
     }
 }
 
+#[cfg(feature = "x11rb-client")]
 impl<C: HasConnection> HasConnection for X11rbClient<C> {
     type Connection = C::Connection;
 
@@ -89,6 +94,7 @@ impl<C: HasConnection> HasConnection for X11rbClient<C> {
     }
 }
 
+#[cfg(feature = "x11rb-server")]
 impl<C: HasConnection> HasConnection for X11rbServer<C> {
     type Connection = C::Connection;
 
@@ -107,6 +113,7 @@ impl<'x, C: HasConnection> HasConnection for &'x C {
     }
 }
 
+#[cfg(feature = "x11rb-server")]
 pub struct X11rbServer<C: HasConnection> {
     has_conn: C,
     im_win: Window,
@@ -114,6 +121,7 @@ pub struct X11rbServer<C: HasConnection> {
     buf: Vec<u8>,
 }
 
+#[cfg(feature = "x11rb-server")]
 impl<C: HasConnection> X11rbServer<C> {
     pub fn init(has_conn: C, screen: &Screen, im_name: &str) -> Result<Self, ServerError> {
         let im_name = format!("@server={}", im_name);
@@ -304,6 +312,7 @@ impl<C: HasConnection> X11rbServer<C> {
     }
 }
 
+#[cfg(feature = "x11rb-server")]
 impl<C: HasConnection> ServerCore for X11rbServer<C> {
     fn send_req(&mut self, client_win: u32, req: Request) -> Result<(), ServerError> {
         send_req_impl(
@@ -318,6 +327,7 @@ impl<C: HasConnection> ServerCore for X11rbServer<C> {
     }
 }
 
+#[cfg(feature = "x11rb-client")]
 pub struct X11rbClient<C: HasConnection> {
     has_conn: C,
     server_owner_window: Window,
@@ -333,6 +343,7 @@ pub struct X11rbClient<C: HasConnection> {
     buf: Vec<u8>,
 }
 
+#[cfg(feature = "x11rb-client")]
 impl<C: HasConnection> X11rbClient<C> {
     pub fn init(has_conn: C, screen: &Screen, im_name: Option<&str>) -> Result<Self, ClientError> {
         let conn = has_conn.conn();
@@ -548,65 +559,7 @@ impl<C: HasConnection> X11rbClient<C> {
     }
 }
 
-fn send_req_impl<C: HasConnection>(
-    c: &C,
-    atoms: &Atoms<Atom>,
-    target: Window,
-    buf: &mut Vec<u8>,
-    transport_max: usize,
-    req: &Request,
-) -> Result<(), ConnectionError> {
-    buf.resize(req.size(), 0);
-    xim_parser::write(req, buf);
-
-    if buf.len() < transport_max {
-        if buf.len() > 20 {
-            todo!("multi-CM");
-        }
-        buf.resize(20, 0);
-        let buf: [u8; 20] = buf.as_slice().try_into().unwrap();
-        c.conn().send_event(
-            false,
-            target,
-            0u32,
-            ClientMessageEvent {
-                response_type: CLIENT_MESSAGE_EVENT,
-                data: buf.into(),
-                format: 8,
-                sequence: 0,
-                type_: atoms.XIM_PROTOCOL,
-                window: target,
-            },
-        )?;
-    } else {
-        c.conn().change_property(
-            PropMode::Append,
-            target,
-            atoms.DATA,
-            AtomEnum::STRING,
-            8,
-            buf.len() as u32,
-            &buf,
-        )?;
-        c.conn().send_event(
-            false,
-            target,
-            0u32,
-            ClientMessageEvent {
-                data: [buf.len() as u32, atoms.DATA, 0, 0, 0].into(),
-                format: 32,
-                sequence: 0,
-                response_type: CLIENT_MESSAGE_EVENT,
-                type_: atoms.XIM_PROTOCOL,
-                window: target,
-            },
-        )?;
-    }
-    buf.clear();
-    c.conn().flush()?;
-    Ok(())
-}
-
+#[cfg(feature = "x11rb-client")]
 impl<C: HasConnection> ClientCore for X11rbClient<C> {
     type XEvent = KeyPressEvent;
 
@@ -686,4 +639,63 @@ impl<C: HasConnection> ClientCore for X11rbClient<C> {
         )
         .map_err(Into::into)
     }
+}
+
+fn send_req_impl<C: HasConnection>(
+    c: &C,
+    atoms: &Atoms<Atom>,
+    target: Window,
+    buf: &mut Vec<u8>,
+    transport_max: usize,
+    req: &Request,
+) -> Result<(), ConnectionError> {
+    buf.resize(req.size(), 0);
+    xim_parser::write(req, buf);
+
+    if buf.len() < transport_max {
+        if buf.len() > 20 {
+            todo!("multi-CM");
+        }
+        buf.resize(20, 0);
+        let buf: [u8; 20] = buf.as_slice().try_into().unwrap();
+        c.conn().send_event(
+            false,
+            target,
+            0u32,
+            ClientMessageEvent {
+                response_type: CLIENT_MESSAGE_EVENT,
+                data: buf.into(),
+                format: 8,
+                sequence: 0,
+                type_: atoms.XIM_PROTOCOL,
+                window: target,
+            },
+        )?;
+    } else {
+        c.conn().change_property(
+            PropMode::Append,
+            target,
+            atoms.DATA,
+            AtomEnum::STRING,
+            8,
+            buf.len() as u32,
+            &buf,
+        )?;
+        c.conn().send_event(
+            false,
+            target,
+            0u32,
+            ClientMessageEvent {
+                data: [buf.len() as u32, atoms.DATA, 0, 0, 0].into(),
+                format: 32,
+                sequence: 0,
+                response_type: CLIENT_MESSAGE_EVENT,
+                type_: atoms.XIM_PROTOCOL,
+                window: target,
+            },
+        )?;
+    }
+    buf.clear();
+    c.conn().flush()?;
+    Ok(())
 }

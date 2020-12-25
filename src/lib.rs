@@ -16,6 +16,7 @@ pub use crate::server::{
     InputContext, InputMethod, Server, ServerError, ServerHandler, XimConnection, XimConnections,
 };
 pub use ctext::{compound_text_to_utf8, utf8_to_compound_text};
+pub use xim_parser::*;
 #[allow(non_snake_case)]
 #[derive(Copy, Clone, Debug)]
 struct Atoms<Atom> {

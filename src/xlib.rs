@@ -1,5 +1,7 @@
 use std::ffi::CStr;
 use std::mem::MaybeUninit;
+use std::rc::Rc;
+use std::sync::Arc;
 use std::{collections::HashMap, convert::TryInto, os::raw::c_long};
 
 use crate::{
@@ -87,6 +89,24 @@ impl<X: XlibRef> ClientCore for XlibClient<X> {
 impl<'a> XlibRef for &'a xlib::Xlib {
     fn xlib(&self) -> &xlib::Xlib {
         self
+    }
+}
+
+impl<X> XlibRef for Rc<X>
+where
+    X: XlibRef,
+{
+    fn xlib(&self) -> &xlib::Xlib {
+        (**self).xlib()
+    }
+}
+
+impl<X> XlibRef for Arc<X>
+where
+    X: XlibRef,
+{
+    fn xlib(&self) -> &xlib::Xlib {
+        (**self).xlib()
     }
 }
 

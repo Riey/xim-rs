@@ -1,4 +1,4 @@
-use std::{collections::HashMap, convert::TryInto};
+use std::{collections::HashMap, convert::TryInto, rc::Rc, sync::Arc};
 
 #[cfg(feature = "x11rb-client")]
 use crate::client::{
@@ -105,6 +105,24 @@ impl<C: HasConnection> HasConnection for X11rbServer<C> {
 }
 
 impl<'x, C: HasConnection> HasConnection for &'x C {
+    type Connection = C::Connection;
+
+    #[inline(always)]
+    fn conn(&self) -> &Self::Connection {
+        (**self).conn()
+    }
+}
+
+impl<C: HasConnection> HasConnection for Rc<C> {
+    type Connection = C::Connection;
+
+    #[inline(always)]
+    fn conn(&self) -> &Self::Connection {
+        (**self).conn()
+    }
+}
+
+impl<C: HasConnection> HasConnection for Arc<C> {
     type Connection = C::Connection;
 
     #[inline(always)]

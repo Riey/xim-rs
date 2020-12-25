@@ -1,10 +1,14 @@
 use std::{collections::HashMap, convert::TryInto};
 
-use crate::{
-    client::{handle_request as client_handle_request, ClientCore, ClientError, ClientHandler},
-    server::{ServerCore, ServerError, ServerHandler, XimConnection, XimConnections},
-    Atoms,
+#[cfg(feature = "client")]
+use crate::client::{
+    handle_request as client_handle_request, ClientCore, ClientError, ClientHandler,
 };
+#[cfg(feature = "server")]
+use crate::server::{ServerCore, ServerError, ServerHandler, XimConnection, XimConnections};
+
+use crate::Atoms;
+
 #[cfg(feature = "x11rb-xcb")]
 use x11rb::xcb_ffi::XCBConnection;
 use x11rb::{

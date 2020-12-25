@@ -1,4 +1,6 @@
-use crate::AttributeBuilder;
+mod attribute_builder;
+
+pub use self::attribute_builder::AttributeBuilder;
 use std::collections::HashMap;
 use xim_parser::{
     bstr::BString, Attr, Attribute, AttributeName, CommitData, Extension, ForwardEventFlag, Request,

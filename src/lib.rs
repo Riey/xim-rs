@@ -1,4 +1,6 @@
+#[cfg(feature = "client")]
 mod client;
+#[cfg(feature = "server")]
 mod server;
 
 #[cfg(feature = "x11rb-client")]
@@ -7,76 +9,13 @@ pub mod x11rb;
 #[cfg(feature = "xlib-client")]
 pub mod xlib;
 
-use std::collections::HashMap;
-
+#[cfg(feature = "client")]
 pub use crate::client::{Client, ClientError, ClientHandler};
+#[cfg(feature = "server")]
 pub use crate::server::{
     InputContext, InputMethod, Server, ServerError, ServerHandler, XimConnection, XimConnections,
 };
 pub use ctext::{compound_text_to_utf8, utf8_to_compound_text};
-use xim_parser::{Attribute, AttributeName, XimWrite};
-
-pub struct NestedListBuilder<'a> {
-    id_map: &'a HashMap<AttributeName, u16>,
-    out: &'a mut Vec<u8>,
-}
-
-impl<'a> NestedListBuilder<'a> {
-    pub fn push<V: XimWrite>(self, name: AttributeName, value: V) -> Self {
-        if let Some(id) = self.id_map.get(&name).copied() {
-            let attr = Attribute {
-                id,
-                value: xim_parser::write_to_vec(value),
-            };
-            xim_parser::write_extend_vec(attr, self.out);
-        }
-
-        self
-    }
-}
-
-pub struct AttributeBuilder<'a> {
-    id_map: &'a HashMap<AttributeName, u16>,
-    out: Vec<Attribute>,
-}
-
-impl<'a> AttributeBuilder<'a> {
-    pub(crate) fn new(id_map: &'a HashMap<AttributeName, u16>) -> Self {
-        Self {
-            id_map,
-            out: Vec::new(),
-        }
-    }
-
-    pub fn push<V: XimWrite>(mut self, name: AttributeName, value: V) -> Self {
-        if let Some(id) = self.id_map.get(&name).copied() {
-            self.out.push(Attribute {
-                id,
-                value: xim_parser::write_to_vec(value),
-            });
-        }
-
-        self
-    }
-
-    pub fn nested_list(mut self, name: AttributeName, f: impl FnOnce(NestedListBuilder)) -> Self {
-        if let Some(id) = self.id_map.get(&name).copied() {
-            let mut value = Vec::new();
-            f(NestedListBuilder {
-                id_map: self.id_map,
-                out: &mut value,
-            });
-            self.out.push(Attribute { id, value });
-        }
-
-        self
-    }
-
-    pub fn build(self) -> Vec<Attribute> {
-        self.out
-    }
-}
-
 #[allow(non_snake_case)]
 #[derive(Copy, Clone, Debug)]
 struct Atoms<Atom> {

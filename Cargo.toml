@@ -14,9 +14,14 @@ license = "MIT"
 
 [features]
 default = ["x11rb-client"]
+client = []
+server = []
+
+x11rb-client = ["client", "x11rb"]
+xlib-client = ["client", "x11-dl"]
+
+x11rb-server = ["server", "x11rb"]
 x11rb-xcb = ["x11rb/allow-unsafe-code"]
-x11rb-client = ["x11rb"]
-xlib-client = ["x11-dl"]
 
 [dependencies]
 xim-parser = { path = "./xim-parser" }

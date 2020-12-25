@@ -79,11 +79,6 @@ impl<X: XlibRef> ClientCore for XlibClient<X> {
             self.ic_attributes.insert(ic_attr.name, ic_attr.id);
         }
     }
-
-    fn set_event_mask(&mut self, forward_event_mask: u32, synchronous_event_mask: u32) {
-        self.forward_event_mask = forward_event_mask;
-        self.synchronous_event_mask = synchronous_event_mask;
-    }
 }
 
 impl<'a> XlibRef for &'a xlib::Xlib {
@@ -131,8 +126,6 @@ pub struct XlibClient<X: XlibRef> {
     client_window: xlib::Window,
     im_attributes: HashMap<AttributeName, u16>,
     ic_attributes: HashMap<AttributeName, u16>,
-    forward_event_mask: u32,
-    synchronous_event_mask: u32,
     buf: Vec<u8>,
 }
 
@@ -225,8 +218,6 @@ impl<X: XlibRef> XlibClient<X> {
                             server_atom,
                             server_owner_window: server_owner,
                             im_window: 0,
-                            forward_event_mask: 0,
-                            synchronous_event_mask: 0,
                             transport_max: 0,
                             display,
                             x,

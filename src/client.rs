@@ -79,14 +79,17 @@ pub fn handle_request<C: ClientCore>(
             input_context_id,
         } => handler.handle_create_ic(client, input_method_id, input_context_id),
         Request::SetEventMask {
-            input_method_id: _,
-            input_context_id: _,
+            input_method_id,
+            input_context_id,
             forward_event_mask,
             synchronous_event_mask,
-        } => {
-            client.set_event_mask(forward_event_mask, synchronous_event_mask);
-            Ok(())
-        }
+        } => handler.handle_set_event_mask(
+            client,
+            input_method_id,
+            input_context_id,
+            forward_event_mask,
+            synchronous_event_mask,
+        ),
         Request::CloseReply { input_method_id } => handler.handle_close(client, input_method_id),
         Request::DisconnectReply {} => {
             handler.handle_disconnect();
@@ -158,7 +161,6 @@ pub trait ClientCore {
     type XEvent;
 
     fn set_attrs(&mut self, ic_attrs: Vec<Attr>, im_attrs: Vec<Attr>);
-    fn set_event_mask(&mut self, forward_event_mask: u32, synchronous_event_mask: u32);
     fn ic_attributes(&self) -> &HashMap<AttributeName, u16>;
     fn im_attributes(&self) -> &HashMap<AttributeName, u16>;
     fn serialize_event(&self, xev: Self::XEvent) -> xim_parser::XEvent;
@@ -392,5 +394,13 @@ pub trait ClientHandler<C: Client> {
         input_context_id: u16,
         flag: ForwardEventFlag,
         xev: C::XEvent,
+    ) -> Result<(), ClientError>;
+    fn handle_set_event_mask(
+        &mut self,
+        client: &mut C,
+        input_method_id: u16,
+        input_context_id: u16,
+        forward_event_mask: u32,
+        synchronous_event_mask: u32,
     ) -> Result<(), ClientError>;
 }

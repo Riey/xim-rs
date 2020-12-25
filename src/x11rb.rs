@@ -356,8 +356,6 @@ pub struct X11rbClient<C: HasConnection> {
     client_window: u32,
     im_attributes: HashMap<AttributeName, u16>,
     ic_attributes: HashMap<AttributeName, u16>,
-    forward_event_mask: u32,
-    synchronous_event_mask: u32,
     buf: Vec<u8>,
 }
 
@@ -434,8 +432,6 @@ impl<C: HasConnection> X11rbClient<C> {
                             ic_attributes: HashMap::new(),
                             im_window: x11rb::NONE,
                             transport_max: 20,
-                            forward_event_mask: 0,
-                            synchronous_event_mask: 0,
                             client_window,
                             buf: Vec::with_capacity(1024),
                         });
@@ -580,12 +576,6 @@ impl<C: HasConnection> X11rbClient<C> {
 #[cfg(feature = "x11rb-client")]
 impl<C: HasConnection> ClientCore for X11rbClient<C> {
     type XEvent = KeyPressEvent;
-
-    #[inline]
-    fn set_event_mask(&mut self, forward_event_mask: u32, synchronous_event_mask: u32) {
-        self.forward_event_mask = forward_event_mask;
-        self.synchronous_event_mask = synchronous_event_mask;
-    }
 
     fn set_attrs(&mut self, im_attrs: Vec<Attr>, ic_attrs: Vec<Attr>) {
         for im_attr in im_attrs {

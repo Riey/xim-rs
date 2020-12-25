@@ -3,9 +3,8 @@ mod client;
 #[cfg(feature = "server")]
 mod server;
 
-#[cfg(feature = "x11rb-client")]
+#[cfg(any(feature = "x11rb-server", feature = "x11rb-client"))]
 pub mod x11rb;
-// incomplete
 #[cfg(feature = "xlib-client")]
 pub mod xlib;
 

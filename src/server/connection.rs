@@ -1,7 +1,7 @@
 mod im_vec;
 
-use std::num::NonZeroU16;
 use ahash::AHashMap;
+use std::num::NonZeroU16;
 use xim_parser::{
     bstr::{BStr, BString},
     Attr, AttrType, Attribute, AttributeName, ErrorCode, ErrorFlag, InputStyle, InputStyleList,
@@ -11,15 +11,16 @@ use xim_parser::{
 use self::im_vec::ImVec;
 use crate::server::{Server, ServerCore, ServerError, ServerHandler};
 
-pub struct InputContext {
+pub struct InputContext<T: Default> {
     client_win: u32,
     input_method_id: NonZeroU16,
     input_context_id: NonZeroU16,
     input_style: InputStyle,
     locale: BString,
+    pub user_data: T,
 }
 
-impl InputContext {
+impl<T: Default> InputContext<T> {
     pub fn new(
         client_win: u32,
         input_method_id: NonZeroU16,
@@ -33,6 +34,7 @@ impl InputContext {
             input_context_id,
             input_style,
             locale,
+            user_data: T::default(),
         }
     }
 
@@ -57,12 +59,12 @@ impl InputContext {
     }
 }
 
-pub struct InputMethod {
+pub struct InputMethod<T: Default> {
     locale: BString,
-    input_contexts: ImVec<InputContext>,
+    input_contexts: ImVec<InputContext<T>>,
 }
 
-impl InputMethod {
+impl<T: Default> InputMethod<T> {
     pub fn new(locale: BString) -> Self {
         Self {
             locale,
@@ -74,26 +76,26 @@ impl InputMethod {
         self.locale.clone()
     }
 
-    pub fn new_ic(&mut self, ic: InputContext) -> (NonZeroU16, &mut InputContext) {
+    pub fn new_ic(&mut self, ic: InputContext<T>) -> (NonZeroU16, &mut InputContext<T>) {
         self.input_contexts.new_item(ic)
     }
 
     pub fn get_input_context(
         &mut self,
         ic_id: NonZeroU16,
-    ) -> Result<&mut InputContext, ServerError> {
+    ) -> Result<&mut InputContext<T>, ServerError> {
         self.input_contexts
             .get_item(ic_id)
             .ok_or(ServerError::ClientNotExists)
     }
 }
 
-pub struct XimConnection {
+pub struct XimConnection<T: Default> {
     client_win: u32,
-    input_methods: ImVec<InputMethod>,
+    input_methods: ImVec<InputMethod<T>>,
 }
 
-impl XimConnection {
+impl<T: Default> XimConnection<T> {
     pub fn new(client_win: u32) -> Self {
         Self {
             client_win,
@@ -101,13 +103,16 @@ impl XimConnection {
         }
     }
 
-    fn get_input_method(&mut self, id: NonZeroU16) -> Result<&mut InputMethod, ServerError> {
+    fn get_input_method(&mut self, id: NonZeroU16) -> Result<&mut InputMethod<T>, ServerError> {
         self.input_methods
             .get_item(id)
             .ok_or(ServerError::ClientNotExists)
     }
 
-    pub(crate) fn handle_request<S: ServerCore + Server, H: ServerHandler<S>>(
+    pub(crate) fn handle_request<
+        S: ServerCore + Server,
+        H: ServerHandler<S, InputContextData = T>,
+    >(
         &mut self,
         server: &mut S,
         req: Request,
@@ -270,11 +275,11 @@ impl XimConnection {
     }
 }
 
-pub struct XimConnections {
-    connections: AHashMap<u32, XimConnection>,
+pub struct XimConnections<T: Default> {
+    connections: AHashMap<u32, XimConnection<T>>,
 }
 
-impl XimConnections {
+impl<T: Default> XimConnections<T> {
     pub fn new() -> Self {
         Self {
             connections: AHashMap::new(),
@@ -291,7 +296,7 @@ impl XimConnections {
         );
     }
 
-    pub fn get_connection(&mut self, com_win: u32) -> Option<&mut XimConnection> {
+    pub fn get_connection(&mut self, com_win: u32) -> Option<&mut XimConnection<T>> {
         self.connections.get_mut(&com_win)
     }
 }

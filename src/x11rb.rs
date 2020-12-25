@@ -220,11 +220,11 @@ impl<C: HasConnection> X11rbServer<C> {
         })
     }
 
-    pub fn filter_event(
+    pub fn filter_event<T: Default>(
         &mut self,
         e: &Event,
-        connections: &mut XimConnections,
-        handler: &mut impl ServerHandler<Self>,
+        connections: &mut XimConnections<T>,
+        handler: &mut impl ServerHandler<Self, InputContextData = T>,
     ) -> Result<bool, ServerError> {
         match e {
             Event::SelectionRequest(req) if req.owner == self.im_win => {
@@ -281,11 +281,11 @@ impl<C: HasConnection> X11rbServer<C> {
         }
     }
 
-    fn handle_xim_protocol(
+    fn handle_xim_protocol<T: Default>(
         &mut self,
         msg: &ClientMessageEvent,
-        connection: &mut XimConnection,
-        handler: &mut impl ServerHandler<Self>,
+        connection: &mut XimConnection<T>,
+        handler: &mut impl ServerHandler<Self, InputContextData = T>,
     ) -> Result<(), ServerError> {
         if msg.format == 32 {
             let [length, atom, ..] = msg.data.as_data32();

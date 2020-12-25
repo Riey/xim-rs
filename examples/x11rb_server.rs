@@ -8,6 +8,7 @@ struct Handler {}
 impl Handler {}
 
 impl<S: Server> ServerHandler<S> for Handler {
+    type InputContextData = ();
     type InputStyleArray = [InputStyle; 1];
 
     fn input_styles(&self) -> Self::InputStyleArray {
@@ -22,7 +23,7 @@ impl<S: Server> ServerHandler<S> for Handler {
     fn handle_create_ic(
         &mut self,
         server: &mut S,
-        input_context: &mut InputContext,
+        input_context: &mut InputContext<Self::InputContextData>,
     ) -> Result<(), ServerError> {
         server.commit(
             input_context.client_win(),

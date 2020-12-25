@@ -1,9 +1,9 @@
+use ahash::AHashMap;
 use std::ffi::CStr;
 use std::mem::MaybeUninit;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::{convert::TryInto, os::raw::c_long};
-use ahash::AHashMap;
 
 use crate::{
     client::{handle_request, ClientCore, ClientError, ClientHandler},

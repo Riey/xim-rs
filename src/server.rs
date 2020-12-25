@@ -24,6 +24,7 @@ pub enum ServerError {
 
 pub trait ServerHandler<S: Server> {
     type InputStyleArray: AsRef<[InputStyle]>;
+    type InputContextData: Default;
 
     fn input_styles(&self) -> Self::InputStyleArray;
 
@@ -32,7 +33,7 @@ pub trait ServerHandler<S: Server> {
     fn handle_create_ic(
         &mut self,
         server: &mut S,
-        input_context: &mut InputContext,
+        input_context: &mut InputContext<Self::InputContextData>,
     ) -> Result<(), ServerError>;
 }
 

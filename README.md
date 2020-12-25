@@ -25,13 +25,15 @@ xim protocol parser generator
 
 ## binding for X client
 
-#### xlib
+### xlib
+
 - [x] client
 - [ ] server
 
-#### x11rb
+### x11rb
+
 - [x] client
-- [ ] server
+- [x] server
 
 ## limitations
 

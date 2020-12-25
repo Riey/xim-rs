@@ -1,7 +1,7 @@
 mod im_vec;
 
 use ahash::AHashMap;
-use std::num::NonZeroU16;
+use std::num::{NonZeroU16, NonZeroU32};
 use xim_parser::{
     bstr::{BStr, BString},
     Attr, AttrType, Attribute, AttributeName, ErrorCode, ErrorFlag, ForwardEventFlag, InputStyle,
@@ -13,6 +13,8 @@ use crate::server::{Server, ServerCore, ServerError, ServerHandler};
 
 pub struct InputContext<T: Default> {
     client_win: u32,
+    app_win: Option<NonZeroU32>,
+    app_focus_win: Option<NonZeroU32>,
     input_method_id: NonZeroU16,
     input_context_id: NonZeroU16,
     input_style: InputStyle,
@@ -23,6 +25,8 @@ pub struct InputContext<T: Default> {
 impl<T: Default> InputContext<T> {
     pub fn new(
         client_win: u32,
+        app_win: Option<NonZeroU32>,
+        app_focus_win: Option<NonZeroU32>,
         input_method_id: NonZeroU16,
         input_context_id: NonZeroU16,
         input_style: InputStyle,
@@ -30,6 +34,8 @@ impl<T: Default> InputContext<T> {
     ) -> Self {
         Self {
             client_win,
+            app_win,
+            app_focus_win,
             input_method_id,
             input_context_id,
             input_style,
@@ -40,6 +46,14 @@ impl<T: Default> InputContext<T> {
 
     pub fn client_win(&self) -> u32 {
         self.client_win
+    }
+
+    pub fn app_win(&self) -> Option<NonZeroU32> {
+        self.app_win
+    }
+
+    pub fn app_focus_win(&self) -> Option<NonZeroU32> {
+        self.app_focus_win
     }
 
     pub fn input_method_id(&self) -> NonZeroU16 {
@@ -89,6 +103,10 @@ impl<T: Default> InputMethod<T> {
             .ok_or(ServerError::ClientNotExists)
     }
 }
+
+const IC_INPUTSTYLE: u16 = 0;
+const IC_CLIENTWIN: u16 = 1;
+const IC_FOCUSWIN: u16 = 2;
 
 pub struct XimConnection<T: Default> {
     client_win: u32,
@@ -141,11 +159,23 @@ impl<T: Default> XimConnection<T> {
                             name: AttributeName::QueryInputStyle,
                             ty: AttrType::Style,
                         }],
-                        ic_attrs: vec![Attr {
-                            id: 0,
-                            name: AttributeName::InputStyle,
-                            ty: AttrType::Long,
-                        }],
+                        ic_attrs: vec![
+                            Attr {
+                                id: IC_INPUTSTYLE,
+                                name: AttributeName::InputStyle,
+                                ty: AttrType::Long,
+                            },
+                            Attr {
+                                id: IC_CLIENTWIN,
+                                name: AttributeName::ClientWindow,
+                                ty: AttrType::Window,
+                            },
+                            Attr {
+                                id: IC_FOCUSWIN,
+                                name: AttributeName::FocusWindow,
+                                ty: AttrType::Window,
+                            },
+                        ],
                     },
                 )?;
             }
@@ -156,16 +186,35 @@ impl<T: Default> XimConnection<T> {
             } => {
                 let input_method_id =
                     NonZeroU16::new(input_method_id).ok_or(ServerError::ClientNotExists)?;
-                let input_style = ic_attributes
-                    .into_iter()
-                    .find(|attr| attr.id == 0)
-                    .and_then(|attr| xim_parser::read(&attr.value).ok())
-                    .unwrap_or(InputStyle::empty());
+
+                let mut input_style = InputStyle::empty();
+                let mut app_win = None;
+                let mut app_focus_win = None;
+
+                for attr in ic_attributes {
+                    match attr.id {
+                        IC_INPUTSTYLE => {
+                            if let Some(style) = xim_parser::read(&attr.value).ok() {
+                                input_style = style;
+                            }
+                        }
+                        IC_CLIENTWIN => {
+                            app_win = xim_parser::read(&attr.value).ok().and_then(NonZeroU32::new);
+                        }
+                        IC_FOCUSWIN => {
+                            app_focus_win =
+                                xim_parser::read(&attr.value).ok().and_then(NonZeroU32::new);
+                        }
+                        _ => {}
+                    }
+                }
 
                 let client_win = self.client_win;
                 let im = self.get_input_method(input_method_id)?;
                 let ic = InputContext::new(
                     client_win,
+                    app_win,
+                    app_focus_win,
                     input_method_id,
                     NonZeroU16::new(1).unwrap(),
                     input_style,

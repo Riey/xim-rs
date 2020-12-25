@@ -2,7 +2,8 @@ use std::ffi::CStr;
 use std::mem::MaybeUninit;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::{collections::HashMap, convert::TryInto, os::raw::c_long};
+use std::{convert::TryInto, os::raw::c_long};
+use ahash::AHashMap;
 
 use crate::{
     client::{handle_request, ClientCore, ClientError, ClientHandler},
@@ -15,12 +16,12 @@ impl<X: XlibRef> ClientCore for XlibClient<X> {
     type XEvent = xlib::XKeyEvent;
 
     #[inline]
-    fn ic_attributes(&self) -> &HashMap<AttributeName, u16> {
+    fn ic_attributes(&self) -> &AHashMap<AttributeName, u16> {
         &self.ic_attributes
     }
 
     #[inline]
-    fn im_attributes(&self) -> &HashMap<AttributeName, u16> {
+    fn im_attributes(&self) -> &AHashMap<AttributeName, u16> {
         &self.im_attributes
     }
 
@@ -124,8 +125,8 @@ pub struct XlibClient<X: XlibRef> {
     atoms: Atoms<xlib::Atom>,
     transport_max: usize,
     client_window: xlib::Window,
-    im_attributes: HashMap<AttributeName, u16>,
-    ic_attributes: HashMap<AttributeName, u16>,
+    im_attributes: AHashMap<AttributeName, u16>,
+    ic_attributes: AHashMap<AttributeName, u16>,
     buf: Vec<u8>,
 }
 
@@ -221,8 +222,8 @@ impl<X: XlibRef> XlibClient<X> {
                             transport_max: 0,
                             display,
                             x,
-                            ic_attributes: HashMap::new(),
-                            im_attributes: HashMap::new(),
+                            ic_attributes: AHashMap::new(),
+                            im_attributes: AHashMap::new(),
                             buf: Vec::with_capacity(1024),
                         });
                     }

@@ -1,8 +1,8 @@
-use std::collections::HashMap;
+use ahash::AHashMap;
 use xim_parser::{Attribute, AttributeName, XimWrite};
 
 pub struct NestedListBuilder<'a> {
-    id_map: &'a HashMap<AttributeName, u16>,
+    id_map: &'a AHashMap<AttributeName, u16>,
     out: &'a mut Vec<u8>,
 }
 
@@ -21,12 +21,12 @@ impl<'a> NestedListBuilder<'a> {
 }
 
 pub struct AttributeBuilder<'a> {
-    id_map: &'a HashMap<AttributeName, u16>,
+    id_map: &'a AHashMap<AttributeName, u16>,
     out: Vec<Attribute>,
 }
 
 impl<'a> AttributeBuilder<'a> {
-    pub(crate) fn new(id_map: &'a HashMap<AttributeName, u16>) -> Self {
+    pub(crate) fn new(id_map: &'a AHashMap<AttributeName, u16>) -> Self {
         Self {
             id_map,
             out: Vec::new(),

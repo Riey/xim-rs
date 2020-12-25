@@ -1,7 +1,7 @@
 mod attribute_builder;
 
 pub use self::attribute_builder::AttributeBuilder;
-use std::collections::HashMap;
+use ahash::AHashMap;
 use xim_parser::{
     bstr::BString, Attr, Attribute, AttributeName, CommitData, Extension, ForwardEventFlag, Request,
 };
@@ -161,8 +161,8 @@ pub trait ClientCore {
     type XEvent;
 
     fn set_attrs(&mut self, ic_attrs: Vec<Attr>, im_attrs: Vec<Attr>);
-    fn ic_attributes(&self) -> &HashMap<AttributeName, u16>;
-    fn im_attributes(&self) -> &HashMap<AttributeName, u16>;
+    fn ic_attributes(&self) -> &AHashMap<AttributeName, u16>;
+    fn im_attributes(&self) -> &AHashMap<AttributeName, u16>;
     fn serialize_event(&self, xev: Self::XEvent) -> xim_parser::XEvent;
     fn deserialize_event(&self, xev: xim_parser::XEvent) -> Self::XEvent;
     fn send_req(&mut self, req: Request) -> Result<(), ClientError>;
@@ -360,7 +360,7 @@ pub trait ClientHandler<C: Client> {
         &mut self,
         client: &mut C,
         input_method_id: u16,
-        attributes: HashMap<AttributeName, Vec<u8>>,
+        attributes: AHashMap<AttributeName, Vec<u8>>,
     ) -> Result<(), ClientError>;
     fn handle_set_ic_values(
         &mut self,

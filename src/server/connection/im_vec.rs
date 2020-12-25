@@ -1,17 +1,17 @@
+use ahash::AHashMap;
 use std::collections::hash_map::Entry;
-use std::collections::HashMap;
 use std::num::NonZeroU16;
 
 pub struct ImVec<T> {
     next: NonZeroU16,
-    inner: HashMap<NonZeroU16, T>,
+    inner: AHashMap<NonZeroU16, T>,
 }
 
 impl<T> ImVec<T> {
     pub fn new() -> Self {
         Self {
             next: NonZeroU16::new(1).unwrap(),
-            inner: HashMap::new(),
+            inner: AHashMap::new(),
         }
     }
 

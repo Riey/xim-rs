@@ -1,6 +1,4 @@
-use std::collections::HashMap;
-
-use xim::{Client, ClientError, ClientHandler};
+use xim::{AHashMap, Client, ClientError, ClientHandler};
 use xim_parser::{AttributeName, InputStyle, Point};
 
 #[derive(Default)]
@@ -28,7 +26,7 @@ impl<C: Client> ClientHandler<C> for ExampleHandler {
         &mut self,
         client: &mut C,
         input_method_id: u16,
-        mut attributes: HashMap<AttributeName, Vec<u8>>,
+        mut attributes: AHashMap<AttributeName, Vec<u8>>,
     ) -> Result<(), ClientError> {
         log::trace!(
             "Query: {:?}",

@@ -1,6 +1,7 @@
 mod im_vec;
 
-use std::{collections::HashMap, num::NonZeroU16};
+use std::num::NonZeroU16;
+use ahash::AHashMap;
 use xim_parser::{
     bstr::{BStr, BString},
     Attr, AttrType, Attribute, AttributeName, ErrorCode, ErrorFlag, InputStyle, InputStyleList,
@@ -270,13 +271,13 @@ impl XimConnection {
 }
 
 pub struct XimConnections {
-    connections: HashMap<u32, XimConnection>,
+    connections: AHashMap<u32, XimConnection>,
 }
 
 impl XimConnections {
     pub fn new() -> Self {
         Self {
-            connections: HashMap::new(),
+            connections: AHashMap::new(),
         }
     }
 

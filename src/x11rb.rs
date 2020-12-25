@@ -1,4 +1,5 @@
-use std::{collections::HashMap, convert::TryInto, rc::Rc, sync::Arc};
+use ahash::AHashMap;
+use std::{convert::TryInto, rc::Rc, sync::Arc};
 
 #[cfg(feature = "x11rb-client")]
 use crate::client::{
@@ -354,8 +355,8 @@ pub struct X11rbClient<C: HasConnection> {
     atoms: Atoms<Atom>,
     transport_max: usize,
     client_window: u32,
-    im_attributes: HashMap<AttributeName, u16>,
-    ic_attributes: HashMap<AttributeName, u16>,
+    im_attributes: AHashMap<AttributeName, u16>,
+    ic_attributes: AHashMap<AttributeName, u16>,
     buf: Vec<u8>,
 }
 
@@ -428,8 +429,8 @@ impl<C: HasConnection> X11rbClient<C> {
                             atoms,
                             server_atom,
                             server_owner_window: server_owner,
-                            im_attributes: HashMap::new(),
-                            ic_attributes: HashMap::new(),
+                            im_attributes: AHashMap::new(),
+                            ic_attributes: AHashMap::new(),
                             im_window: x11rb::NONE,
                             transport_max: 20,
                             client_window,
@@ -588,12 +589,12 @@ impl<C: HasConnection> ClientCore for X11rbClient<C> {
     }
 
     #[inline]
-    fn ic_attributes(&self) -> &HashMap<AttributeName, u16> {
+    fn ic_attributes(&self) -> &AHashMap<AttributeName, u16> {
         &self.ic_attributes
     }
 
     #[inline]
-    fn im_attributes(&self) -> &HashMap<AttributeName, u16> {
+    fn im_attributes(&self) -> &AHashMap<AttributeName, u16> {
         &self.im_attributes
     }
 

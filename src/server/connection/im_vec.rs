@@ -36,12 +36,12 @@ impl<T> ImVec<T> {
     }
 
     #[allow(unused)]
-    pub fn remove_item(&mut self, idx: NonZeroU16) -> Option<T> {
-        self.inner.remove(&idx)
+    pub fn remove_item(&mut self, idx: u16) -> Option<T> {
+        self.inner.remove(&NonZeroU16::new(idx)?)
     }
 
-    pub fn get_item(&mut self, idx: NonZeroU16) -> Option<&mut T> {
-        self.inner.get_mut(&idx)
+    pub fn get_item(&mut self, idx: u16) -> Option<&mut T> {
+        self.inner.get_mut(&NonZeroU16::new(idx)?)
     }
 
     pub fn drain(&mut self) -> impl Iterator<Item = (NonZeroU16, T)> + '_ {

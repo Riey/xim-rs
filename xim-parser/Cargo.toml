@@ -11,6 +11,7 @@ bitflags = "1.2.1"
 bstr = "0.2.14"
 
 [dev-dependencies]
+ctext = { git = "https://github.com/Riey/ctext-rs" }
 pretty_assertions = "0.6.1"
 
 [build-dependencies]

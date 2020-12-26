@@ -18,6 +18,8 @@ pub enum ServerError {
     InvalidReply,
     #[error("Another instance is running")]
     AlreadyRunning,
+    #[error("Internal error: {0}")]
+    Internal(String),
     #[error(transparent)]
     Other(Box<dyn std::error::Error>),
 }

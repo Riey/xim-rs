@@ -49,8 +49,7 @@ impl<S: Server + ServerCore> ServerHandler<S> for Handler {
         Ok(true)
     }
 
-    fn handle_destory_ic(&mut self, _input_context: InputContext<Self::InputContextData>) {
-    }
+    fn handle_destory_ic(&mut self, _input_context: InputContext<Self::InputContextData>) {}
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

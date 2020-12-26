@@ -554,9 +554,6 @@ impl<C: HasConnection> X11rbClient<C> {
         } else if msg.format == 8 {
             let data = msg.data.as_data8();
             let req: xim_parser::Request = xim_parser::read(&data)?;
-            if let Request::SetEventMask { .. } = &req {
-                log::trace!("data: {:?}", data);
-            }
             client_handle_request(self, handler, req)?;
         }
 

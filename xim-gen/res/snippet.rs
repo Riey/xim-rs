@@ -368,9 +368,9 @@ impl XimWrite for CommitData {
 
     fn size(&self) -> usize {
         match self {
-            Self::Keysym { .. } => 6,
-            Self::Chars { commited, .. } => with_pad4(commited.len() + 2),
-            Self::Both { commited, .. } => with_pad4(commited.len() + 2) + 6,
+            Self::Keysym { .. } => with_pad4(6),
+            Self::Chars { commited, .. } => with_pad4(commited.len() + 4),
+            Self::Both { commited, .. } => with_pad4(commited.len() + 4 + 6),
         }
     }
 }

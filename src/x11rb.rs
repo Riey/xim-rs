@@ -220,7 +220,7 @@ impl<C: HasConnection> X11rbServer<C> {
         })
     }
 
-    pub fn filter_event<T: Default>(
+    pub fn filter_event<T>(
         &mut self,
         e: &Event,
         connections: &mut XimConnections<T>,
@@ -270,6 +270,9 @@ impl<C: HasConnection> X11rbServer<C> {
                 } else if msg.type_ == self.atoms.XIM_PROTOCOL {
                     if let Some(connection) = connections.get_connection(msg.window) {
                         self.handle_xim_protocol(msg, connection, handler)?;
+                        if connection.disconnected {
+                            connections.remove_connection(msg.window);
+                        }
                     } else {
                         log::warn!("Unknown connection");
                     }
@@ -281,7 +284,7 @@ impl<C: HasConnection> X11rbServer<C> {
         }
     }
 
-    fn handle_xim_protocol<T: Default>(
+    fn handle_xim_protocol<T>(
         &mut self,
         msg: &ClientMessageEvent,
         connection: &mut XimConnection<T>,

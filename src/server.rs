@@ -24,7 +24,9 @@ pub enum ServerError {
 
 pub trait ServerHandler<S: Server + ServerCore> {
     type InputStyleArray: AsRef<[InputStyle]>;
-    type InputContextData: Default;
+    type InputContextData;
+
+    fn new_ic_data(&mut self) -> Self::InputContextData;
 
     fn input_styles(&self) -> Self::InputStyleArray;
 
@@ -35,6 +37,8 @@ pub trait ServerHandler<S: Server + ServerCore> {
         server: &mut S,
         input_context: &mut InputContext<Self::InputContextData>,
     ) -> Result<(), ServerError>;
+
+    fn handle_destory_ic(&mut self, input_context: InputContext<Self::InputContextData>);
 
     /// return `false` when event back to client
     /// if return `true` it consumed and don't back to client

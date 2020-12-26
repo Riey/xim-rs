@@ -43,4 +43,18 @@ impl<T> ImVec<T> {
     pub fn get_item(&mut self, idx: NonZeroU16) -> Option<&mut T> {
         self.inner.get_mut(&idx)
     }
+
+    pub fn drain(&mut self) -> impl Iterator<Item = (NonZeroU16, T)> + '_ {
+        self.inner.drain()
+    }
+}
+
+impl<T> IntoIterator for ImVec<T> {
+    type Item = (NonZeroU16, T);
+
+    type IntoIter = std::collections::hash_map::IntoIter<NonZeroU16, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.inner.into_iter()
+    }
 }

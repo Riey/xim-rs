@@ -11,7 +11,7 @@ use xim_parser::{
 use self::im_vec::ImVec;
 use crate::server::{Server, ServerCore, ServerError, ServerHandler};
 
-pub struct InputContext<T: Default> {
+pub struct InputContext<T> {
     client_win: u32,
     app_win: Option<NonZeroU32>,
     app_focus_win: Option<NonZeroU32>,
@@ -22,7 +22,7 @@ pub struct InputContext<T: Default> {
     pub user_data: T,
 }
 
-impl<T: Default> InputContext<T> {
+impl<T> InputContext<T> {
     pub fn new(
         client_win: u32,
         app_win: Option<NonZeroU32>,
@@ -31,6 +31,7 @@ impl<T: Default> InputContext<T> {
         input_context_id: NonZeroU16,
         input_style: InputStyle,
         locale: BString,
+        user_data: T,
     ) -> Self {
         Self {
             client_win,
@@ -40,7 +41,7 @@ impl<T: Default> InputContext<T> {
             input_context_id,
             input_style,
             locale,
-            user_data: T::default(),
+            user_data,
         }
     }
 
@@ -73,12 +74,12 @@ impl<T: Default> InputContext<T> {
     }
 }
 
-pub struct InputMethod<T: Default> {
-    locale: BString,
-    input_contexts: ImVec<InputContext<T>>,
+pub struct InputMethod<T> {
+    pub(crate) locale: BString,
+    pub(crate) input_contexts: ImVec<InputContext<T>>,
 }
 
-impl<T: Default> InputMethod<T> {
+impl<T> InputMethod<T> {
     pub fn new(locale: BString) -> Self {
         Self {
             locale,
@@ -92,6 +93,12 @@ impl<T: Default> InputMethod<T> {
 
     pub fn new_ic(&mut self, ic: InputContext<T>) -> (NonZeroU16, &mut InputContext<T>) {
         self.input_contexts.new_item(ic)
+    }
+
+    pub fn remove_input_context(&mut self, ic_id: NonZeroU16) -> Result<InputContext<T>, ServerError> {
+        self.input_contexts
+        .remove_item(ic_id)
+            .ok_or(ServerError::ClientNotExists)
     }
 
     pub fn get_input_context(
@@ -108,22 +115,40 @@ const IC_INPUTSTYLE: u16 = 0;
 const IC_CLIENTWIN: u16 = 1;
 const IC_FOCUSWIN: u16 = 2;
 
-pub struct XimConnection<T: Default> {
-    client_win: u32,
-    input_methods: ImVec<InputMethod<T>>,
+pub struct XimConnection<T> {
+    pub(crate) client_win: u32,
+    pub(crate) disconnected: bool,
+    pub(crate) input_methods: ImVec<InputMethod<T>>,
 }
 
-impl<T: Default> XimConnection<T> {
+impl<T> XimConnection<T> {
     pub fn new(client_win: u32) -> Self {
         Self {
             client_win,
+            disconnected: false,
             input_methods: ImVec::new(),
         }
+    }
+
+    pub fn disconnect<S: ServerCore + Server, H: ServerHandler<S, InputContextData = T>>(&mut self, handler: &mut H)  {
+        for (_id, im) in self.input_methods.drain() {
+            for (_id, ic) in im.input_contexts {
+                handler.handle_destory_ic(ic);
+            }
+        }
+
+        self.disconnected = true;
     }
 
     fn get_input_method(&mut self, id: NonZeroU16) -> Result<&mut InputMethod<T>, ServerError> {
         self.input_methods
             .get_item(id)
+            .ok_or(ServerError::ClientNotExists)
+    }
+
+    fn remove_input_method(&mut self, id: NonZeroU16) -> Result<InputMethod<T>, ServerError> {
+        self.input_methods
+            .remove_item(id)
             .ok_or(ServerError::ClientNotExists)
     }
 
@@ -147,6 +172,12 @@ impl<T: Default> XimConnection<T> {
                     },
                 )?;
             }
+
+            Request::Disconnect { } => {
+                self.disconnect(handler);
+                server.send_req(self.client_win, Request::DisconnectReply{})?;
+            }
+
             Request::Open { locale } => {
                 let (input_method_id, _im) = self.input_methods.new_item(InputMethod::new(locale));
 
@@ -219,6 +250,7 @@ impl<T: Default> XimConnection<T> {
                     NonZeroU16::new(1).unwrap(),
                     input_style,
                     im.clone_locale(),
+                    handler.new_ic_data(),
                 );
                 let (input_context_id, ic) = im.new_ic(ic);
                 ic.input_context_id = input_context_id;
@@ -232,6 +264,39 @@ impl<T: Default> XimConnection<T> {
                 )?;
 
                 handler.handle_create_ic(server, ic)?;
+            }
+
+            Request::DestoryIc {
+                input_context_id,
+                input_method_id
+            } => {
+                match (NonZeroU16::new(input_method_id), NonZeroU16::new(input_context_id)) {
+                    (Some(im_id), Some(ic_id)) => {
+                        let im = self.get_input_method(im_id)?;
+                        let ic = im.remove_input_context(ic_id)?;
+                        handler.handle_destory_ic(ic);
+                    }
+                    _ => {}
+                }
+
+                server.send_req(self.client_win, Request::DestroyIcReply {
+                    input_method_id,
+                    input_context_id,
+                })?;
+            }
+
+            Request::Close {
+                input_method_id
+            } => {
+                if let Some(im_id) = NonZeroU16::new(input_method_id) {
+                    let im = self.remove_input_method(im_id)?;
+
+                    for (_id, ic) in im.input_contexts {
+                        handler.handle_destory_ic(ic);
+                    }
+                }
+
+                server.send_req(self.client_win, Request::CloseReply {input_method_id})?;
             }
 
             Request::QueryExtension {
@@ -377,11 +442,11 @@ impl<T: Default> XimConnection<T> {
     }
 }
 
-pub struct XimConnections<T: Default> {
-    connections: AHashMap<u32, XimConnection<T>>,
+pub struct XimConnections<T> {
+    pub(crate) connections: AHashMap<u32, XimConnection<T>>,
 }
 
-impl<T: Default> XimConnections<T> {
+impl<T> XimConnections<T> {
     pub fn new() -> Self {
         Self {
             connections: AHashMap::new(),
@@ -391,14 +456,15 @@ impl<T: Default> XimConnections<T> {
     pub fn new_connection(&mut self, com_win: u32, client_win: u32) {
         self.connections.insert(
             com_win,
-            XimConnection {
-                client_win,
-                input_methods: ImVec::new(),
-            },
+            XimConnection::new(client_win),
         );
     }
 
     pub fn get_connection(&mut self, com_win: u32) -> Option<&mut XimConnection<T>> {
         self.connections.get_mut(&com_win)
+    }
+
+    pub fn remove_connection(&mut self, com_win: u32) -> Option<XimConnection<T>> {
+        self.connections.remove(&com_win)
     }
 }

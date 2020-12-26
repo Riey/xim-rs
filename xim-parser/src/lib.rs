@@ -67,10 +67,7 @@ mod tests {
 
     #[test]
     fn read_input_styles() {
-        let styles: InputStyleList = read(&[
-            1, 0, 0, 0, 4, 1, 0, 0
-        ])
-        .unwrap();
+        let styles: InputStyleList = read(&[1, 0, 0, 0, 4, 1, 0, 0]).unwrap();
 
         assert_eq!(
             styles,

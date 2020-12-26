@@ -14,6 +14,10 @@ impl<S: Server + ServerCore> ServerHandler<S> for Handler {
     type InputContextData = ();
     type InputStyleArray = [InputStyle; 1];
 
+    fn new_ic_data(&mut self) -> Self::InputContextData {
+        ()
+    }
+
     fn input_styles(&self) -> Self::InputStyleArray {
         [InputStyle::PREEDITNOTHING | InputStyle::STATUSNOTHING]
     }
@@ -43,6 +47,9 @@ impl<S: Server + ServerCore> ServerHandler<S> for Handler {
         _xev: &S::XEvent,
     ) -> Result<bool, ServerError> {
         Ok(true)
+    }
+
+    fn handle_destory_ic(&mut self, _input_context: InputContext<Self::InputContextData>) {
     }
 }
 

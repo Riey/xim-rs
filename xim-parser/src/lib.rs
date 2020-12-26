@@ -78,6 +78,20 @@ mod tests {
     }
 
     #[test]
+    fn commit() {
+        let req = Request::Commit {
+            input_method_id: 1,
+            input_context_id: 1,
+            data: CommitData::Chars {
+                commited: ctext::utf8_to_compound_text("맘"),
+                syncronous: false,
+            },
+        };
+
+        write_to_vec(req);
+    }
+
+    #[test]
     fn set_event_mask() {
         let req = Request::SetEventMask {
             input_method_id: 2,

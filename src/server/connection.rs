@@ -163,7 +163,6 @@ impl<T> XimConnection<T> {
         req: Request,
         handler: &mut H,
     ) -> Result<(), ServerError> {
-        log::trace!("req: {:?}", req);
         match req {
             Request::Connect { .. } => {
                 server.send_req(

@@ -27,7 +27,6 @@ pub fn handle_request<C: ClientCore>(
     handler: &mut impl ClientHandler<C>,
     req: Request,
 ) -> Result<(), ClientError> {
-    log::trace!("Recv: {:?}", req);
     match req {
         Request::ConnectReply {
             server_major_protocol_version: _,

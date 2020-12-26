@@ -95,16 +95,13 @@ impl<T> InputMethod<T> {
         self.input_contexts.new_item(ic)
     }
 
-    pub fn remove_input_context(&mut self, ic_id: NonZeroU16) -> Result<InputContext<T>, ServerError> {
+    pub fn remove_input_context(&mut self, ic_id: u16) -> Result<InputContext<T>, ServerError> {
         self.input_contexts
-        .remove_item(ic_id)
+            .remove_item(ic_id)
             .ok_or(ServerError::ClientNotExists)
     }
 
-    pub fn get_input_context(
-        &mut self,
-        ic_id: NonZeroU16,
-    ) -> Result<&mut InputContext<T>, ServerError> {
+    pub fn get_input_context(&mut self, ic_id: u16) -> Result<&mut InputContext<T>, ServerError> {
         self.input_contexts
             .get_item(ic_id)
             .ok_or(ServerError::ClientNotExists)
@@ -118,6 +115,7 @@ const IC_FOCUSWIN: u16 = 2;
 pub struct XimConnection<T> {
     pub(crate) client_win: u32,
     pub(crate) disconnected: bool,
+    pub(crate) last_focused: Option<(NonZeroU16, NonZeroU16)>,
     pub(crate) input_methods: ImVec<InputMethod<T>>,
 }
 
@@ -126,11 +124,15 @@ impl<T> XimConnection<T> {
         Self {
             client_win,
             disconnected: false,
+            last_focused: None,
             input_methods: ImVec::new(),
         }
     }
 
-    pub fn disconnect<S: ServerCore + Server, H: ServerHandler<S, InputContextData = T>>(&mut self, handler: &mut H)  {
+    pub fn disconnect<S: ServerCore + Server, H: ServerHandler<S, InputContextData = T>>(
+        &mut self,
+        handler: &mut H,
+    ) {
         for (_id, im) in self.input_methods.drain() {
             for (_id, ic) in im.input_contexts {
                 handler.handle_destory_ic(ic);
@@ -140,13 +142,13 @@ impl<T> XimConnection<T> {
         self.disconnected = true;
     }
 
-    fn get_input_method(&mut self, id: NonZeroU16) -> Result<&mut InputMethod<T>, ServerError> {
+    fn get_input_method(&mut self, id: u16) -> Result<&mut InputMethod<T>, ServerError> {
         self.input_methods
             .get_item(id)
             .ok_or(ServerError::ClientNotExists)
     }
 
-    fn remove_input_method(&mut self, id: NonZeroU16) -> Result<InputMethod<T>, ServerError> {
+    fn remove_input_method(&mut self, id: u16) -> Result<InputMethod<T>, ServerError> {
         self.input_methods
             .remove_item(id)
             .ok_or(ServerError::ClientNotExists)
@@ -171,11 +173,12 @@ impl<T> XimConnection<T> {
                         server_minor_protocol_version: 0,
                     },
                 )?;
+                handler.handle_connect(server)?;
             }
 
-            Request::Disconnect { } => {
+            Request::Disconnect {} => {
                 self.disconnect(handler);
-                server.send_req(self.client_win, Request::DisconnectReply{})?;
+                server.send_req(self.client_win, Request::DisconnectReply {})?;
             }
 
             Request::Open { locale } => {
@@ -215,9 +218,6 @@ impl<T> XimConnection<T> {
                 input_method_id,
                 ic_attributes,
             } => {
-                let input_method_id =
-                    NonZeroU16::new(input_method_id).ok_or(ServerError::ClientNotExists)?;
-
                 let mut input_style = InputStyle::empty();
                 let mut app_win = None;
                 let mut app_focus_win = None;
@@ -246,7 +246,7 @@ impl<T> XimConnection<T> {
                     client_win,
                     app_win,
                     app_focus_win,
-                    input_method_id,
+                    NonZeroU16::new(input_method_id).unwrap(),
                     NonZeroU16::new(1).unwrap(),
                     input_style,
                     im.clone_locale(),
@@ -258,7 +258,7 @@ impl<T> XimConnection<T> {
                 server.send_req(
                     ic.client_win(),
                     Request::CreateIcReply {
-                        input_method_id: input_method_id.get(),
+                        input_method_id: input_method_id,
                         input_context_id: input_context_id.get(),
                     },
                 )?;
@@ -268,35 +268,27 @@ impl<T> XimConnection<T> {
 
             Request::DestoryIc {
                 input_context_id,
-                input_method_id
+                input_method_id,
             } => {
-                match (NonZeroU16::new(input_method_id), NonZeroU16::new(input_context_id)) {
-                    (Some(im_id), Some(ic_id)) => {
-                        let im = self.get_input_method(im_id)?;
-                        let ic = im.remove_input_context(ic_id)?;
-                        handler.handle_destory_ic(ic);
-                    }
-                    _ => {}
-                }
-
-                server.send_req(self.client_win, Request::DestroyIcReply {
-                    input_method_id,
-                    input_context_id,
-                })?;
+                handler.handle_destory_ic(
+                    self.get_input_method(input_method_id)?
+                        .remove_input_context(input_context_id)?,
+                );
+                server.send_req(
+                    self.client_win,
+                    Request::DestroyIcReply {
+                        input_method_id,
+                        input_context_id,
+                    },
+                )?;
             }
 
-            Request::Close {
-                input_method_id
-            } => {
-                if let Some(im_id) = NonZeroU16::new(input_method_id) {
-                    let im = self.remove_input_method(im_id)?;
-
-                    for (_id, ic) in im.input_contexts {
-                        handler.handle_destory_ic(ic);
-                    }
+            Request::Close { input_method_id } => {
+                for (_id, ic) in self.remove_input_method(input_method_id)?.input_contexts {
+                    handler.handle_destory_ic(ic);
                 }
 
-                server.send_req(self.client_win, Request::CloseReply {input_method_id})?;
+                server.send_req(self.client_win, Request::CloseReply { input_method_id })?;
             }
 
             Request::QueryExtension {
@@ -381,6 +373,26 @@ impl<T> XimConnection<T> {
                 )?;
             }
 
+            Request::SetIcFocus {
+                input_method_id,
+                input_context_id,
+            } => {
+                let ic = self
+                    .get_input_method(input_method_id)?
+                    .get_input_context(input_context_id)?;
+                self.last_focused = Some((ic.input_method_id(), ic.input_context_id()));
+            }
+
+            Request::UnsetIcFocus {
+                input_method_id,
+                input_context_id,
+            } => {
+                let _ic = self
+                    .get_input_method(input_method_id)?
+                    .get_input_context(input_context_id)?;
+                self.last_focused = None;
+            }
+
             Request::ForwardEvent {
                 input_method_id,
                 input_context_id,
@@ -388,39 +400,23 @@ impl<T> XimConnection<T> {
                 flag,
                 xev,
             } => {
-                match (
-                    NonZeroU16::new(input_method_id),
-                    NonZeroU16::new(input_context_id),
-                ) {
-                    (Some(input_method_id), Some(input_context_id)) => {
-                        let ev = server.deserialize_event(&xev);
-                        let input_context = self
-                            .get_input_method(input_method_id)?
-                            .get_input_context(input_context_id)?;
-                        let consumed = handler.handle_forward_event(server, input_context, &ev)?;
+                let ev = server.deserialize_event(&xev);
+                let input_context = self
+                    .get_input_method(input_method_id)?
+                    .get_input_context(input_context_id)?;
+                let consumed = handler.handle_forward_event(server, input_context, &ev)?;
 
-                        if !consumed {
-                            server.send_req(
-                                self.client_win,
-                                Request::ForwardEvent {
-                                    input_method_id: input_method_id.get(),
-                                    input_context_id: input_context_id.get(),
-                                    serial_number,
-                                    flag: ForwardEventFlag::empty(),
-                                    xev,
-                                },
-                            )?;
-                        }
-                    }
-                    (im, ic) => {
-                        return server.error(
-                            self.client_win,
-                            ErrorCode::BadSomething,
-                            "Not exists".into(),
-                            im,
-                            ic,
-                        );
-                    }
+                if !consumed {
+                    server.send_req(
+                        self.client_win,
+                        Request::ForwardEvent {
+                            input_method_id,
+                            input_context_id,
+                            serial_number,
+                            flag: ForwardEventFlag::empty(),
+                            xev,
+                        },
+                    )?;
                 }
 
                 if flag.contains(ForwardEventFlag::SYNCHRONOUS) {
@@ -454,10 +450,8 @@ impl<T> XimConnections<T> {
     }
 
     pub fn new_connection(&mut self, com_win: u32, client_win: u32) {
-        self.connections.insert(
-            com_win,
-            XimConnection::new(client_win),
-        );
+        self.connections
+            .insert(com_win, XimConnection::new(client_win));
     }
 
     pub fn get_connection(&mut self, com_win: u32) -> Option<&mut XimConnection<T>> {

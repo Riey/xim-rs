@@ -32,12 +32,7 @@ impl<S: Server + ServerCore> ServerHandler<S> for Handler {
         server: &mut S,
         input_context: &mut InputContext<Self::InputContextData>,
     ) -> Result<(), ServerError> {
-        server.commit(
-            input_context.client_win(),
-            input_context.input_method_id(),
-            input_context.input_context_id(),
-            "가나다",
-        )
+        server.commit(input_context, "가나다")
     }
 
     fn handle_forward_event(

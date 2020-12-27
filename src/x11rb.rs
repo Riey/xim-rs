@@ -1,4 +1,3 @@
-use ahash::AHashMap;
 use std::{convert::TryInto, rc::Rc, sync::Arc};
 
 #[cfg(feature = "x11rb-client")]
@@ -7,6 +6,10 @@ use crate::client::{
 };
 #[cfg(feature = "x11rb-server")]
 use crate::server::{ServerCore, ServerError, ServerHandler, XimConnection, XimConnections};
+#[cfg(feature = "x11rb-client")]
+use ahash::AHashMap;
+#[cfg(feature = "x11rb-client")]
+use xim_parser::{Attr, AttributeName};
 
 use crate::Atoms;
 
@@ -30,7 +33,7 @@ use x11rb::{
     COPY_DEPTH_FROM_PARENT, CURRENT_TIME,
 };
 
-use xim_parser::{Attr, AttributeName, Request, XimWrite};
+use xim_parser::{Request, XimWrite};
 
 macro_rules! convert_error {
     ($($ty:ty,)+) => {

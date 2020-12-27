@@ -62,19 +62,11 @@ pub trait Server {
         input_context_id: Option<NonZeroU16>,
     ) -> Result<(), ServerError>;
 
-    fn commit(
-        &mut self,
-        client_win: u32,
-        input_method_id: NonZeroU16,
-        input_context_id: NonZeroU16,
-        s: &str,
-    ) -> Result<(), ServerError>;
+    fn commit<T>(&mut self, ic: &InputContext<T>, s: &str) -> Result<(), ServerError>;
 
-    fn set_event_mask(
+    fn set_event_mask<T>(
         &mut self,
-        client_win: u32,
-        input_method_id: NonZeroU16,
-        input_context_id: NonZeroU16,
+        ic: &InputContext<T>,
         forward_event_mask: u32,
         synchronous_event_mask: u32,
     ) -> Result<(), ServerError>;
@@ -117,18 +109,12 @@ impl<S: ServerCore> Server for S {
         )
     }
 
-    fn commit(
-        &mut self,
-        client_win: u32,
-        input_method_id: NonZeroU16,
-        input_context_id: NonZeroU16,
-        s: &str,
-    ) -> Result<(), ServerError> {
+    fn commit<T>(&mut self, ic: &InputContext<T>, s: &str) -> Result<(), ServerError> {
         self.send_req(
-            client_win,
+            ic.client_win(),
             Request::Commit {
-                input_method_id: input_method_id.get(),
-                input_context_id: input_context_id.get(),
+                input_method_id: ic.input_method_id().get(),
+                input_context_id: ic.input_context_id().get(),
                 data: CommitData::Chars {
                     commited: ctext::utf8_to_compound_text(s),
                     syncronous: false,
@@ -137,19 +123,17 @@ impl<S: ServerCore> Server for S {
         )
     }
 
-    fn set_event_mask(
+    fn set_event_mask<T>(
         &mut self,
-        client_win: u32,
-        input_method_id: NonZeroU16,
-        input_context_id: NonZeroU16,
+        ic: &InputContext<T>,
         forward_event_mask: u32,
         synchronous_event_mask: u32,
     ) -> Result<(), ServerError> {
         self.send_req(
-            client_win,
+            ic.client_win(),
             Request::SetEventMask {
-                input_method_id: input_method_id.get(),
-                input_context_id: input_context_id.get(),
+                input_method_id: ic.input_method_id().get(),
+                input_context_id: ic.input_context_id().get(),
                 forward_event_mask,
                 synchronous_event_mask,
             },

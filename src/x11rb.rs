@@ -255,6 +255,7 @@ impl<C: HasConnection> X11rbServer<C> {
                         &Default::default(),
                     )?;
                     let client_win = msg.data.as_data32()[0];
+                    log::info!("XConnected with {}", client_win);
                     self.conn().send_event(
                         false,
                         client_win,

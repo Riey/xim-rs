@@ -85,10 +85,8 @@ pub trait Server {
         direction: CaretDirection,
         style: CaretStyle,
     ) -> Result<(), ServerError>;
-    fn preedit_start<T>(&mut self, ic: &InputContext<T>) -> Result<(), ServerError>;
-    fn preedit_draw<T>(&mut self, ic: &InputContext<T>, s: &str) -> Result<(), ServerError>;
-    fn preedit_done<T>(&mut self, ic: &InputContext<T>) -> Result<(), ServerError>;
-    fn commit<T>(&mut self, ic: &InputContext<T>, s: &str) -> Result<(), ServerError>;
+    fn preedit_draw<T>(&mut self, ic: &mut InputContext<T>, s: &str) -> Result<(), ServerError>;
+    fn commit<T>(&mut self, ic: &mut InputContext<T>, s: &str) -> Result<(), ServerError>;
 
     fn set_event_mask<T>(
         &mut self,
@@ -154,17 +152,7 @@ impl<S: ServerCore> Server for S {
         )
     }
 
-    fn preedit_start<T>(&mut self, ic: &InputContext<T>) -> Result<(), ServerError> {
-        self.send_req(
-            ic.client_win(),
-            Request::PreeditStart {
-                input_method_id: ic.input_method_id().get(),
-                input_context_id: ic.input_context_id().get(),
-            },
-        )
-    }
-
-    fn preedit_draw<T>(&mut self, ic: &InputContext<T>, s: &str) -> Result<(), ServerError> {
+    fn preedit_draw<T>(&mut self, ic: &mut InputContext<T>, s: &str) -> Result<(), ServerError> {
         let preedit = ctext::utf8_to_compound_text(s);
 
         self.send_req(
@@ -182,17 +170,7 @@ impl<S: ServerCore> Server for S {
         )
     }
 
-    fn preedit_done<T>(&mut self, ic: &InputContext<T>) -> Result<(), ServerError> {
-        self.send_req(
-            ic.client_win(),
-            Request::PreeditDone {
-                input_method_id: ic.input_method_id().get(),
-                input_context_id: ic.input_context_id().get(),
-            },
-        )
-    }
-
-    fn commit<T>(&mut self, ic: &InputContext<T>, s: &str) -> Result<(), ServerError> {
+    fn commit<T>(&mut self, ic: &mut InputContext<T>, s: &str) -> Result<(), ServerError> {
         self.send_req(
             ic.client_win(),
             Request::Commit {

@@ -26,23 +26,19 @@ pub struct InputContext<T> {
 impl<T> InputContext<T> {
     pub fn new(
         client_win: u32,
-        app_win: Option<NonZeroU32>,
-        app_focus_win: Option<NonZeroU32>,
         input_method_id: NonZeroU16,
         input_context_id: NonZeroU16,
-        input_style: InputStyle,
-        preedit_spot: Point,
         locale: BString,
         user_data: T,
     ) -> Self {
         Self {
             client_win,
-            app_win,
-            app_focus_win,
+            app_win: None,
+            app_focus_win: None,
             input_method_id,
             input_context_id,
-            input_style,
-            preedit_spot,
+            input_style: InputStyle::empty(),
+            preedit_spot: Point { x: 0, y: 0 },
             locale,
             user_data,
         }
@@ -78,6 +74,46 @@ impl<T> InputContext<T> {
 
     pub fn locale(&self) -> &BStr {
         self.locale.as_ref()
+    }
+}
+
+fn set_ic_attrs<T>(ic: &mut InputContext<T>, attributes: Vec<Attribute>) {
+    for attr in ic_attributes {
+        match attr.id {
+            IC_INPUTSTYLE => {
+                if let Some(style) = xim_parser::read(&attr.value).ok() {
+                    ic.input_style = style;
+                }
+            }
+            IC_CLIENTWIN => {
+                ic.app_win = xim_parser::read(&attr.value).ok().and_then(NonZeroU32::new);
+            }
+            IC_FOCUSWIN => {
+                ic.app_focus_win = xim_parser::read(&attr.value).ok().and_then(NonZeroU32::new);
+            }
+            IC_PREEDITATTRS => {
+                let mut b = &attr.value[..];
+                loop {
+                    match xim_parser::read::<Attribute>(b) {
+                        Ok(attr) => {
+                            b = &b[attr.size()..];
+                            match attr.id {
+                                IC_SPOTLOCATION => {
+                                    if let Ok(spot) = xim_parser::read::<Point>(b) {
+                                        ic.preedit_spot = spot;
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
+                        Err(_) => {
+                            break;
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
     }
 }
 
@@ -254,65 +290,16 @@ impl<T> XimConnection<T> {
                 input_method_id,
                 ic_attributes,
             } => {
-                let mut location = Point { x: 0, y: 0 };
-                let mut input_style = InputStyle::empty();
-                let mut app_win = None;
-                let mut app_focus_win = None;
-
-                for attr in ic_attributes {
-                    match attr.id {
-                        IC_INPUTSTYLE => {
-                            if let Some(style) = xim_parser::read(&attr.value).ok() {
-                                input_style = style;
-                            }
-                        }
-                        IC_CLIENTWIN => {
-                            app_win = xim_parser::read(&attr.value).ok().and_then(NonZeroU32::new);
-                        }
-                        IC_FOCUSWIN => {
-                            app_focus_win =
-                                xim_parser::read(&attr.value).ok().and_then(NonZeroU32::new);
-                        }
-                        IC_PREEDITATTRS => {
-                            let mut b = &attr.value[..];
-                            loop {
-                                match xim_parser::read::<Attribute>(b) {
-                                    Ok(attr) => {
-                                        b = &b[attr.size()..];
-                                        match attr.id {
-                                            IC_SPOTLOCATION => {
-                                                if let Ok(new_location) =
-                                                    xim_parser::read::<Point>(b)
-                                                {
-                                                    location = new_location;
-                                                }
-                                            }
-                                            _ => {}
-                                        }
-                                    }
-                                    Err(_) => {
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-
                 let client_win = self.client_win;
                 let im = self.get_input_method(input_method_id)?;
-                let ic = InputContext::new(
+                let mut ic = InputContext::new(
                     client_win,
-                    app_win,
-                    app_focus_win,
                     NonZeroU16::new(input_method_id).unwrap(),
                     NonZeroU16::new(1).unwrap(),
-                    input_style,
-                    location,
                     im.clone_locale(),
                     handler.new_ic_data(),
                 );
+                set_ic_attrs(&mut ic, ic_attributes);
                 let (input_context_id, ic) = im.new_ic(ic);
                 ic.input_context_id = input_context_id;
 
@@ -430,6 +417,26 @@ impl<T> XimConnection<T> {
                     Request::GetImValuesReply {
                         input_method_id,
                         im_attributes: out,
+                    },
+                )?;
+            }
+
+            Request::SetIcValues {
+                input_context_id,
+                input_method_id,
+                ic_attributes,
+            } => {
+                let ic = self
+                    .get_input_method(input_method_id)?
+                    .get_input_context(input_context_id)?;
+
+                set_ic_attrs(ic, ic_attributes);
+
+                server.send_req(
+                    ic.client_win,
+                    Request::SetIcValuesReply {
+                        input_method_id,
+                        input_context_id,
                     },
                 )?;
             }

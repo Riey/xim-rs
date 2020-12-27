@@ -164,6 +164,18 @@ impl<T> XimConnection<T> {
         handler: &mut H,
     ) -> Result<(), ServerError> {
         match req {
+            Request::Error {
+                code,
+                detail,
+                flag: _,
+                input_method_id: _,
+                input_context_id: _,
+            } => {
+                // TODO: handle error
+
+                log::error!("XIM ERROR! code: {:?}, detail: {}", code, detail);
+            }
+
             Request::Connect { .. } => {
                 server.send_req(
                     self.client_win,

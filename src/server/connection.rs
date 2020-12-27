@@ -77,7 +77,7 @@ impl<T> InputContext<T> {
     }
 }
 
-fn set_ic_attrs<T>(ic: &mut InputContext<T>, attributes: Vec<Attribute>) {
+fn set_ic_attrs<T>(ic: &mut InputContext<T>, ic_attributes: Vec<Attribute>) {
     for attr in ic_attributes {
         match attr.id {
             IC_INPUTSTYLE => {
@@ -297,7 +297,7 @@ impl<T> XimConnection<T> {
                     NonZeroU16::new(input_method_id).unwrap(),
                     NonZeroU16::new(1).unwrap(),
                     im.clone_locale(),
-                    handler.new_ic_data(),
+                    handler.new_ic_data(server)?,
                 );
                 set_ic_attrs(&mut ic, ic_attributes);
                 let (input_context_id, ic) = im.new_ic(ic);
@@ -439,6 +439,8 @@ impl<T> XimConnection<T> {
                         input_context_id,
                     },
                 )?;
+
+                handler.handle_set_ic_values(server, ic)?;
             }
 
             Request::SetIcFocus {

@@ -2,7 +2,9 @@ mod connection;
 
 use std::num::NonZeroU16;
 
-use xim_parser::{bstr::BString, CommitData, ErrorCode, ErrorFlag, InputStyle, Request};
+use xim_parser::{
+    bstr::BString, CommitData, ErrorCode, ErrorFlag, InputStyle, PreeditDrawStatus, Request,
+};
 
 pub use self::connection::{InputContext, InputMethod, XimConnection, XimConnections};
 
@@ -42,6 +44,12 @@ pub trait ServerHandler<S: Server + ServerCore> {
 
     fn handle_destory_ic(&mut self, input_context: InputContext<Self::InputContextData>);
 
+    fn handle_preedit_start(
+        &mut self,
+        server: &mut S,
+        input_context: &mut InputContext<Self::InputContextData>,
+    ) -> Result<(), ServerError>;
+
     /// return `false` when event back to client
     /// if return `true` it consumed and don't back to client
     fn handle_forward_event(
@@ -62,6 +70,9 @@ pub trait Server {
         input_context_id: Option<NonZeroU16>,
     ) -> Result<(), ServerError>;
 
+    fn preedit_start<T>(&mut self, ic: &InputContext<T>) -> Result<(), ServerError>;
+    fn preedit_draw<T>(&mut self, ic: &InputContext<T>, s: &str) -> Result<(), ServerError>;
+    fn preedit_done<T>(&mut self, ic: &InputContext<T>) -> Result<(), ServerError>;
     fn commit<T>(&mut self, ic: &InputContext<T>, s: &str) -> Result<(), ServerError>;
 
     fn set_event_mask<T>(
@@ -105,6 +116,44 @@ impl<S: ServerCore> Server for S {
                 code,
                 detail,
                 flag,
+            },
+        )
+    }
+
+    fn preedit_start<T>(&mut self, ic: &InputContext<T>) -> Result<(), ServerError> {
+        self.send_req(
+            ic.client_win(),
+            Request::PreeditStart {
+                input_method_id: ic.input_method_id().get(),
+                input_context_id: ic.input_context_id().get(),
+            },
+        )
+    }
+
+    fn preedit_draw<T>(&mut self, ic: &InputContext<T>, s: &str) -> Result<(), ServerError> {
+        let preedit = ctext::utf8_to_compound_text(s);
+
+        self.send_req(
+            ic.client_win(),
+            Request::PreeditDraw {
+                input_method_id: ic.input_method_id().get(),
+                input_context_id: ic.input_context_id().get(),
+                chg_first: 0,
+                chg_length: s.chars().count() as i32,
+                caret: 0,
+                preedit_string: preedit,
+                status: PreeditDrawStatus::NOFEEDBACK,
+                feedbacks: Vec::new(),
+            },
+        )
+    }
+
+    fn preedit_done<T>(&mut self, ic: &InputContext<T>) -> Result<(), ServerError> {
+        self.send_req(
+            ic.client_win(),
+            Request::PreeditDone {
+                input_method_id: ic.input_method_id().get(),
+                input_context_id: ic.input_context_id().get(),
             },
         )
     }

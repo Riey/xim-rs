@@ -392,6 +392,18 @@ impl<T> XimConnection<T> {
                 self.last_focused = None;
             }
 
+            Request::PreeditStartReply {
+                input_method_id,
+                input_context_id,
+                return_value: _,
+            } => {
+                let ic = self
+                    .get_input_method(input_method_id)?
+                    .get_input_context(input_context_id)?;
+
+                handler.handle_preedit_start(server, ic)?;
+            }
+
             Request::ForwardEvent {
                 input_method_id,
                 input_context_id,

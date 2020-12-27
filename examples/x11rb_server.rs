@@ -45,6 +45,14 @@ impl<S: Server + ServerCore> ServerHandler<S> for Handler {
     }
 
     fn handle_destory_ic(&mut self, _input_context: InputContext<Self::InputContextData>) {}
+
+    fn handle_preedit_start(
+        &mut self,
+        _server: &mut S,
+        _input_context: &mut InputContext<Self::InputContextData>,
+    ) -> Result<(), ServerError> {
+        Ok(())
+    }
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

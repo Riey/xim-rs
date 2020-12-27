@@ -53,6 +53,15 @@ impl<S: Server + ServerCore> ServerHandler<S> for Handler {
     ) -> Result<(), ServerError> {
         Ok(())
     }
+
+    fn handle_caret(
+        &mut self,
+        _server: &mut S,
+        _input_context: &mut InputContext<Self::InputContextData>,
+        _position: i32,
+    ) -> Result<(), ServerError> {
+        Ok(())
+    }
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

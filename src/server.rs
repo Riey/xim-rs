@@ -3,7 +3,8 @@ mod connection;
 use std::num::NonZeroU16;
 
 use xim_parser::{
-    bstr::BString, CommitData, ErrorCode, ErrorFlag, InputStyle, PreeditDrawStatus, Request,
+    bstr::BString, CaretDirection, CaretStyle, CommitData, ErrorCode, ErrorFlag, InputStyle,
+    PreeditDrawStatus, Request,
 };
 
 pub use self::connection::{InputContext, InputMethod, XimConnection, XimConnections};
@@ -44,6 +45,13 @@ pub trait ServerHandler<S: Server + ServerCore> {
 
     fn handle_destory_ic(&mut self, input_context: InputContext<Self::InputContextData>);
 
+    fn handle_caret(
+        &mut self,
+        server: &mut S,
+        input_context: &mut InputContext<Self::InputContextData>,
+        position: i32,
+    ) -> Result<(), ServerError>;
+
     fn handle_preedit_start(
         &mut self,
         server: &mut S,
@@ -70,6 +78,13 @@ pub trait Server {
         input_context_id: Option<NonZeroU16>,
     ) -> Result<(), ServerError>;
 
+    fn preedit_caret<T>(
+        &mut self,
+        ic: &InputContext<T>,
+        position: i32,
+        direction: CaretDirection,
+        style: CaretStyle,
+    ) -> Result<(), ServerError>;
     fn preedit_start<T>(&mut self, ic: &InputContext<T>) -> Result<(), ServerError>;
     fn preedit_draw<T>(&mut self, ic: &InputContext<T>, s: &str) -> Result<(), ServerError>;
     fn preedit_done<T>(&mut self, ic: &InputContext<T>) -> Result<(), ServerError>;
@@ -116,6 +131,25 @@ impl<S: ServerCore> Server for S {
                 code,
                 detail,
                 flag,
+            },
+        )
+    }
+
+    fn preedit_caret<T>(
+        &mut self,
+        ic: &InputContext<T>,
+        position: i32,
+        direction: CaretDirection,
+        style: CaretStyle,
+    ) -> Result<(), ServerError> {
+        self.send_req(
+            ic.client_win(),
+            Request::PreeditCaret {
+                input_method_id: ic.input_method_id().get(),
+                input_context_id: ic.input_context_id().get(),
+                direction,
+                position,
+                style,
             },
         )
     }

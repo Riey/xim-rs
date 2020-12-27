@@ -404,6 +404,18 @@ impl<T> XimConnection<T> {
                 self.last_focused = None;
             }
 
+            Request::PreeditCaretReply {
+                input_method_id,
+                input_context_id,
+                position,
+            } => {
+                let ic = self
+                    .get_input_method(input_method_id)?
+                    .get_input_context(input_context_id)?;
+
+                handler.handle_caret(server, ic, position)?;
+            }
+
             Request::PreeditStartReply {
                 input_method_id,
                 input_context_id,

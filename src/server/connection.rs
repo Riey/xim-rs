@@ -5,7 +5,7 @@ use std::num::{NonZeroU16, NonZeroU32};
 use xim_parser::{
     bstr::{BStr, BString},
     Attr, AttrType, Attribute, AttributeName, ErrorCode, ErrorFlag, ForwardEventFlag, InputStyle,
-    InputStyleList, Request,
+    InputStyleList, Point, Request, XimWrite,
 };
 
 use self::im_vec::ImVec;
@@ -18,6 +18,7 @@ pub struct InputContext<T> {
     input_method_id: NonZeroU16,
     input_context_id: NonZeroU16,
     input_style: InputStyle,
+    preedit_spot: Point,
     locale: BString,
     pub user_data: T,
 }
@@ -30,6 +31,7 @@ impl<T> InputContext<T> {
         input_method_id: NonZeroU16,
         input_context_id: NonZeroU16,
         input_style: InputStyle,
+        preedit_spot: Point,
         locale: BString,
         user_data: T,
     ) -> Self {
@@ -40,6 +42,7 @@ impl<T> InputContext<T> {
             input_method_id,
             input_context_id,
             input_style,
+            preedit_spot,
             locale,
             user_data,
         }
@@ -55,6 +58,10 @@ impl<T> InputContext<T> {
 
     pub fn app_focus_win(&self) -> Option<NonZeroU32> {
         self.app_focus_win
+    }
+
+    pub fn preedit_spot(&self) -> Point {
+        self.preedit_spot.clone()
     }
 
     pub fn input_method_id(&self) -> NonZeroU16 {
@@ -111,6 +118,9 @@ impl<T> InputMethod<T> {
 const IC_INPUTSTYLE: u16 = 0;
 const IC_CLIENTWIN: u16 = 1;
 const IC_FOCUSWIN: u16 = 2;
+const IC_PREEDITATTRS: u16 = 3;
+const IC_SPOTLOCATION: u16 = 4;
+const IC_NESTED_SEP: u16 = 30;
 
 pub struct XimConnection<T> {
     pub(crate) client_win: u32,
@@ -220,6 +230,21 @@ impl<T> XimConnection<T> {
                                 name: AttributeName::FocusWindow,
                                 ty: AttrType::Window,
                             },
+                            Attr {
+                                id: IC_PREEDITATTRS,
+                                name: AttributeName::PreeditAttributes,
+                                ty: AttrType::NestedList,
+                            },
+                            Attr {
+                                id: IC_SPOTLOCATION,
+                                name: AttributeName::SpotLocation,
+                                ty: AttrType::XPoint,
+                            },
+                            Attr {
+                                id: IC_NESTED_SEP,
+                                name: AttributeName::SeparatorofNestedList,
+                                ty: AttrType::Separator,
+                            },
                         ],
                     },
                 )?;
@@ -229,6 +254,7 @@ impl<T> XimConnection<T> {
                 input_method_id,
                 ic_attributes,
             } => {
+                let mut location = Point { x: 0, y: 0 };
                 let mut input_style = InputStyle::empty();
                 let mut app_win = None;
                 let mut app_focus_win = None;
@@ -247,6 +273,29 @@ impl<T> XimConnection<T> {
                             app_focus_win =
                                 xim_parser::read(&attr.value).ok().and_then(NonZeroU32::new);
                         }
+                        IC_PREEDITATTRS => {
+                            let mut b = &attr.value[..];
+                            loop {
+                                match xim_parser::read::<Attribute>(b) {
+                                    Ok(attr) => {
+                                        b = &b[attr.size()..];
+                                        match attr.id {
+                                            IC_SPOTLOCATION => {
+                                                if let Ok(new_location) =
+                                                    xim_parser::read::<Point>(b)
+                                                {
+                                                    location = new_location;
+                                                }
+                                            }
+                                            _ => {}
+                                        }
+                                    }
+                                    Err(_) => {
+                                        break;
+                                    }
+                                }
+                            }
+                        }
                         _ => {}
                     }
                 }
@@ -260,6 +309,7 @@ impl<T> XimConnection<T> {
                     NonZeroU16::new(input_method_id).unwrap(),
                     NonZeroU16::new(1).unwrap(),
                     input_style,
+                    location,
                     im.clone_locale(),
                     handler.new_ic_data(),
                 );

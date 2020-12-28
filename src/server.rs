@@ -31,7 +31,11 @@ pub trait ServerHandler<S: Server + ServerCore> {
     type InputStyleArray: AsRef<[InputStyle]>;
     type InputContextData;
 
-    fn new_ic_data(&mut self, server: &mut S) -> Result<Self::InputContextData, ServerError>;
+    fn new_ic_data(
+        &mut self,
+        server: &mut S,
+        input_style: InputStyle,
+    ) -> Result<Self::InputContextData, ServerError>;
 
     fn input_styles(&self) -> Self::InputStyleArray;
 
@@ -44,6 +48,10 @@ pub trait ServerHandler<S: Server + ServerCore> {
     ) -> Result<(), ServerError>;
 
     fn handle_destory_ic(&mut self, input_context: InputContext<Self::InputContextData>);
+    fn handle_reset_ic(
+        &mut self,
+        input_context: &mut InputContext<Self::InputContextData>,
+    ) -> String;
 
     fn handle_set_ic_values(
         &mut self,

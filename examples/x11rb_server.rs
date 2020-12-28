@@ -14,8 +14,8 @@ impl<S: Server + ServerCore> ServerHandler<S> for Handler {
     type InputContextData = ();
     type InputStyleArray = [InputStyle; 1];
 
-    fn new_ic_data(&mut self) -> Self::InputContextData {
-        ()
+    fn new_ic_data(&mut self, _server: &mut S, _style: InputStyle) -> Result<Self::InputContextData, ServerError> {
+        Ok(())
     }
 
     fn input_styles(&self) -> Self::InputStyleArray {
@@ -59,6 +59,21 @@ impl<S: Server + ServerCore> ServerHandler<S> for Handler {
         _server: &mut S,
         _input_context: &mut InputContext<Self::InputContextData>,
         _position: i32,
+    ) -> Result<(), ServerError> {
+        Ok(())
+    }
+
+    fn handle_reset_ic(
+        &mut self,
+        _input_context: &mut InputContext<Self::InputContextData>,
+    ) -> String {
+        String::new()
+    }
+
+    fn handle_set_ic_values(
+        &mut self,
+        _server: &mut S,
+        _input_context: &mut InputContext<Self::InputContextData>,
     ) -> Result<(), ServerError> {
         Ok(())
     }

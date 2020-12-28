@@ -185,15 +185,18 @@ impl<T> XimConnection<T> {
 
     pub fn disconnect<S: ServerCore + Server, H: ServerHandler<S, InputContextData = T>>(
         &mut self,
+        server: &mut S,
         handler: &mut H,
-    ) {
+    ) -> Result<(), ServerError> {
         for (_id, im) in self.input_methods.drain() {
             for (_id, ic) in im.input_contexts {
-                handler.handle_destory_ic(ic);
+                handler.handle_destory_ic(server, ic)?;
             }
         }
 
         self.disconnected = true;
+
+        Ok(())
     }
 
     fn get_input_method(&mut self, id: u16) -> Result<&mut InputMethod<T>, ServerError> {
@@ -242,7 +245,7 @@ impl<T> XimConnection<T> {
             }
 
             Request::Disconnect {} => {
-                self.disconnect(handler);
+                self.disconnect(server, handler)?;
                 server.send_req(self.client_win, Request::DisconnectReply {})?;
             }
 
@@ -328,9 +331,10 @@ impl<T> XimConnection<T> {
                 input_method_id,
             } => {
                 handler.handle_destory_ic(
+                    server,
                     self.get_input_method(input_method_id)?
                         .remove_input_context(input_context_id)?,
-                );
+                )?;
                 server.send_req(
                     self.client_win,
                     Request::DestroyIcReply {
@@ -342,7 +346,7 @@ impl<T> XimConnection<T> {
 
             Request::Close { input_method_id } => {
                 for (_id, ic) in self.remove_input_method(input_method_id)?.input_contexts {
-                    handler.handle_destory_ic(ic);
+                    handler.handle_destory_ic(server, ic)?;
                 }
 
                 server.send_req(self.client_win, Request::CloseReply { input_method_id })?;
@@ -400,7 +404,7 @@ impl<T> XimConnection<T> {
                 let ic = self
                     .get_input_method(input_method_id)?
                     .get_input_context(input_context_id)?;
-                let ret = handler.handle_reset_ic(ic);
+                let ret = handler.handle_reset_ic(server, ic)?;
                 server.send_req(
                     ic.client_win(),
                     Request::ResetIcReply {

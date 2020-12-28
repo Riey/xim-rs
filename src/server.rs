@@ -47,11 +47,16 @@ pub trait ServerHandler<S: Server + ServerCore> {
         input_context: &mut InputContext<Self::InputContextData>,
     ) -> Result<(), ServerError>;
 
-    fn handle_destory_ic(&mut self, input_context: InputContext<Self::InputContextData>);
+    fn handle_destory_ic(
+        &mut self,
+        server: &mut S,
+        input_context: InputContext<Self::InputContextData>,
+    ) -> Result<(), ServerError>;
     fn handle_reset_ic(
         &mut self,
+        server: &mut S,
         input_context: &mut InputContext<Self::InputContextData>,
-    ) -> String;
+    ) -> Result<String, ServerError>;
 
     fn handle_set_ic_values(
         &mut self,
@@ -99,7 +104,9 @@ pub trait Server {
         direction: CaretDirection,
         style: CaretStyle,
     ) -> Result<(), ServerError>;
+    fn preedit_start<T>(&mut self, ic: &mut InputContext<T>) -> Result<(), ServerError>;
     fn preedit_draw<T>(&mut self, ic: &mut InputContext<T>, s: &str) -> Result<(), ServerError>;
+    fn preedit_done<T>(&mut self, ic: &mut InputContext<T>) -> Result<(), ServerError>;
     fn commit<T>(&mut self, ic: &mut InputContext<T>, s: &str) -> Result<(), ServerError>;
 
     fn set_event_mask<T>(
@@ -162,6 +169,26 @@ impl<S: ServerCore> Server for S {
                 direction,
                 position,
                 style,
+            },
+        )
+    }
+
+    fn preedit_start<T>(&mut self, ic: &mut InputContext<T>) -> Result<(), ServerError> {
+        self.send_req(
+            ic.client_win(),
+            Request::PreeditStart {
+                input_method_id: ic.input_method_id().get(),
+                input_context_id: ic.input_context_id().get(),
+            },
+        )
+    }
+
+    fn preedit_done<T>(&mut self, ic: &mut InputContext<T>) -> Result<(), ServerError> {
+        self.send_req(
+            ic.client_win(),
+            Request::PreeditDone {
+                input_method_id: ic.input_method_id().get(),
+                input_context_id: ic.input_context_id().get(),
             },
         )
     }

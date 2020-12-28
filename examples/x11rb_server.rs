@@ -14,7 +14,11 @@ impl<S: Server + ServerCore> ServerHandler<S> for Handler {
     type InputContextData = ();
     type InputStyleArray = [InputStyle; 1];
 
-    fn new_ic_data(&mut self, _server: &mut S, _style: InputStyle) -> Result<Self::InputContextData, ServerError> {
+    fn new_ic_data(
+        &mut self,
+        _server: &mut S,
+        _style: InputStyle,
+    ) -> Result<Self::InputContextData, ServerError> {
         Ok(())
     }
 
@@ -44,7 +48,13 @@ impl<S: Server + ServerCore> ServerHandler<S> for Handler {
         Ok(true)
     }
 
-    fn handle_destory_ic(&mut self, _input_context: InputContext<Self::InputContextData>) {}
+    fn handle_destory_ic(
+        &mut self,
+        _server: &mut S,
+        _input_context: InputContext<Self::InputContextData>,
+    ) -> Result<(), ServerError> {
+        Ok(())
+    }
 
     fn handle_preedit_start(
         &mut self,
@@ -65,9 +75,10 @@ impl<S: Server + ServerCore> ServerHandler<S> for Handler {
 
     fn handle_reset_ic(
         &mut self,
+        _server: &mut S,
         _input_context: &mut InputContext<Self::InputContextData>,
-    ) -> String {
-        String::new()
+    ) -> Result<String, ServerError> {
+        Ok(String::new())
     }
 
     fn handle_set_ic_values(

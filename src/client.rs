@@ -19,7 +19,7 @@ pub enum ClientError {
     #[error("Can't connect xim server")]
     NoXimServer,
     #[error(transparent)]
-    Other(Box<dyn std::error::Error>),
+    Other(Box<dyn std::error::Error + Send + Sync>),
 }
 
 pub fn handle_request<C: ClientCore>(

@@ -24,7 +24,7 @@ pub enum ServerError {
     #[error("Internal error: {0}")]
     Internal(String),
     #[error(transparent)]
-    Other(Box<dyn std::error::Error>),
+    Other(Box<dyn std::error::Error + Send + Sync>),
 }
 
 pub trait ServerHandler<S: Server + ServerCore> {

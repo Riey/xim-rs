@@ -145,9 +145,10 @@ pub struct X11rbServer<C: HasConnection> {
 
 #[cfg(feature = "x11rb-server")]
 impl<C: HasConnection> X11rbServer<C> {
-    pub fn init(has_conn: C, screen: &Screen, im_name: &str) -> Result<Self, ServerError> {
+    pub fn init(has_conn: C, screen_num: usize, im_name: &str) -> Result<Self, ServerError> {
         let im_name = format!("@server={}", im_name);
         let conn = has_conn.conn();
+        let screen = &conn.setup().roots[screen_num];
         let im_win = conn.generate_id()?;
         conn.create_window(
             COPY_DEPTH_FROM_PARENT,
@@ -376,8 +377,13 @@ pub struct X11rbClient<C: HasConnection> {
 
 #[cfg(feature = "x11rb-client")]
 impl<C: HasConnection> X11rbClient<C> {
-    pub fn init(has_conn: C, screen: &Screen, im_name: Option<&str>) -> Result<Self, ClientError> {
+    pub fn init(
+        has_conn: C,
+        screen_num: usize,
+        im_name: Option<&str>,
+    ) -> Result<Self, ClientError> {
         let conn = has_conn.conn();
+        let screen = &conn.setup().roots[screen_num];
         let client_window = conn.generate_id()?;
 
         conn.create_window(

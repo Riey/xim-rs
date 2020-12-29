@@ -33,7 +33,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     conn.map_window(window)?;
     conn.flush()?;
 
-    let mut client = X11rbClient::init(&conn, screen, None)?;
+    let mut client = X11rbClient::init(&conn, screen_num, None)?;
 
     log::info!("Start event loop");
 

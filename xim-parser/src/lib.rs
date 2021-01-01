@@ -144,6 +144,16 @@ mod tests {
     }
 
     #[test]
+    fn spot_attr() {
+        let value = [4, 0, 4, 0, 0, 0, 0, 0];
+
+        let attr = read::<Attribute>(&value).unwrap();
+
+        assert_eq!(attr.id, 4);
+        assert_eq!(read::<Point>(&attr.value).unwrap(), Point { x: 0, y: 0 });
+    }
+
+    #[test]
     fn read_error() {
         let req: Request = read(&[
             20, 0, 7, 0, 2, 0, 1, 0, 3, 0, 2, 0, 16, 0, 0, 0, 105, 110, 118, 97, 108, 105, 100, 32,

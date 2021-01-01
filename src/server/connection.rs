@@ -101,13 +101,13 @@ fn set_ic_attrs(ic: &mut InputContextInner, ic_attributes: Vec<Attribute>) {
             }
             IC_PREEDITATTRS => {
                 let mut b = &attr.value[..];
-                loop {
+                while !b.is_empty() {
                     match xim_parser::read::<Attribute>(b) {
                         Ok(attr) => {
                             b = &b[attr.size()..];
                             match attr.id {
                                 IC_SPOTLOCATION => {
-                                    if let Ok(spot) = xim_parser::read::<Point>(b) {
+                                    if let Ok(spot) = xim_parser::read(&attr.value) {
                                         ic.preedit_spot = spot;
                                     }
                                 }

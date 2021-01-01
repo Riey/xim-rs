@@ -389,7 +389,7 @@ impl<T> XimConnection<T> {
                             Request::Error {
                                 input_method_id,
                                 input_context_id: 0,
-                                flag: ErrorFlag::INPUTMETHODIDVALID,
+                                flag: ErrorFlag::INPUT_METHOD_ID_VALID,
                                 code: ErrorCode::BadName,
                                 detail: "Only COMPOUND_TEXT encoding is supported".into(),
                             },

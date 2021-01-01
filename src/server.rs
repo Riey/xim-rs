@@ -129,14 +129,14 @@ impl<S: ServerCore> Server for S {
         let mut flag = ErrorFlag::empty();
 
         let input_method_id = if let Some(id) = input_method_id {
-            flag |= ErrorFlag::INPUTMETHODIDVALID;
+            flag |= ErrorFlag::INPUT_METHOD_ID_VALID;
             id.get()
         } else {
             0
         };
 
         let input_context_id = if let Some(id) = input_context_id {
-            flag |= ErrorFlag::INPUTCONTEXTIDVALID;
+            flag |= ErrorFlag::INPUT_CONTEXT_ID_VALID;
             id.get()
         } else {
             0
@@ -205,7 +205,7 @@ impl<S: ServerCore> Server for S {
                 chg_length: s.chars().count() as i32,
                 caret: 0,
                 preedit_string: preedit,
-                status: PreeditDrawStatus::NOFEEDBACK,
+                status: PreeditDrawStatus::NO_FEEDBACK,
                 feedbacks: Vec::new(),
             },
         )

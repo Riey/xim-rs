@@ -42,7 +42,7 @@ impl<C: Client> ClientHandler<C> for ExampleHandler {
             .build_ic_attributes()
             .push(
                 AttributeName::InputStyle,
-                InputStyle::PREEDITNOTHING | InputStyle::STATUSNOTHING,
+                InputStyle::PREEDIT_NOTHING | InputStyle::STATUS_NOTHING,
             )
             .push(AttributeName::ClientWindow, self.window)
             .push(AttributeName::FocusWindow, self.window)

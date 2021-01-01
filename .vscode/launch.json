@@ -48,6 +48,27 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "Debug example 'x11rb_server'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=x11rb_server",
+                    "--all-features",
+                    "--package=xim"
+                ],
+                "filter": {
+                    "name": "x11rb_server",
+                    "kind": "example"
+                }
+            },
+            "env": {
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "Debug unit tests in library 'xim-parser'",
             "cargo": {
                 "args": [

@@ -1,4 +1,5 @@
 use crate::format_type::Field;
+use convert_case::{Case, Casing};
 use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::io::{self, Write};
@@ -26,7 +27,12 @@ impl EnumFormat {
 
             writeln!(out, "pub struct {}: {} {{", name, self.repr)?;
             for (name, variant) in variants.iter() {
-                writeln!(out, "const {} = {};", name.to_ascii_uppercase(), variant)?;
+                writeln!(
+                    out,
+                    "const {} = {};",
+                    name.to_case(Case::UpperSnake),
+                    variant
+                )?;
             }
             writeln!(out, "}}")?;
 

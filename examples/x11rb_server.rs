@@ -23,7 +23,7 @@ impl<S: Server + ServerCore> ServerHandler<S> for Handler {
     }
 
     fn input_styles(&self) -> Self::InputStyleArray {
-        [InputStyle::PREEDITNOTHING | InputStyle::STATUSNOTHING]
+        [InputStyle::PREEDIT_NOTHING | InputStyle::STATUS_NOTHING]
     }
 
     fn handle_connect(&mut self, _server: &mut S) -> Result<(), ServerError> {

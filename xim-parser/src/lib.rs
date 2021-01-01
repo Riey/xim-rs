@@ -72,7 +72,7 @@ mod tests {
         assert_eq!(
             styles,
             InputStyleList {
-                styles: vec![InputStyle::PREEDITPOSITION | InputStyle::STATUSAREA]
+                styles: vec![InputStyle::PREEDIT_POSITION | InputStyle::STATUS_AREA]
             }
         );
     }
@@ -110,7 +110,7 @@ mod tests {
     #[test]
     fn attr_size() {
         let list = InputStyleList {
-            styles: vec![InputStyle::PREEDITPOSITION | InputStyle::STATUSAREA],
+            styles: vec![InputStyle::PREEDIT_POSITION | InputStyle::STATUS_AREA],
         };
 
         assert_eq!(list.size(), 8);
@@ -130,7 +130,7 @@ mod tests {
             im_attributes: vec![Attribute {
                 id: 0,
                 value: write_to_vec(InputStyleList {
-                    styles: vec![InputStyle::PREEDITPOSITION | InputStyle::STATUSAREA],
+                    styles: vec![InputStyle::PREEDIT_POSITION | InputStyle::STATUS_AREA],
                 }),
             }],
         };
@@ -156,7 +156,7 @@ mod tests {
             Request::Error {
                 input_method_id: 2,
                 input_context_id: 1,
-                flag: ErrorFlag::INPUTMETHODIDVALID | ErrorFlag::INPUTCONTEXTIDVALID,
+                flag: ErrorFlag::INPUT_METHOD_ID_VALID | ErrorFlag::INPUT_CONTEXT_ID_VALID,
                 code: ErrorCode::BadStyle,
                 detail: "invalid im style".into(),
             }

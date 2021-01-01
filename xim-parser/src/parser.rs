@@ -642,8 +642,8 @@ impl XimWrite for ErrorCode {
 }
 bitflags::bitflags! {
 pub struct ErrorFlag: u16 {
-const INPUTMETHODIDVALID = 1;
-const INPUTCONTEXTIDVALID = 2;
+const INPUT_METHOD_ID_VALID = 1;
+const INPUT_CONTEXT_ID_VALID = 2;
 }
 }
 impl XimRead for ErrorFlag {
@@ -701,8 +701,8 @@ impl XimWrite for Feedback {
 bitflags::bitflags! {
 pub struct ForwardEventFlag: u16 {
 const SYNCHRONOUS = 1;
-const REQUESTFILTERING = 2;
-const REQUESTLOOPUPSTRING = 4;
+const REQUEST_FILTERING = 2;
+const REQUEST_LOOP_UPSTRING = 4;
 }
 }
 impl XimRead for ForwardEventFlag {
@@ -745,15 +745,15 @@ impl XimWrite for HotKeyState {
 }
 bitflags::bitflags! {
 pub struct InputStyle: u32 {
-const PREEDITAREA = 1;
-const PREEDITCALLBACKS = 2;
-const PREEDITPOSITION = 4;
-const PREEDITNOTHING = 8;
-const PREEDITNONE = 16;
-const STATUSAREA = 256;
-const STATUSCALLBACKS = 512;
-const STATUSNOTHING = 1024;
-const STATUSNONE = 2048;
+const PREEDIT_AREA = 1;
+const PREEDIT_CALLBACKS = 2;
+const PREEDIT_POSITION = 4;
+const PREEDIT_NOTHING = 8;
+const PREEDIT_NONE = 16;
+const STATUS_AREA = 256;
+const STATUS_CALLBACKS = 512;
+const STATUS_NOTHING = 1024;
+const STATUS_NONE = 2048;
 }
 }
 impl XimRead for InputStyle {
@@ -772,8 +772,8 @@ impl XimWrite for InputStyle {
 }
 bitflags::bitflags! {
 pub struct PreeditDrawStatus: u32 {
-const NOSTRING = 1;
-const NOFEEDBACK = 2;
+const NO_STRING = 1;
+const NO_FEEDBACK = 2;
 }
 }
 impl XimRead for PreeditDrawStatus {

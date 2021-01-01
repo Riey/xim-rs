@@ -14,6 +14,9 @@ license = "MIT"
 
 [features]
 default = ["x11rb-client"]
+
+bootstrap-parser = ["xim-parser/bootstrap"]
+
 client = []
 server = []
 

@@ -27,7 +27,7 @@ pub enum ServerError {
     Other(Box<dyn std::error::Error + Send + Sync>),
 }
 
-pub trait ServerHandler<S: Server + ServerCore> {
+pub trait ServerHandler<S: Server> {
     type InputStyleArray: AsRef<[InputStyle]>;
     type InputContextData;
 
@@ -88,6 +88,8 @@ pub trait ServerHandler<S: Server + ServerCore> {
 }
 
 pub trait Server {
+    type XEvent;
+
     fn error(
         &mut self,
         client_win: u32,
@@ -118,6 +120,8 @@ pub trait Server {
 }
 
 impl<S: ServerCore> Server for S {
+    type XEvent = S::XEvent;
+
     fn error(
         &mut self,
         client_win: u32,

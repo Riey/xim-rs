@@ -211,10 +211,7 @@ impl<T> XimConnection<T> {
             .ok_or(ServerError::ClientNotExists)
     }
 
-    pub(crate) fn handle_request<
-        S: ServerCore + Server,
-        H: ServerHandler<S, InputContextData = T>,
-    >(
+    pub(crate) fn handle_request<S: ServerCore, H: ServerHandler<S, InputContextData = T>>(
         &mut self,
         server: &mut S,
         req: Request,

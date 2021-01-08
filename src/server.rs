@@ -58,6 +58,18 @@ pub trait ServerHandler<S: Server> {
         input_context: &mut InputContext<Self::InputContextData>,
     ) -> Result<String, ServerError>;
 
+    fn handle_set_focus(
+        &mut self,
+        server: &mut S,
+        input_context: &mut InputContext<Self::InputContextData>,
+    ) -> Result<(), ServerError>;
+
+    fn handle_unset_focus(
+        &mut self,
+        server: &mut S,
+        input_context: &mut InputContext<Self::InputContextData>,
+    ) -> Result<(), ServerError>;
+
     fn handle_set_ic_values(
         &mut self,
         server: &mut S,

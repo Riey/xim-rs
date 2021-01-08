@@ -85,6 +85,22 @@ impl<S: Server> ServerHandler<S> for Handler {
     ) -> Result<(), ServerError> {
         Ok(())
     }
+
+    fn handle_set_focus(
+        &mut self,
+        _server: &mut S,
+        _input_context: &mut InputContext<Self::InputContextData>,
+    ) -> Result<(), ServerError> {
+        Ok(())
+    }
+
+    fn handle_unset_focus(
+        &mut self,
+        _server: &mut S,
+        _input_context: &mut InputContext<Self::InputContextData>,
+    ) -> Result<(), ServerError> {
+        Ok(())
+    }
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

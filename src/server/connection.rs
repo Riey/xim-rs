@@ -169,7 +169,6 @@ const IC_NESTED_SEP: u16 = 30;
 pub struct XimConnection<T> {
     pub(crate) client_win: u32,
     pub(crate) disconnected: bool,
-    pub(crate) last_focused: Option<(NonZeroU16, NonZeroU16)>,
     pub(crate) input_methods: ImVec<InputMethod<T>>,
 }
 
@@ -178,7 +177,6 @@ impl<T> XimConnection<T> {
         Self {
             client_win,
             disconnected: false,
-            last_focused: None,
             input_methods: ImVec::new(),
         }
     }
@@ -477,17 +475,17 @@ impl<T> XimConnection<T> {
                 let ic = self
                     .get_input_method(input_method_id)?
                     .get_input_context(input_context_id)?;
-                self.last_focused = Some((ic.input_method_id(), ic.input_context_id()));
+                handler.handle_set_focus(server, ic)?;
             }
 
             Request::UnsetIcFocus {
                 input_method_id,
                 input_context_id,
             } => {
-                let _ic = self
+                let ic = self
                     .get_input_method(input_method_id)?
                     .get_input_context(input_context_id)?;
-                self.last_focused = None;
+                handler.handle_unset_focus(server, ic)?;
             }
 
             Request::PreeditCaretReply {

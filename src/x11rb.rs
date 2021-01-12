@@ -189,17 +189,10 @@ impl<C: HasConnection> X11rbServer<C> {
         for prop in reply.value32().ok_or(ServerError::InvalidReply)? {
             if prop == server_name {
                 found = true;
-
-                let owner = conn.get_selection_owner(server_name)?.reply()?.owner;
-
-                if owner != x11rb::NONE {
-                    return Err(ServerError::AlreadyRunning);
-                } else {
-                    break;
-                }
             }
         }
 
+        // override owner
         conn.set_selection_owner(im_win, server_name, x11rb::CURRENT_TIME)?;
 
         if !found {

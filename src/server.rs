@@ -19,8 +19,6 @@ pub enum ServerError {
     XimError(xim_parser::ErrorCode, BString),
     #[error("Invalid reply from client")]
     InvalidReply,
-    #[error("Another instance is running")]
-    AlreadyRunning,
     #[error("Internal error: {0}")]
     Internal(String),
     #[error(transparent)]

@@ -186,9 +186,11 @@ impl<C: HasConnection> X11rbServer<C> {
 
         let mut found = false;
 
-        for prop in reply.value32().ok_or(ServerError::InvalidReply)? {
-            if prop == server_name {
-                found = true;
+        if reply.type_ != x11rb::NONE {
+            for prop in reply.value32().ok_or(ServerError::InvalidReply)? {
+                if prop == server_name {
+                    found = true;
+                }
             }
         }
 

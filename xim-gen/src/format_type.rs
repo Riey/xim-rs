@@ -58,7 +58,7 @@ impl FormatType {
                 if *between_unused > 0 {
                     writeln!(out, "reader.consume({})?;", between_unused)?;
                 }
-                writeln!(out, "reader.consume(len as usize)?.to_vec().into()")?;
+                writeln!(out, "String::from_utf8(reader.consume(len as usize)?.to_vec())?")?;
                 writeln!(out, "}}")?
             }
             FormatType::Normal(name) => write!(out, "{}::read(reader)?", name)?,
@@ -156,7 +156,7 @@ impl fmt::Display for FormatType {
             FormatType::Pad(inner, ..) => inner.fmt(f),
             FormatType::List(inner, _prefix, _len) => write!(f, "Vec<{}>", inner),
             FormatType::XString => f.write_str("Vec<u8>"),
-            FormatType::String { .. } => f.write_str("BString"),
+            FormatType::String { .. } => f.write_str("String"),
             FormatType::Normal(name) => f.write_str(name),
         }
     }

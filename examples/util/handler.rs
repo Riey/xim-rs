@@ -12,7 +12,7 @@ pub struct ExampleHandler {
 impl<C: Client> ClientHandler<C> for ExampleHandler {
     fn handle_connect(&mut self, client: &mut C) -> Result<(), ClientError> {
         log::trace!("Connected");
-        client.open(b"en_US")
+        client.open("en_US")
     }
 
     fn handle_open(&mut self, client: &mut C, input_method_id: u16) -> Result<(), ClientError> {

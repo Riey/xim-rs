@@ -3,7 +3,7 @@ mod connection;
 use std::num::NonZeroU16;
 
 use xim_parser::{
-    bstr::BString, CaretDirection, CaretStyle, CommitData, ErrorCode, ErrorFlag, InputStyle,
+    CaretDirection, CaretStyle, CommitData, ErrorCode, ErrorFlag, InputStyle,
     PreeditDrawStatus, Request,
 };
 
@@ -16,7 +16,7 @@ pub enum ServerError {
     #[error("Can't read xim message {0}")]
     ReadProtocol(#[from] xim_parser::ReadError),
     #[error("Client send error code: {0:?}, detail: {1}")]
-    XimError(xim_parser::ErrorCode, BString),
+    XimError(xim_parser::ErrorCode, String),
     #[error("Invalid reply from client")]
     InvalidReply,
     #[error("Internal error: {0}")]
@@ -104,7 +104,7 @@ pub trait Server {
         &mut self,
         client_win: u32,
         code: ErrorCode,
-        detail: BString,
+        detail: String,
         input_method_id: Option<NonZeroU16>,
         input_context_id: Option<NonZeroU16>,
     ) -> Result<(), ServerError>;
@@ -136,7 +136,7 @@ impl<S: ServerCore> Server for S {
         &mut self,
         client_win: u32,
         code: ErrorCode,
-        detail: BString,
+        detail: String,
         input_method_id: Option<NonZeroU16>,
         input_context_id: Option<NonZeroU16>,
     ) -> Result<(), ServerError> {

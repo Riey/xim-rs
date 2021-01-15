@@ -58,7 +58,10 @@ impl FormatType {
                 if *between_unused > 0 {
                     writeln!(out, "reader.consume({})?;", between_unused)?;
                 }
-                writeln!(out, "String::from_utf8(reader.consume(len as usize)?.to_vec())?")?;
+                writeln!(
+                    out,
+                    "String::from_utf8(reader.consume(len as usize)?.to_vec())?"
+                )?;
                 writeln!(out, "}}")?
             }
             FormatType::Normal(name) => write!(out, "{}::read(reader)?", name)?,

@@ -3,8 +3,8 @@ mod connection;
 use std::num::NonZeroU16;
 
 use xim_parser::{
-    CaretDirection, CaretStyle, CommitData, ErrorCode, ErrorFlag, InputStyle,
-    PreeditDrawStatus, Request,
+    CaretDirection, CaretStyle, CommitData, ErrorCode, ErrorFlag, InputStyle, PreeditDrawStatus,
+    Request,
 };
 
 pub use self::connection::{InputContext, InputMethod, XimConnection, XimConnections};

@@ -3,7 +3,6 @@ mod im_vec;
 use ahash::AHashMap;
 use std::num::{NonZeroU16, NonZeroU32};
 use xim_parser::{
-    bstr::{BStr, BString},
     Attr, AttrType, Attribute, AttributeName, ErrorCode, ErrorFlag, ForwardEventFlag, InputStyle,
     InputStyleList, Point, Request, XimWrite,
 };
@@ -19,7 +18,7 @@ struct InputContextInner {
     input_context_id: NonZeroU16,
     input_style: InputStyle,
     preedit_spot: Point,
-    locale: BString,
+    locale: String,
 }
 
 impl InputContextInner {
@@ -27,7 +26,7 @@ impl InputContextInner {
         client_win: u32,
         input_method_id: NonZeroU16,
         input_context_id: NonZeroU16,
-        locale: BString,
+        locale: String,
     ) -> Self {
         Self {
             client_win,
@@ -80,8 +79,8 @@ impl<T> InputContext<T> {
         self.inner.input_style
     }
 
-    pub fn locale(&self) -> &BStr {
-        self.inner.locale.as_ref()
+    pub fn locale(&self) -> &str {
+        self.inner.locale.as_str()
     }
 }
 
@@ -126,19 +125,19 @@ fn set_ic_attrs(ic: &mut InputContextInner, ic_attributes: Vec<Attribute>) {
 }
 
 pub struct InputMethod<T> {
-    pub(crate) locale: BString,
+    pub(crate) locale: String,
     pub(crate) input_contexts: ImVec<InputContext<T>>,
 }
 
 impl<T> InputMethod<T> {
-    pub fn new(locale: BString) -> Self {
+    pub fn new(locale: String) -> Self {
         Self {
             locale,
             input_contexts: ImVec::new(),
         }
     }
 
-    pub fn clone_locale(&self) -> BString {
+    pub fn clone_locale(&self) -> String {
         self.locale.clone()
     }
 
@@ -366,7 +365,7 @@ impl<T> XimConnection<T> {
             } => {
                 match encodings
                     .iter()
-                    .position(|e| e.starts_with(b"COMPOUND_TEXT"))
+                    .position(|e| e.starts_with("COMPOUND_TEXT"))
                 {
                     Some(pos) => {
                         server.send_req(

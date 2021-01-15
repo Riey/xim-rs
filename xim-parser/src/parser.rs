@@ -3,7 +3,6 @@
 
 #![allow(clippy::identity_op)]
 
-use bstr::{BString, ByteSlice};
 use std::convert::TryInto;
 
 pub fn read<T>(b: &[u8]) -> Result<T, ReadError>
@@ -96,6 +95,8 @@ pub enum ReadError {
     EndOfStream,
     #[error("Invalid Data {0}: {1}")]
     InvalidData(&'static str, String),
+    #[error("Not a Utf8 text {0}")]
+    Utf8Error(#[from] std::string::FromUtf8Error),
     #[error("Not a native endian")]
     NotNativeEndian,
 }
@@ -907,7 +908,7 @@ impl XimWrite for Attribute {
 pub struct Extension {
     pub major_opcode: u8,
     pub minor_opcode: u8,
-    pub name: BString,
+    pub name: String,
 }
 impl XimRead for Extension {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
@@ -917,7 +918,7 @@ impl XimRead for Extension {
             name: {
                 let inner = {
                     let len = u16::read(reader)?;
-                    reader.consume(len as usize)?.to_vec().into()
+                    String::from_utf8(reader.consume(len as usize)?.to_vec())?
                 };
                 reader.pad4()?;
                 inner
@@ -943,7 +944,7 @@ impl XimWrite for Extension {
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FontSet {
-    pub name: BString,
+    pub name: String,
 }
 impl XimRead for FontSet {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
@@ -951,7 +952,7 @@ impl XimRead for FontSet {
             name: {
                 let inner = {
                     let len = u16::read(reader)?;
-                    reader.consume(len as usize)?.to_vec().into()
+                    String::from_utf8(reader.consume(len as usize)?.to_vec())?
                 };
                 reader.pad4()?;
                 inner
@@ -1032,7 +1033,7 @@ impl XimWrite for Rectangle {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct StatusTextContent {
     pub status: PreeditDrawStatus,
-    pub status_string: BString,
+    pub status_string: String,
     pub feedbacks: Vec<Feedback>,
 }
 impl XimRead for StatusTextContent {
@@ -1042,7 +1043,7 @@ impl XimRead for StatusTextContent {
             status_string: {
                 let inner = {
                     let len = u16::read(reader)?;
-                    reader.consume(len as usize)?.to_vec().into()
+                    String::from_utf8(reader.consume(len as usize)?.to_vec())?
                 };
                 reader.pad4()?;
                 inner
@@ -1362,7 +1363,7 @@ pub enum Request {
         endian: Endian,
         client_major_protocol_version: u16,
         client_minor_protocol_version: u16,
-        client_auth_protocol_names: Vec<BString>,
+        client_auth_protocol_names: Vec<String>,
     },
     ConnectReply {
         server_major_protocol_version: u16,
@@ -1388,8 +1389,8 @@ pub enum Request {
     DisconnectReply {},
     EncodingNegotiation {
         input_method_id: u16,
-        encodings: Vec<BString>,
-        encoding_infos: Vec<BString>,
+        encodings: Vec<String>,
+        encoding_infos: Vec<String>,
     },
     EncodingNegotiationReply {
         input_method_id: u16,
@@ -1401,7 +1402,7 @@ pub enum Request {
         input_context_id: u16,
         flag: ErrorFlag,
         code: ErrorCode,
-        detail: BString,
+        detail: String,
     },
     ForwardEvent {
         input_method_id: u16,
@@ -1433,7 +1434,7 @@ pub enum Request {
         im_attributes: Vec<Attribute>,
     },
     Open {
-        locale: BString,
+        locale: String,
     },
     OpenReply {
         input_method_id: u16,
@@ -1482,7 +1483,7 @@ pub enum Request {
     },
     QueryExtension {
         input_method_id: u16,
-        extensions: Vec<BString>,
+        extensions: Vec<String>,
     },
     QueryExtensionReply {
         input_method_id: u16,
@@ -1674,7 +1675,7 @@ impl XimRead for Request {
                         out.push({
                             let inner = {
                                 let len = u16::read(reader)?;
-                                reader.consume(len as usize)?.to_vec().into()
+                                String::from_utf8(reader.consume(len as usize)?.to_vec())?
                             };
                             reader.pad4()?;
                             inner
@@ -1723,7 +1724,7 @@ impl XimRead for Request {
                         while reader.cursor() > end {
                             out.push({
                                 let len = u8::read(reader)?;
-                                reader.consume(len as usize)?.to_vec().into()
+                                String::from_utf8(reader.consume(len as usize)?.to_vec())?
                             });
                         }
                         out
@@ -1740,7 +1741,7 @@ impl XimRead for Request {
                         out.push({
                             let inner = {
                                 let len = u16::read(reader)?;
-                                reader.consume(len as usize)?.to_vec().into()
+                                String::from_utf8(reader.consume(len as usize)?.to_vec())?
                             };
                             reader.pad4()?;
                             inner
@@ -1767,7 +1768,7 @@ impl XimRead for Request {
                     let inner = {
                         let len = u16::read(reader)?;
                         reader.consume(2)?;
-                        reader.consume(len as usize)?.to_vec().into()
+                        String::from_utf8(reader.consume(len as usize)?.to_vec())?
                     };
                     reader.pad4()?;
                     inner
@@ -1847,7 +1848,7 @@ impl XimRead for Request {
                 locale: {
                     let inner = {
                         let len = u8::read(reader)?;
-                        reader.consume(len as usize)?.to_vec().into()
+                        String::from_utf8(reader.consume(len as usize)?.to_vec())?
                     };
                     reader.pad4()?;
                     inner
@@ -1941,7 +1942,7 @@ impl XimRead for Request {
                         while reader.cursor() > end {
                             out.push({
                                 let len = u8::read(reader)?;
-                                reader.consume(len as usize)?.to_vec().into()
+                                String::from_utf8(reader.consume(len as usize)?.to_vec())?
                             });
                         }
                         out

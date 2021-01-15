@@ -3,7 +3,6 @@
 
 #![allow(clippy::identity_op)]
 
-use bstr::{BString, ByteSlice};
 use std::convert::TryInto;
 
 pub fn read<T>(b: &[u8]) -> Result<T, ReadError>
@@ -96,6 +95,8 @@ pub enum ReadError {
     EndOfStream,
     #[error("Invalid Data {0}: {1}")]
     InvalidData(&'static str, String),
+    #[error("Not a Utf8 text {0}")]
+    Utf8Error(#[from] std::string::FromUtf8Error),
     #[error("Not a native endian")]
     NotNativeEndian,
 }

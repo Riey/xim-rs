@@ -1,6 +1,5 @@
 mod parser;
 
-pub use bstr;
 pub use parser::*;
 
 pub fn write_extend_vec(f: impl XimWrite, out: &mut Vec<u8>) {

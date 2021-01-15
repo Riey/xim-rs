@@ -3,7 +3,7 @@ mod attribute_builder;
 pub use self::attribute_builder::AttributeBuilder;
 use ahash::AHashMap;
 use xim_parser::{
-    bstr::BString, Attr, Attribute, AttributeName, CommitData, Extension, ForwardEventFlag, Request,
+    Attr, Attribute, AttributeName, CommitData, Extension, ForwardEventFlag, Request,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -11,7 +11,7 @@ pub enum ClientError {
     #[error("Can't read xim message {0}")]
     ReadProtocol(#[from] xim_parser::ReadError),
     #[error("Server send error code: {0:?}, detail: {1}")]
-    XimError(xim_parser::ErrorCode, BString),
+    XimError(xim_parser::ErrorCode, String),
     #[error("Server Transport is not supported")]
     UnsupportedTransport,
     #[error("Invalid reply from server")]
@@ -174,7 +174,7 @@ pub trait Client {
     fn build_im_attributes(&self) -> AttributeBuilder;
 
     fn disconnect(&mut self) -> Result<(), ClientError>;
-    fn open(&mut self, locale: &[u8]) -> Result<(), ClientError>;
+    fn open(&mut self, locale: &str) -> Result<(), ClientError>;
     fn close(&mut self, input_method_id: u16) -> Result<(), ClientError>;
     fn quert_extension(
         &mut self,
@@ -232,7 +232,7 @@ where
         AttributeBuilder::new(self.im_attributes())
     }
 
-    fn open(&mut self, locale: &[u8]) -> Result<(), ClientError> {
+    fn open(&mut self, locale: &str) -> Result<(), ClientError> {
         self.send_req(Request::Open {
             locale: locale.into(),
         })

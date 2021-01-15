@@ -11,7 +11,6 @@ bootstrap = ["xim-gen"]
 [dependencies]
 thiserror = "1.0.22"
 bitflags = "1.2.1"
-bstr = "0.2.14"
 
 [dev-dependencies]
 ctext = { git = "https://github.com/Riey/ctext-rs" }

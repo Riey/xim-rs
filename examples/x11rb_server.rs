@@ -1,4 +1,4 @@
-use x11rb::connection::Connection;
+use x11rb::{connection::Connection, protocol::xproto::EventMask};
 use xim::{x11rb::X11rbServer, InputContext, Server, ServerError, ServerHandler, XimConnections};
 use xim_parser::InputStyle;
 
@@ -33,15 +33,16 @@ impl<S: Server> ServerHandler<S> for Handler {
         server: &mut S,
         input_context: &mut InputContext<Self::InputContextData>,
     ) -> Result<(), ServerError> {
-        server.commit(input_context, "가나다")
+        server.set_event_mask(input_context, EventMask::KeyPress as _, 0)
     }
 
     fn handle_forward_event(
         &mut self,
-        _server: &mut S,
-        _input_context: &mut InputContext<Self::InputContextData>,
+        server: &mut S,
+        input_context: &mut InputContext<Self::InputContextData>,
         _xev: &S::XEvent,
     ) -> Result<bool, ServerError> {
+        server.commit(input_context, "가")?;
         Ok(true)
     }
 

@@ -8,7 +8,10 @@ use xim_parser::{
 };
 
 use self::im_vec::ImVec;
-use crate::server::{Server, ServerCore, ServerError, ServerHandler};
+use crate::{
+    encoding::Encoding,
+    server::{Server, ServerCore, ServerError, ServerHandler},
+};
 
 struct InputContextInner {
     client_win: u32,
@@ -214,6 +217,8 @@ impl<T> XimConnection<T> {
         req: Request,
         handler: &mut H,
     ) -> Result<(), ServerError> {
+        log::trace!("req: {:?}", req);
+
         match req {
             Request::Error {
                 code,
@@ -365,9 +370,22 @@ impl<T> XimConnection<T> {
             } => {
                 match encodings
                     .iter()
-                    .position(|e| e.starts_with("COMPOUND_TEXT"))
-                {
+                    .position(|e| e.starts_with(Encoding::Utf8.name()))
+                    .or_else(|| {
+                        encodings
+                            .iter()
+                            .position(|e| e.starts_with(Encoding::CompoundText.name()))
+                    }) {
                     Some(pos) => {
+                        let encoding = if encodings[pos].starts_with(Encoding::Utf8.name()) {
+                            Encoding::Utf8
+                        } else {
+                            Encoding::CompoundText
+                        };
+
+                        log::info!("Set encoding :{:?}", encoding);
+                        server.set_encoding(encoding);
+
                         server.send_req(
                             self.client_win,
                             Request::EncodingNegotiationReply {
@@ -385,7 +403,7 @@ impl<T> XimConnection<T> {
                                 input_context_id: 0,
                                 flag: ErrorFlag::INPUT_METHOD_ID_VALID,
                                 code: ErrorCode::BadName,
-                                detail: "Only COMPOUND_TEXT encoding is supported".into(),
+                                detail: "Only UTF-8 or COMPOUND_TEXT encoding is supported".into(),
                             },
                         )?;
                     }
@@ -404,7 +422,7 @@ impl<T> XimConnection<T> {
                     Request::ResetIcReply {
                         input_method_id,
                         input_context_id,
-                        preedit_string: ctext::utf8_to_compound_text(&ret),
+                        preedit_string: server.encoding().write(ret),
                     },
                 )?;
             }

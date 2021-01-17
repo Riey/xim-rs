@@ -7,6 +7,8 @@ use xim_parser::{
     Request,
 };
 
+use crate::encoding::Encoding;
+
 pub use self::connection::{InputContext, InputMethod, XimConnection, XimConnections};
 
 #[derive(Debug, thiserror::Error)]
@@ -260,6 +262,8 @@ impl<S: ServerCore> Server for S {
 pub trait ServerCore {
     type XEvent;
 
+    fn encoding(&self) -> Encoding;
+    fn set_encoding(&mut self, encoding: Encoding);
     fn deserialize_event(&self, ev: &xim_parser::XEvent) -> Self::XEvent;
     fn send_req(&mut self, client_win: u32, req: Request) -> Result<(), ServerError>;
 }

@@ -1,5 +1,7 @@
 mod attribute_builder;
 
+use crate::encoding::Encoding;
+
 pub use self::attribute_builder::AttributeBuilder;
 use ahash::AHashMap;
 use xim_parser::{
@@ -40,14 +42,29 @@ pub fn handle_request<C: ClientCore>(
             client.set_attrs(im_attrs, ic_attrs);
             // Require for uim
             client.send_req(Request::EncodingNegotiation {
-                encodings: vec!["COMPOUND_TEXT".into(), "".into()],
+                encodings: Encoding::ALL_ENCODINGS
+                    .iter()
+                    .copied()
+                    .map(Encoding::name)
+                    .map(ToString::to_string)
+                    .collect(),
                 encoding_infos: vec![],
                 input_method_id,
             })
         }
         Request::EncodingNegotiationReply {
-            input_method_id, ..
-        } => handler.handle_open(client, input_method_id),
+            input_method_id,
+            index,
+            category: _,
+        } => {
+            let encoding = Encoding::ALL_ENCODINGS
+                .get(index as usize)
+                .copied()
+                .unwrap_or_default();
+            log::info!("Set encoding :{:?}", encoding);
+            client.set_encoding(encoding);
+            handler.handle_open(client, input_method_id)
+        }
         Request::QueryExtensionReply {
             input_method_id: _,
             extensions,
@@ -135,7 +152,7 @@ pub fn handle_request<C: ClientCore>(
                     client,
                     input_method_id,
                     input_context_id,
-                    ctext::compound_text_to_utf8(&commited).unwrap(),
+                    &client.encoding().read(commited).expect("Encoding Error"),
                 )?;
 
                 if syncronous {
@@ -159,6 +176,8 @@ pub fn handle_request<C: ClientCore>(
 pub trait ClientCore {
     type XEvent;
 
+    fn encoding(&self) -> crate::encoding::Encoding;
+    fn set_encoding(&mut self, encoding: Encoding);
     fn set_attrs(&mut self, ic_attrs: Vec<Attr>, im_attrs: Vec<Attr>);
     fn ic_attributes(&self) -> &AHashMap<AttributeName, u16>;
     fn im_attributes(&self) -> &AHashMap<AttributeName, u16>;

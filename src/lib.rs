@@ -4,6 +4,9 @@ mod client;
 mod server;
 
 #[cfg(any(feature = "x11rb-server", feature = "x11rb-client"))]
+mod encoding;
+
+#[cfg(any(feature = "x11rb-server", feature = "x11rb-client"))]
 pub mod x11rb;
 #[cfg(feature = "xlib-client")]
 pub mod xlib;
@@ -16,8 +19,8 @@ pub use crate::server::{
     XimConnections,
 };
 pub use ahash::AHashMap;
-pub use ctext::{compound_text_to_utf8, utf8_to_compound_text};
 pub use xim_parser::*;
+
 #[allow(non_snake_case)]
 #[derive(Copy, Clone, Debug)]
 struct Atoms<Atom> {

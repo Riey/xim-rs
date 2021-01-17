@@ -11,7 +11,7 @@ use ahash::AHashMap;
 #[cfg(feature = "x11rb-client")]
 use xim_parser::{Attr, AttributeName};
 
-use crate::Atoms;
+use crate::{encoding::Encoding, Atoms};
 
 #[cfg(feature = "x11rb-xcb")]
 use x11rb::xcb_ffi::XCBConnection;
@@ -138,6 +138,7 @@ impl<C: HasConnection> HasConnection for Arc<C> {
 #[cfg(feature = "x11rb-server")]
 pub struct X11rbServer<C: HasConnection> {
     has_conn: C,
+    encoding: Encoding,
     im_win: Window,
     atoms: Atoms<Atom>,
     buf: Vec<u8>,
@@ -213,6 +214,7 @@ impl<C: HasConnection> X11rbServer<C> {
 
         Ok(Self {
             has_conn,
+            encoding: Encoding::CompoundText,
             im_win,
             atoms,
             buf: Vec::with_capacity(1024),
@@ -338,6 +340,14 @@ impl<C: HasConnection> X11rbServer<C> {
 impl<C: HasConnection> ServerCore for X11rbServer<C> {
     type XEvent = KeyPressEvent;
 
+    fn encoding(&self) -> crate::encoding::Encoding {
+        self.encoding
+    }
+
+    fn set_encoding(&mut self, encoding: Encoding) {
+        self.encoding = encoding;
+    }
+
     fn send_req(&mut self, client_win: u32, req: Request) -> Result<(), ServerError> {
         send_req_impl(
             &self.has_conn,
@@ -359,6 +369,7 @@ impl<C: HasConnection> ServerCore for X11rbServer<C> {
 #[cfg(feature = "x11rb-client")]
 pub struct X11rbClient<C: HasConnection> {
     has_conn: C,
+    encoding: Encoding,
     server_owner_window: Window,
     im_window: Window,
     server_atom: Atom,
@@ -441,6 +452,7 @@ impl<C: HasConnection> X11rbClient<C> {
 
                         return Ok(Self {
                             has_conn,
+                            encoding: Encoding::CompoundText,
                             atoms,
                             server_atom,
                             server_owner_window: server_owner,
@@ -592,6 +604,13 @@ impl<C: HasConnection> X11rbClient<C> {
 #[cfg(feature = "x11rb-client")]
 impl<C: HasConnection> ClientCore for X11rbClient<C> {
     type XEvent = KeyPressEvent;
+    fn encoding(&self) -> crate::encoding::Encoding {
+        self.encoding
+    }
+
+    fn set_encoding(&mut self, encoding: Encoding) {
+        self.encoding = encoding;
+    }
 
     fn set_attrs(&mut self, im_attrs: Vec<Attr>, ic_attrs: Vec<Attr>) {
         for im_attr in im_attrs {

@@ -7,6 +7,7 @@ use std::{convert::TryInto, os::raw::c_long};
 
 use crate::{
     client::{handle_request, ClientCore, ClientError, ClientHandler},
+    encoding::Encoding,
     Atoms,
 };
 use x11_dl::xlib;
@@ -14,6 +15,16 @@ use xim_parser::{AttributeName, Request, XimWrite};
 
 impl<X: XlibRef> ClientCore for XlibClient<X> {
     type XEvent = xlib::XKeyEvent;
+
+    #[inline]
+    fn encoding(&self) -> crate::encoding::Encoding {
+        self.encoding
+    }
+
+    #[inline]
+    fn set_encoding(&mut self, encoding: Encoding) {
+        self.encoding = encoding;
+    }
 
     #[inline]
     fn ic_attributes(&self) -> &AHashMap<AttributeName, u16> {
@@ -119,6 +130,7 @@ pub trait XlibRef {
 pub struct XlibClient<X: XlibRef> {
     x: X,
     display: *mut xlib::Display,
+    encoding: Encoding,
     im_window: xlib::Window,
     server_owner_window: xlib::Window,
     server_atom: xlib::Atom,
@@ -215,6 +227,7 @@ impl<X: XlibRef> XlibClient<X> {
 
                         return Ok(Self {
                             atoms,
+                            encoding: Encoding::CompoundText,
                             client_window,
                             server_atom,
                             server_owner_window: server_owner,

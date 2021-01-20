@@ -33,7 +33,7 @@ impl<S: Server> ServerHandler<S> for Handler {
         server: &mut S,
         input_context: &mut InputContext<Self::InputContextData>,
     ) -> Result<(), ServerError> {
-        server.set_event_mask(input_context, EventMask::KeyPress as _, 0)
+        server.set_event_mask(input_context, EventMask::KEY_PRESS.into(), 0)
     }
 
     fn handle_forward_event(

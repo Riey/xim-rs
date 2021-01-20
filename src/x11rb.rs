@@ -160,7 +160,7 @@ impl<C: HasConnection> X11rbServer<C> {
             1,
             1,
             0,
-            WindowClass::CopyFromParent,
+            WindowClass::COPY_FROM_PARENT,
             screen.root_visual,
             &Default::default(),
         )?;
@@ -200,7 +200,7 @@ impl<C: HasConnection> X11rbServer<C> {
 
         if !found {
             conn.change_property32(
-                PropMode::Prepend,
+                PropMode::PREPEND,
                 screen.root,
                 atoms.XIM_SERVERS,
                 AtomEnum::ATOM,
@@ -248,7 +248,7 @@ impl<C: HasConnection> X11rbServer<C> {
                         1,
                         1,
                         0,
-                        WindowClass::CopyFromParent,
+                        WindowClass::COPY_FROM_PARENT,
                         0,
                         &Default::default(),
                     )?;
@@ -296,7 +296,7 @@ impl<C: HasConnection> X11rbServer<C> {
             let [length, atom, ..] = msg.data.as_data32();
             let data = self
                 .conn()
-                .get_property(true, msg.window, atom, AtomEnum::Any, 0, length)?
+                .get_property(true, msg.window, atom, AtomEnum::ANY, 0, length)?
                 .reply()?
                 .value;
             let req = xim_parser::read(&data)?;
@@ -323,7 +323,7 @@ impl<C: HasConnection> X11rbServer<C> {
         };
 
         self.conn().change_property8(
-            PropMode::Replace,
+            PropMode::REPLACE,
             req.requestor,
             req.property,
             req.target,
@@ -401,7 +401,7 @@ impl<C: HasConnection> X11rbClient<C> {
             1,
             1,
             0,
-            WindowClass::CopyFromParent,
+            WindowClass::COPY_FROM_PARENT,
             screen.root_visual,
             &Default::default(),
         )?;
@@ -566,7 +566,7 @@ impl<C: HasConnection> X11rbClient<C> {
             let [length, atom, ..] = msg.data.as_data32();
             let data = self
                 .conn()
-                .get_property(true, msg.window, atom, AtomEnum::Any, 0, length)?
+                .get_property(true, msg.window, atom, AtomEnum::ANY, 0, length)?
                 .reply()?
                 .value;
             let req = xim_parser::read(&data)?;
@@ -702,7 +702,7 @@ fn send_req_impl<C: HasConnection>(
         )?;
     } else {
         c.conn().change_property(
-            PropMode::Append,
+            PropMode::APPEND,
             target,
             atoms.DATA,
             AtomEnum::STRING,

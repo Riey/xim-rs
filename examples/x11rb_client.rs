@@ -24,11 +24,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         800,
         600,
         0,
-        WindowClass::InputOutput,
+        WindowClass::INPUT_OUTPUT,
         screen.root_visual,
         &CreateWindowAux::default()
             .background_pixel(screen.black_pixel)
-            .event_mask(EventMask::KeyPress | EventMask::KeyRelease),
+            .event_mask(EventMask::KEY_PRESS | EventMask::KEY_RELEASE),
     )?;
     conn.map_window(window)?;
     conn.flush()?;

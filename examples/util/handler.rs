@@ -26,18 +26,8 @@ impl<C: Client> ClientHandler<C> for ExampleHandler {
         &mut self,
         client: &mut C,
         input_method_id: u16,
-        mut attributes: AHashMap<AttributeName, Vec<u8>>,
+        _attributes: AHashMap<AttributeName, Vec<u8>>,
     ) -> Result<(), ClientError> {
-        log::trace!(
-            "Query: {:?}",
-            xim_parser::write_to_vec(xim_parser::Request::GetImValuesReply {
-                input_method_id,
-                im_attributes: vec![xim_parser::Attribute {
-                    id: 0,
-                    value: attributes.remove(&AttributeName::QueryInputStyle).unwrap(),
-                }]
-            })
-        );
         let ic_attributes = client
             .build_ic_attributes()
             .push(

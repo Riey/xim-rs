@@ -160,7 +160,7 @@ impl<C: HasConnection> X11rbServer<C> {
             1,
             1,
             0,
-            WindowClass::COPY_FROM_PARENT,
+            WindowClass::INPUT_ONLY,
             screen.root_visual,
             &Default::default(),
         )?;
@@ -248,7 +248,7 @@ impl<C: HasConnection> X11rbServer<C> {
                         1,
                         1,
                         0,
-                        WindowClass::COPY_FROM_PARENT,
+                        WindowClass::INPUT_ONLY,
                         0,
                         &Default::default(),
                     )?;
@@ -401,7 +401,7 @@ impl<C: HasConnection> X11rbClient<C> {
             1,
             1,
             0,
-            WindowClass::COPY_FROM_PARENT,
+            WindowClass::INPUT_ONLY,
             screen.root_visual,
             &Default::default(),
         )?;

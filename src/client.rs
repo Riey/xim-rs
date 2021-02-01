@@ -166,6 +166,17 @@ pub fn handle_request<C: ClientCore>(
             }
             _ => todo!(),
         },
+        Request::Sync {
+            input_method_id,
+            input_context_id,
+        } => client.send_req(Request::SyncReply {
+            input_method_id,
+            input_context_id,
+        }),
+        Request::SyncReply { .. } => {
+            // Nothing to do
+            Ok(())
+        }
         _ => {
             log::warn!("Unknown request {:?}", req);
             Ok(())

@@ -190,6 +190,7 @@ impl<C: HasConnection> X11rbServer<C> {
         if reply.type_ != x11rb::NONE {
             for prop in reply.value32().ok_or(ServerError::InvalidReply)? {
                 if prop == server_name {
+                    log::info!("Found previous XIM_SERVER it will overrided");
                     found = true;
                 }
             }
@@ -230,8 +231,10 @@ impl<C: HasConnection> X11rbServer<C> {
         match e {
             Event::SelectionRequest(req) if req.owner == self.im_win => {
                 if req.property == self.atoms.LOCALES {
+                    log::trace!("Selection notify locale");
                     self.send_selection_notify(req, "@locale=en_US")?;
                 } else if req.property == self.atoms.TRANSPORT {
+                    log::trace!("Selection notify transport");
                     self.send_selection_notify(req, "@transport=X/")?;
                 }
                 Ok(true)

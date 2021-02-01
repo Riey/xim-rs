@@ -317,7 +317,7 @@ impl<T> XimConnection<T> {
                 server.send_req(
                     ic.client_win(),
                     Request::CreateIcReply {
-                        input_method_id: input_method_id,
+                        input_method_id,
                         input_context_id: input_context_id.get(),
                     },
                 )?;
@@ -565,6 +565,22 @@ impl<T> XimConnection<T> {
                     )?;
                 }
             }
+
+            Request::Sync {
+                input_method_id,
+                input_context_id,
+            } => {
+                server.send_req(
+                    self.client_win,
+                    Request::SyncReply {
+                        input_method_id,
+                        input_context_id,
+                    },
+                )?;
+            }
+
+            Request::SyncReply { .. } => {}
+
             _ => {
                 log::warn!("Unknown request: {:?}", req);
             }

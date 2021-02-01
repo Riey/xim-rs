@@ -54,7 +54,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             client.forward_event(
                                 handler.im_id,
                                 handler.ic_id,
-                                ForwardEventFlag::SYNCHRONOUS,
+                                ForwardEventFlag::empty(),
                                 &e.key,
                             )?;
                         }

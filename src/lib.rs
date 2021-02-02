@@ -29,7 +29,6 @@ struct Atoms<Atom> {
     TRANSPORT: Atom,
     XIM_XCONNECT: Atom,
     XIM_PROTOCOL: Atom,
-    DATA: Atom,
 }
 
 impl<Atom> Atoms<Atom> {
@@ -44,7 +43,6 @@ impl<Atom> Atoms<Atom> {
             TRANSPORT: f("TRANSPORT")?,
             XIM_XCONNECT: f("_XIM_XCONNECT")?,
             XIM_PROTOCOL: f("_XIM_PROTOCOL")?,
-            DATA: f("XIM_RS_DATA")?,
         })
     }
 
@@ -59,7 +57,6 @@ impl<Atom> Atoms<Atom> {
             TRANSPORT: f("TRANSPORT\0")?,
             XIM_XCONNECT: f("_XIM_XCONNECT\0")?,
             XIM_PROTOCOL: f("_XIM_PROTOCOL\0")?,
-            DATA: f("XIM_RS_DATA\0")?,
         })
     }
 }

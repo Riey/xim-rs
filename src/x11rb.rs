@@ -142,6 +142,7 @@ pub struct X11rbServer<C: HasConnection> {
     im_win: Window,
     atoms: Atoms<Atom>,
     buf: Vec<u8>,
+    sequence: u16,
 }
 
 #[cfg(feature = "x11rb-server")]
@@ -219,6 +220,7 @@ impl<C: HasConnection> X11rbServer<C> {
             im_win,
             atoms,
             buf: Vec::with_capacity(1024),
+            sequence: 0,
         })
     }
 
@@ -357,10 +359,10 @@ impl<C: HasConnection> ServerCore for X11rbServer<C> {
             &self.atoms,
             client_win,
             &mut self.buf,
+            &mut self.sequence,
             20,
             &req,
         )
-        .map_err(Into::into)
     }
 
     #[inline]
@@ -381,6 +383,7 @@ pub struct X11rbClient<C: HasConnection> {
     client_window: u32,
     im_attributes: AHashMap<AttributeName, u16>,
     ic_attributes: AHashMap<AttributeName, u16>,
+    sequence: u16,
     buf: Vec<u8>,
 }
 
@@ -464,6 +467,7 @@ impl<C: HasConnection> X11rbClient<C> {
                             im_window: x11rb::NONE,
                             transport_max: 20,
                             client_window,
+                            sequence: 0,
                             buf: Vec::with_capacity(1024),
                         });
                     }
@@ -666,21 +670,22 @@ impl<C: HasConnection> ClientCore for X11rbClient<C> {
             &self.atoms,
             self.im_window,
             &mut self.buf,
+            &mut self.sequence,
             self.transport_max,
             &req,
         )
-        .map_err(Into::into)
     }
 }
 
-fn send_req_impl<C: HasConnection>(
+fn send_req_impl<C: HasConnection, E: From<ConnectionError> + From<ReplyError>>(
     c: &C,
     atoms: &Atoms<Atom>,
     target: Window,
     buf: &mut Vec<u8>,
+    sequence: &mut u16,
     transport_max: usize,
     req: &Request,
-) -> Result<(), ConnectionError> {
+) -> Result<(), E> {
     buf.resize(req.size(), 0);
     xim_parser::write(req, buf);
 
@@ -704,10 +709,19 @@ fn send_req_impl<C: HasConnection>(
             },
         )?;
     } else {
+        let prop = c
+            .conn()
+            .intern_atom(
+                false,
+                format!("_XIM_DATA_{}", sequence).as_bytes(),
+            )?
+            .reply()?
+            .atom;
+        *sequence = sequence.wrapping_add(1);
         c.conn().change_property(
             PropMode::APPEND,
             target,
-            atoms.DATA,
+            prop,
             AtomEnum::STRING,
             8,
             buf.len() as u32,
@@ -718,7 +732,7 @@ fn send_req_impl<C: HasConnection>(
             target,
             0u32,
             ClientMessageEvent {
-                data: [buf.len() as u32, atoms.DATA, 0, 0, 0].into(),
+                data: [buf.len() as u32, prop, 0, 0, 0].into(),
                 format: 32,
                 sequence: 0,
                 response_type: CLIENT_MESSAGE_EVENT,

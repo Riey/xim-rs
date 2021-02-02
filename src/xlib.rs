@@ -140,6 +140,7 @@ pub struct XlibClient<X: XlibRef> {
     im_attributes: AHashMap<AttributeName, u16>,
     ic_attributes: AHashMap<AttributeName, u16>,
     buf: Vec<u8>,
+    sequence: u16,
 }
 
 impl<X: XlibRef> XlibClient<X> {
@@ -238,6 +239,7 @@ impl<X: XlibRef> XlibClient<X> {
                             ic_attributes: AHashMap::new(),
                             im_attributes: AHashMap::new(),
                             buf: Vec::with_capacity(1024),
+                            sequence: 0,
                         });
                     }
                 } else {
@@ -459,11 +461,16 @@ impl<X: XlibRef> XlibClient<X> {
                 );
             }
         } else {
+            let name = format!("_XIM_DATA_{}\0", self.sequence);
+            self.sequence += 1;
+            let prop =
+                unsafe { (self.x.xlib().XInternAtom)(self.display, name.as_ptr().cast(), 0) };
+
             unsafe {
                 (self.x.xlib().XChangeProperty)(
                     self.display,
                     self.im_window,
-                    self.atoms.DATA,
+                    prop,
                     xlib::XA_STRING,
                     8,
                     xlib::PropModeAppend,
@@ -475,7 +482,7 @@ impl<X: XlibRef> XlibClient<X> {
                 type_: xlib::ClientMessage,
                 display: self.display,
                 message_type: self.atoms.XIM_PROTOCOL,
-                data: [self.buf.len() as _, self.atoms.DATA, 0, 0, 0].into(),
+                data: [self.buf.len() as _, prop, 0, 0, 0].into(),
                 format: 32,
                 serial: 0,
                 send_event: xlib::True,

@@ -3,7 +3,7 @@ mod im_vec;
 use ahash::AHashMap;
 use std::num::{NonZeroU16, NonZeroU32};
 use xim_parser::{
-    Attr, AttrType, Attribute, AttributeName, ErrorCode, ErrorFlag, ForwardEventFlag, InputStyle,
+    Attr, AttrType, Attribute, AttributeName, ErrorCode, ForwardEventFlag, InputStyle,
     InputStyleList, Point, Request, XimWrite,
 };
 

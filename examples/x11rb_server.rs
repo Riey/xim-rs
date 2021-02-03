@@ -108,7 +108,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     pretty_env_logger::init();
 
     let (conn, screen_num) = x11rb::rust_connection::RustConnection::connect(None)?;
-    let mut server = X11rbServer::init(&conn, screen_num, "test_server")?;
+    let mut server = X11rbServer::init(&conn, screen_num, "test_server", xim::ALL_LOCALES)?;
     let mut connections = XimConnections::new();
     let mut handler = Handler::default();
 

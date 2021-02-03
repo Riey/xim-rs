@@ -138,6 +138,7 @@ impl<C: HasConnection> HasConnection for Arc<C> {
 #[cfg(feature = "x11rb-server")]
 pub struct X11rbServer<C: HasConnection> {
     has_conn: C,
+    locale_data: String,
     encoding: Encoding,
     im_win: Window,
     atoms: Atoms<Atom>,
@@ -147,7 +148,12 @@ pub struct X11rbServer<C: HasConnection> {
 
 #[cfg(feature = "x11rb-server")]
 impl<C: HasConnection> X11rbServer<C> {
-    pub fn init(has_conn: C, screen_num: usize, im_name: &str) -> Result<Self, ServerError> {
+    pub fn init(
+        has_conn: C,
+        screen_num: usize,
+        im_name: &str,
+        locales: &str,
+    ) -> Result<Self, ServerError> {
         let im_name = format!("@server={}", im_name);
         let conn = has_conn.conn();
         let screen = &conn.setup().roots[screen_num];
@@ -216,6 +222,7 @@ impl<C: HasConnection> X11rbServer<C> {
 
         Ok(Self {
             has_conn,
+            locale_data: format!("@locale={}", locales),
             encoding: Encoding::CompoundText,
             im_win,
             atoms,
@@ -234,7 +241,7 @@ impl<C: HasConnection> X11rbServer<C> {
             Event::SelectionRequest(req) if req.owner == self.im_win => {
                 if req.property == self.atoms.LOCALES {
                     log::trace!("Selection notify locale");
-                    self.send_selection_notify(req, "@locale=en_US")?;
+                    self.send_selection_notify(req, &self.locale_data)?;
                 } else if req.property == self.atoms.TRANSPORT {
                     log::trace!("Selection notify transport");
                     self.send_selection_notify(req, "@transport=X/")?;
@@ -313,7 +320,7 @@ impl<C: HasConnection> X11rbServer<C> {
     }
 
     fn send_selection_notify(
-        &mut self,
+        &self,
         req: &SelectionRequestEvent,
         data: &str,
     ) -> Result<(), ServerError> {
@@ -711,10 +718,7 @@ fn send_req_impl<C: HasConnection, E: From<ConnectionError> + From<ReplyError>>(
     } else {
         let prop = c
             .conn()
-            .intern_atom(
-                false,
-                format!("_XIM_DATA_{}", sequence).as_bytes(),
-            )?
+            .intern_atom(false, format!("_XIM_DATA_{}", sequence).as_bytes())?
             .reply()?
             .atom;
         *sequence = sequence.wrapping_add(1);

@@ -13,6 +13,10 @@ pub mod xlib;
 
 #[cfg(feature = "client")]
 pub use crate::client::{Client, ClientError, ClientHandler};
+
+#[cfg(feature = "server")]
+pub const ALL_LOCALES: &str = include_str!("./all_locales.txt");
+
 #[cfg(feature = "server")]
 pub use crate::server::{
     InputContext, InputMethod, Server, ServerCore, ServerError, ServerHandler, XimConnection,

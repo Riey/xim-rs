@@ -396,16 +396,27 @@ impl<T> XimConnection<T> {
                         )?;
                     }
                     None => {
+                        log::warn!("Unknown encoding negotiation just return 0");
+
                         server.send_req(
                             self.client_win,
-                            Request::Error {
+                            Request::EncodingNegotiationReply {
                                 input_method_id,
-                                input_context_id: 0,
-                                flag: ErrorFlag::INPUT_METHOD_ID_VALID,
-                                code: ErrorCode::BadName,
-                                detail: "Only UTF-8 or COMPOUND_TEXT encoding is supported".into(),
+                                category: 0,
+                                index: 0,
                             },
                         )?;
+
+                        // server.send_req(
+                        //     self.client_win,
+                        //     Request::Error {
+                        //         input_method_id,
+                        //         input_context_id: 0,
+                        //         flag: ErrorFlag::INPUT_METHOD_ID_VALID,
+                        //         code: ErrorCode::BadName,
+                        //         detail: "Only UTF-8 or COMPOUND_TEXT encoding is supported".into(),
+                        //     },
+                        // )?;
                     }
                 }
             }

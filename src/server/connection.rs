@@ -217,7 +217,7 @@ impl<T> XimConnection<T> {
         req: Request,
         handler: &mut H,
     ) -> Result<(), ServerError> {
-        log::trace!("req: {:?}", req);
+        log::debug!("<-: {}", req.name());
 
         match req {
             Request::Error {
@@ -545,7 +545,7 @@ impl<T> XimConnection<T> {
                 input_context_id,
                 serial_number: _,
                 flag,
-                mut xev,
+                xev,
             } => {
                 let ev = server.deserialize_event(&xev);
                 let input_context = self
@@ -554,10 +554,6 @@ impl<T> XimConnection<T> {
                 let consumed = handler.handle_forward_event(server, input_context, &ev)?;
 
                 if !consumed {
-                    xev.sequence = 0;
-                    xev.same_screen = false;
-                    xev.child = 0;
-                    xev.event = input_context.client_win();
                     server.send_req(
                         self.client_win,
                         Request::ForwardEvent {

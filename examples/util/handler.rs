@@ -115,11 +115,18 @@ impl<C: Client> ClientHandler<C> for ExampleHandler {
     fn handle_set_event_mask(
         &mut self,
         _client: &mut C,
-        _input_method_id: u16,
-        _input_context_id: u16,
-        _forward_event_mask: u32,
-        _synchronous_event_mask: u32,
+        input_method_id: u16,
+        input_context_id: u16,
+        forward_event_mask: u32,
+        synchronous_event_mask: u32,
     ) -> Result<(), ClientError> {
+        log::info!(
+            "Set event mask {}, {}, {}, {}",
+            input_method_id,
+            input_context_id,
+            forward_event_mask,
+            synchronous_event_mask
+        );
         Ok(())
     }
 }

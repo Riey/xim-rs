@@ -29,6 +29,8 @@ pub fn handle_request<C: ClientCore>(
     handler: &mut impl ClientHandler<C>,
     req: Request,
 ) -> Result<(), ClientError> {
+    log::debug!("<-: {}", req.name());
+
     match req {
         Request::ConnectReply {
             server_major_protocol_version: _,
@@ -152,7 +154,10 @@ pub fn handle_request<C: ClientCore>(
                     client,
                     input_method_id,
                     input_context_id,
-                    &client.encoding().read(commited).expect("Encoding Error"),
+                    &client
+                        .encoding()
+                        .read(commited)
+                        .expect("Encoding Error"),
                 )?;
 
                 if syncronous {

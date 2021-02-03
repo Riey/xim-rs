@@ -273,7 +273,7 @@ impl<C: HasConnection> X11rbServer<C> {
                         ClientMessageEvent {
                             format: 32,
                             type_: self.atoms.XIM_XCONNECT,
-                            data: [com_win, 0, 2, 0, 0].into(),
+                            data: [com_win, 0, 0, 0, 0].into(),
                             response_type: CLIENT_MESSAGE_EVENT,
                             sequence: 0,
                             window: client_win,
@@ -693,6 +693,7 @@ fn send_req_impl<C: HasConnection, E: From<ConnectionError> + From<ReplyError>>(
     transport_max: usize,
     req: &Request,
 ) -> Result<(), E> {
+    log::debug!("->: {}", req.name());
     buf.resize(req.size(), 0);
     xim_parser::write(req, buf);
 

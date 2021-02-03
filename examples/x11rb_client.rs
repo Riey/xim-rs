@@ -52,6 +52,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             match e {
                 Event::KeyPress(e) | Event::KeyRelease(e) => {
                     if handler.connected {
+                        log::trace!("Send: {:?}", e);
                         client.forward_event(
                             handler.im_id,
                             handler.ic_id,

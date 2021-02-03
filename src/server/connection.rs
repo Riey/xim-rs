@@ -543,9 +543,9 @@ impl<T> XimConnection<T> {
             Request::ForwardEvent {
                 input_method_id,
                 input_context_id,
-                serial_number,
+                serial_number: _,
                 flag,
-                xev,
+                mut xev,
             } => {
                 let ev = server.deserialize_event(&xev);
                 let input_context = self
@@ -554,12 +554,16 @@ impl<T> XimConnection<T> {
                 let consumed = handler.handle_forward_event(server, input_context, &ev)?;
 
                 if !consumed {
+                    xev.sequence = 0;
+                    xev.same_screen = false;
+                    xev.child = 0;
+                    xev.event = input_context.client_win();
                     server.send_req(
                         self.client_win,
                         Request::ForwardEvent {
                             input_method_id,
                             input_context_id,
-                            serial_number,
+                            serial_number: 0,
                             flag: ForwardEventFlag::empty(),
                             xev,
                         },

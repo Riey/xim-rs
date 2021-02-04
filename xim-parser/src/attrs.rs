@@ -24,7 +24,7 @@ macro_rules! define_attrs {
 
 define_attrs! {
     (QUERY_INPUT_STYLE, AttributeName::QueryInputStyle, AttrType::Style),
-    (INPUT_STYLE, AttributeName::InputStyle, AttrType::Style),
+    (INPUT_STYLE, AttributeName::InputStyle, AttrType::Long),
     (CLIENTWIN, AttributeName::ClientWindow, AttrType::Window),
     (FOCUSWIN, AttributeName::FocusWindow, AttrType::Window),
     (FILTER_EVENTS, AttributeName::FilterEvents, AttrType::Long),

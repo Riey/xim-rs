@@ -1,4 +1,4 @@
-use x11rb::{connection::Connection, protocol::xproto::EventMask};
+use x11rb::connection::Connection;
 use xim::{x11rb::X11rbServer, InputContext, Server, ServerError, ServerHandler, XimConnections};
 use xim_parser::InputStyle;
 
@@ -9,7 +9,7 @@ impl Handler {}
 
 impl<S: Server> ServerHandler<S> for Handler {
     type InputContextData = ();
-    type InputStyleArray = [InputStyle; 1];
+    type InputStyleArray = [InputStyle; 3];
 
     fn new_ic_data(
         &mut self,
@@ -20,7 +20,12 @@ impl<S: Server> ServerHandler<S> for Handler {
     }
 
     fn input_styles(&self) -> Self::InputStyleArray {
-        [InputStyle::PREEDIT_NOTHING | InputStyle::STATUS_NOTHING]
+        [
+            // over-spot
+            InputStyle::PREEDIT_NOTHING | InputStyle::STATUS_NOTHING,
+            InputStyle::PREEDIT_POSITION | InputStyle::STATUS_NOTHING,
+            InputStyle::PREEDIT_POSITION | InputStyle::STATUS_NONE,
+        ]
     }
 
     fn handle_connect(&mut self, _server: &mut S) -> Result<(), ServerError> {
@@ -33,7 +38,7 @@ impl<S: Server> ServerHandler<S> for Handler {
         server: &mut S,
         input_context: &mut InputContext<Self::InputContextData>,
     ) -> Result<(), ServerError> {
-        server.set_event_mask(input_context, EventMask::KEY_PRESS.into(), 0)
+        server.set_event_mask(input_context, 1, 1)
     }
 
     fn handle_forward_event(
@@ -105,7 +110,7 @@ impl<S: Server> ServerHandler<S> for Handler {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    pretty_env_logger::init();
+    pretty_env_logger::init_custom_env("XIM_RS_LOG");
 
     let (conn, screen_num) = x11rb::rust_connection::RustConnection::connect(None)?;
     let mut server = X11rbServer::init(&conn, screen_num, "test_server", xim::ALL_LOCALES)?;
@@ -114,7 +119,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     loop {
         let e = conn.wait_for_event()?;
-        log::trace!("event: {:?}", e);
         server.filter_event(&e, &mut connections, &mut handler)?;
     }
 }

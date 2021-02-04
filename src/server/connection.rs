@@ -543,8 +543,7 @@ impl<T> XimConnection<T> {
                 let ic = self
                     .get_input_method(input_method_id)?
                     .get_input_context(input_context_id)?;
-
-                handler.handle_caret(server, ic, position)?;
+                handler.handle_preedit_caret(server, ic, position)?;
             }
 
             Request::PreeditStartReply {
@@ -555,7 +554,6 @@ impl<T> XimConnection<T> {
                 let ic = self
                     .get_input_method(input_method_id)?
                     .get_input_context(input_context_id)?;
-
                 handler.handle_preedit_start(server, ic)?;
             }
 

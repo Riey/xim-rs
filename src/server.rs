@@ -3,8 +3,8 @@ mod connection;
 use std::num::NonZeroU16;
 
 use xim_parser::{
-    CaretDirection, CaretStyle, CommitData, ErrorCode, ErrorFlag, InputStyle, PreeditDrawStatus,
-    Request,
+    CaretDirection, CaretStyle, CommitData, ErrorCode, ErrorFlag, Feedback, InputStyle,
+    PreeditDrawStatus, Request,
 };
 
 pub use self::connection::{
@@ -77,7 +77,7 @@ pub trait ServerHandler<S: Server> {
         user_ic: &mut UserInputContext<Self::InputContextData>,
     ) -> Result<(), ServerError>;
 
-    fn handle_caret(
+    fn handle_preedit_caret(
         &mut self,
         server: &mut S,
         user_ic: &mut UserInputContext<Self::InputContextData>,
@@ -203,9 +203,15 @@ impl<S: ServerCore> Server for S {
     fn preedit_done(&mut self, ic: &InputContext) -> Result<(), ServerError> {
         self.send_req(
             ic.client_win(),
-            Request::PreeditDone {
+            Request::PreeditDraw {
                 input_method_id: ic.input_method_id().get(),
                 input_context_id: ic.input_context_id().get(),
+                chg_first: 0,
+                chg_length: ic.preedit_pos,
+                caret: 0,
+                preedit_string: ic.preedit_string.clone(),
+                status: PreeditDrawStatus::empty(),
+                feedbacks: vec![Feedback::Underline],
             },
         )
     }
@@ -215,17 +221,17 @@ impl<S: ServerCore> Server for S {
 
         self.send_req(
             ic.client_win(),
-            Request::PreeditDraw {
+            Request::PreeditCaret {
                 input_method_id: ic.input_method_id().get(),
                 input_context_id: ic.input_context_id().get(),
-                chg_first: 0,
-                chg_length: s.chars().count() as i32,
-                caret: 0,
-                preedit_string: preedit,
-                status: PreeditDrawStatus::NO_FEEDBACK,
-                feedbacks: Vec::new(),
+                direction: CaretDirection::ForwardChar,
+                style: CaretStyle::Invisible,
+                position: ic.preedit_pos,
             },
-        )
+        )?;
+        ic.preedit_pos = s.len() as i32;
+
+        Ok(())
     }
 
     fn commit(&mut self, ic: &InputContext, s: &str) -> Result<(), ServerError> {

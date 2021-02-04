@@ -27,9 +27,7 @@ impl<'s> fmt::Display for CText<'s> {
 
 impl<'s> CText<'s> {
     pub const fn new(utf8: &'s str) -> Self {
-        Self {
-            utf8
-        }
+        Self { utf8 }
     }
 
     pub const fn len(self) -> usize {

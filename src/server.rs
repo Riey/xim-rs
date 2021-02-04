@@ -38,6 +38,7 @@ pub trait ServerHandler<S: Server> {
     ) -> Result<Self::InputContextData, ServerError>;
 
     fn input_styles(&self) -> Self::InputStyleArray;
+    fn filter_events(&self) -> u32;
 
     fn handle_connect(&mut self, server: &mut S) -> Result<(), ServerError>;
 

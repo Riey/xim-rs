@@ -28,6 +28,10 @@ impl<S: Server> ServerHandler<S> for Handler {
         ]
     }
 
+    fn filter_events(&self) -> u32 {
+        1
+    }
+
     fn handle_connect(&mut self, _server: &mut S) -> Result<(), ServerError> {
         log::info!("Connected!");
         Ok(())
@@ -47,7 +51,7 @@ impl<S: Server> ServerHandler<S> for Handler {
         input_context: &mut InputContext<Self::InputContextData>,
         _xev: &S::XEvent,
     ) -> Result<bool, ServerError> {
-        server.commit(input_context, "가")?;
+        server.commit(input_context, "가".into())?;
         Ok(true)
     }
 

@@ -1,7 +1,6 @@
 mod im_vec;
 
 use ahash::AHashMap;
-use attrs::{BACKGROUND, COLOR_MAP, FONT_SET, LINE_SPACE, STATUS_ATTRIBUTES, STD_COLOR_MAP};
 use std::num::{NonZeroU16, NonZeroU32};
 use xim_parser::{
     attrs, Attribute, AttributeName, ErrorCode, ForwardEventFlag, InputStyle, InputStyleList,
@@ -419,11 +418,11 @@ impl<T> XimConnection<T> {
             } => {
                 let mut out = Vec::with_capacity(im_attributes.len());
 
-                for id in im_attributes {
-                    match attrs::get_name(id) {
-                        Some(AttributeName::QueryInputStyle) => {
+                for name in im_attributes.into_iter().filter_map(attrs::get_name) {
+                    match name {
+                        AttributeName::QueryInputStyle => {
                             out.push(Attribute {
-                                id,
+                                id: attrs::get_id(name),
                                 value: xim_parser::write_to_vec(InputStyleList {
                                     styles: handler.input_styles().as_ref().to_vec(),
                                 }),
@@ -433,7 +432,7 @@ impl<T> XimConnection<T> {
                             return server.error(
                                 self.client_win,
                                 ErrorCode::BadName,
-                                "Unknown im attribute id".into(),
+                                "Unknown im attribute name".into(),
                                 NonZeroU16::new(input_method_id),
                                 None,
                             );
@@ -446,6 +445,63 @@ impl<T> XimConnection<T> {
                     Request::GetImValuesReply {
                         input_method_id,
                         im_attributes: out,
+                    },
+                )?;
+            }
+
+            Request::GetIcValues {
+                input_method_id,
+                input_context_id,
+                ic_attributes,
+            } => {
+                let ic = self
+                    .get_input_method(input_method_id)?
+                    .get_input_context(input_context_id)?;
+                let mut out = Vec::with_capacity(ic_attributes.len());
+
+                for name in ic_attributes.into_iter().filter_map(attrs::get_name) {
+                    match name {
+                        AttributeName::InputStyle => out.push(Attribute {
+                            id: attrs::get_id(name),
+                            value: xim_parser::write_to_vec(ic.input_style()),
+                        }),
+                        AttributeName::ClientWindow => out.push(Attribute {
+                            id: attrs::get_id(name),
+                            value: xim_parser::write_to_vec(
+                                ic.app_win().map_or(0, NonZeroU32::get),
+                            ),
+                        }),
+                        AttributeName::FocusWindow => out.push(Attribute {
+                            id: attrs::get_id(name),
+                            value: xim_parser::write_to_vec(
+                                ic.app_focus_win().map_or(0, NonZeroU32::get),
+                            ),
+                        }),
+                        AttributeName::FilterEvents => out.push(Attribute {
+                            id: attrs::get_id(name),
+                            value: xim_parser::write_to_vec(handler.filter_events()),
+                        }),
+                        AttributeName::QueryInputStyle => {
+                            return server.error(
+                                self.client_win,
+                                ErrorCode::BadName,
+                                "Unknown ic attribute name".into(),
+                                NonZeroU16::new(input_method_id),
+                                None,
+                            );
+                        }
+                        name => {
+                            log::warn!("Unimplemented attribute {:?}", name);
+                        }
+                    }
+                }
+
+                server.send_req(
+                    self.client_win,
+                    Request::GetIcValuesReply {
+                        ic_attributes: out,
+                        input_method_id,
+                        input_context_id,
                     },
                 )?;
             }

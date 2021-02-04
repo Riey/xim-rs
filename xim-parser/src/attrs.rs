@@ -2,7 +2,7 @@ use crate::{Attr, AttrType, AttributeName};
 
 macro_rules! define_attrs {
     ($(($name:ident, $attr_name:expr, $ty:expr),)+) => {
-        pub fn get_name(id: u16) -> Option<AttributeName> {
+        pub const fn get_name(id: u16) -> Option<AttributeName> {
             $(
                 if id == $attr_name as _ {
                     return Some($attr_name);
@@ -10,6 +10,10 @@ macro_rules! define_attrs {
             )+
 
             None
+        }
+
+        pub const fn get_id(name: AttributeName) -> u16 {
+            name as u16
         }
 
         $(

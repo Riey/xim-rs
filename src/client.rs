@@ -41,6 +41,8 @@ pub fn handle_request<C: ClientCore>(
             im_attrs,
             ic_attrs,
         } => {
+            log::debug!("im_attrs: {:#?}", im_attrs);
+            log::debug!("ic_attrs: {:#?}", ic_attrs);
             client.set_attrs(im_attrs, ic_attrs);
             // Require for uim
             client.send_req(Request::EncodingNegotiation {
@@ -154,10 +156,7 @@ pub fn handle_request<C: ClientCore>(
                     client,
                     input_method_id,
                     input_context_id,
-                    &client
-                        .encoding()
-                        .read(commited)
-                        .expect("Encoding Error"),
+                    &client.encoding().read(commited).expect("Encoding Error"),
                 )?;
 
                 if syncronous {

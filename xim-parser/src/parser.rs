@@ -1395,7 +1395,7 @@ pub enum Request {
     EncodingNegotiationReply {
         input_method_id: u16,
         category: u16,
-        index: u16,
+        index: i16,
     },
     Error {
         input_method_id: u16,
@@ -1754,7 +1754,7 @@ impl XimRead for Request {
                 input_method_id: u16::read(reader)?,
                 category: u16::read(reader)?,
                 index: {
-                    let inner = u16::read(reader)?;
+                    let inner = i16::read(reader)?;
                     reader.consume(2)?;
                     inner
                 },

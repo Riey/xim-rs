@@ -363,7 +363,7 @@ Requests:
     body:
       - "input_method_id u16"
       - "category u16"
-      - "index @append2 u16"
+      - "index @append2 i16"
 
   QueryExtension:
     major_opcode: 40

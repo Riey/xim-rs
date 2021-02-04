@@ -1,10 +1,11 @@
 mod im_vec;
 
 use ahash::AHashMap;
+use attrs::{BACKGROUND, COLOR_MAP, FONT_SET, LINE_SPACE, STATUS_ATTRIBUTES, STD_COLOR_MAP};
 use std::num::{NonZeroU16, NonZeroU32};
 use xim_parser::{
-    Attr, AttrType, Attribute, AttributeName, ErrorCode, ForwardEventFlag, InputStyle,
-    InputStyleList, Point, Request, XimWrite,
+    attrs, Attribute, AttributeName, ErrorCode, ForwardEventFlag, InputStyle, InputStyleList,
+    Point, Request, XimWrite,
 };
 
 use self::im_vec::ImVec;
@@ -89,31 +90,40 @@ impl<T> InputContext<T> {
 
 fn set_ic_attrs(ic: &mut InputContextInner, ic_attributes: Vec<Attribute>) {
     for attr in ic_attributes {
-        match attr.id {
-            IC_INPUTSTYLE => {
+        let name = if let Some(name) = attrs::get_name(attr.id) {
+            name
+        } else {
+            log::warn!("Unknown attr id: {}", attr.id);
+            continue;
+        };
+
+        match name {
+            AttributeName::InputStyle => {
                 if let Some(style) = xim_parser::read(&attr.value).ok() {
                     ic.input_style = style;
                 }
             }
-            IC_CLIENTWIN => {
+            AttributeName::ClientWindow => {
                 ic.app_win = xim_parser::read(&attr.value).ok().and_then(NonZeroU32::new);
             }
-            IC_FOCUSWIN => {
+            AttributeName::FocusWindow => {
                 ic.app_focus_win = xim_parser::read(&attr.value).ok().and_then(NonZeroU32::new);
             }
-            IC_PREEDITATTRS => {
+            AttributeName::PreeditAttributes => {
                 let mut b = &attr.value[..];
                 while !b.is_empty() {
                     match xim_parser::read::<Attribute>(b) {
                         Ok(attr) => {
                             b = &b[attr.size()..];
-                            match attr.id {
-                                IC_SPOTLOCATION => {
+                            match attrs::get_name(attr.id) {
+                                Some(AttributeName::SpotLocation) => {
                                     if let Ok(spot) = xim_parser::read(&attr.value) {
                                         ic.preedit_spot = spot;
                                     }
                                 }
-                                _ => {}
+                                name => {
+                                    log::warn!("Ignore unhandled preedit attr: {:?}", name);
+                                }
                             }
                         }
                         Err(_) => {
@@ -122,7 +132,9 @@ fn set_ic_attrs(ic: &mut InputContextInner, ic_attributes: Vec<Attribute>) {
                     }
                 }
             }
-            _ => {}
+            name => {
+                log::warn!("Ignore unhandled attr: {:?}", name);
+            }
         }
     }
 }
@@ -160,13 +172,6 @@ impl<T> InputMethod<T> {
             .ok_or(ServerError::ClientNotExists)
     }
 }
-
-const IC_INPUTSTYLE: u16 = 0;
-const IC_CLIENTWIN: u16 = 1;
-const IC_FOCUSWIN: u16 = 2;
-const IC_PREEDITATTRS: u16 = 3;
-const IC_SPOTLOCATION: u16 = 4;
-const IC_NESTED_SEP: u16 = 30;
 
 pub struct XimConnection<T> {
     pub(crate) client_win: u32,
@@ -255,42 +260,25 @@ impl<T> XimConnection<T> {
                     self.client_win,
                     Request::OpenReply {
                         input_method_id: input_method_id.get(),
-                        im_attrs: vec![Attr {
-                            id: 0,
-                            name: AttributeName::QueryInputStyle,
-                            ty: AttrType::Style,
-                        }],
+                        im_attrs: vec![attrs::QUERY_INPUT_STYLE],
                         ic_attrs: vec![
-                            Attr {
-                                id: IC_INPUTSTYLE,
-                                name: AttributeName::InputStyle,
-                                ty: AttrType::Long,
-                            },
-                            Attr {
-                                id: IC_CLIENTWIN,
-                                name: AttributeName::ClientWindow,
-                                ty: AttrType::Window,
-                            },
-                            Attr {
-                                id: IC_FOCUSWIN,
-                                name: AttributeName::FocusWindow,
-                                ty: AttrType::Window,
-                            },
-                            Attr {
-                                id: IC_PREEDITATTRS,
-                                name: AttributeName::PreeditAttributes,
-                                ty: AttrType::NestedList,
-                            },
-                            Attr {
-                                id: IC_SPOTLOCATION,
-                                name: AttributeName::SpotLocation,
-                                ty: AttrType::XPoint,
-                            },
-                            Attr {
-                                id: IC_NESTED_SEP,
-                                name: AttributeName::SeparatorofNestedList,
-                                ty: AttrType::Separator,
-                            },
+                            attrs::INPUT_STYLE,
+                            attrs::CLIENTWIN,
+                            attrs::FOCUSWIN,
+                            attrs::FILTER_EVENTS,
+                            attrs::PREEDIT_ATTRIBUTES,
+                            attrs::STATUS_ATTRIBUTES,
+                            attrs::FONT_SET,
+                            attrs::AREA,
+                            attrs::AREA_NEEDED,
+                            attrs::COLOR_MAP,
+                            attrs::STD_COLOR_MAP,
+                            attrs::FOREGROUND,
+                            attrs::BACKGROUND,
+                            attrs::BACKGROUND_PIXMAP,
+                            attrs::SPOT_LOCATION,
+                            attrs::LINE_SPACE,
+                            attrs::SEPARATOR_OF_NESTED_LIST,
                         ],
                     },
                 )?;
@@ -391,32 +379,20 @@ impl<T> XimConnection<T> {
                             Request::EncodingNegotiationReply {
                                 input_method_id,
                                 category: 0,
-                                index: pos as u16,
+                                index: pos as i16,
                             },
                         )?;
                     }
                     None => {
-                        log::warn!("Unknown encoding negotiation just return 0");
-
+                        server.set_encoding(Encoding::CompoundText);
                         server.send_req(
                             self.client_win,
                             Request::EncodingNegotiationReply {
                                 input_method_id,
                                 category: 0,
-                                index: 0,
+                                index: -1,
                             },
                         )?;
-
-                        // server.send_req(
-                        //     self.client_win,
-                        //     Request::Error {
-                        //         input_method_id,
-                        //         input_context_id: 0,
-                        //         flag: ErrorFlag::INPUT_METHOD_ID_VALID,
-                        //         code: ErrorCode::BadName,
-                        //         detail: "Only UTF-8 or COMPOUND_TEXT encoding is supported".into(),
-                        //     },
-                        // )?;
                     }
                 }
             }
@@ -444,8 +420,8 @@ impl<T> XimConnection<T> {
                 let mut out = Vec::with_capacity(im_attributes.len());
 
                 for id in im_attributes {
-                    match id {
-                        0 => {
+                    match attrs::get_name(id) {
+                        Some(AttributeName::QueryInputStyle) => {
                             out.push(Attribute {
                                 id,
                                 value: xim_parser::write_to_vec(InputStyleList {

@@ -9,7 +9,7 @@ use self::handler::ExampleHandler;
 mod handler;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    pretty_env_logger::init();
+    pretty_env_logger::init_custom_env("XIM_RS_LOG");
 
     let (conn, screen_num) =
         x11rb::rust_connection::RustConnection::connect(None).expect("Connect X");

@@ -1,3 +1,4 @@
+pub mod attrs;
 mod parser;
 
 pub use parser::*;

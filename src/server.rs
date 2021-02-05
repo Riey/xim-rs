@@ -39,6 +39,7 @@ pub trait ServerHandler<S: Server> {
 
     fn input_styles(&self) -> Self::InputStyleArray;
     fn filter_events(&self) -> u32;
+    fn sync_mode(&self) -> bool;
 
     fn handle_connect(&mut self, server: &mut S) -> Result<(), ServerError>;
 
@@ -123,13 +124,6 @@ pub trait Server {
     fn preedit_draw<T>(&mut self, ic: &mut InputContext<T>, s: &str) -> Result<(), ServerError>;
     fn preedit_done<T>(&mut self, ic: &mut InputContext<T>) -> Result<(), ServerError>;
     fn commit<T>(&mut self, ic: &mut InputContext<T>, s: &str) -> Result<(), ServerError>;
-
-    fn set_event_mask<T>(
-        &mut self,
-        ic: &InputContext<T>,
-        forward_event_mask: u32,
-        synchronous_event_mask: u32,
-    ) -> Result<(), ServerError>;
 }
 
 impl<S: ServerCore> Server for S {
@@ -238,23 +232,6 @@ impl<S: ServerCore> Server for S {
                     commited: ctext::utf8_to_compound_text(s),
                     syncronous: false,
                 },
-            },
-        )
-    }
-
-    fn set_event_mask<T>(
-        &mut self,
-        ic: &InputContext<T>,
-        forward_event_mask: u32,
-        synchronous_event_mask: u32,
-    ) -> Result<(), ServerError> {
-        self.send_req(
-            ic.client_win(),
-            Request::SetEventMask {
-                input_method_id: ic.input_method_id().get(),
-                input_context_id: ic.input_context_id().get(),
-                forward_event_mask,
-                synchronous_event_mask,
             },
         )
     }

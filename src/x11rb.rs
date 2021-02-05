@@ -311,11 +311,13 @@ impl<C: HasConnection> X11rbServer<C> {
                 .get_property(true, msg.window, atom, AtomEnum::ANY, 0, length)?
                 .reply()?
                 .value;
-            let req = xim_parser::read(&data)?;
-            connection.handle_request(self, req, handler)
+            let req: Request = xim_parser::read(&data)?;
+            log::debug!("<-: {}", req.name());
+            connection.handle_request(self, handler, req)
         } else {
-            let req = xim_parser::read(&msg.data.as_data8())?;
-            connection.handle_request(self, req, handler)
+            let req: Request = xim_parser::read(&msg.data.as_data8())?;
+            log::debug!("<-: {}", req.name());
+            connection.handle_request(self, handler, req)
         }
     }
 

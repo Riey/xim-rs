@@ -32,6 +32,10 @@ impl<S: Server> ServerHandler<S> for Handler {
         1
     }
 
+    fn sync_mode(&self) -> bool {
+        true
+    }
+
     fn handle_connect(&mut self, _server: &mut S) -> Result<(), ServerError> {
         log::info!("Connected!");
         Ok(())
@@ -39,10 +43,10 @@ impl<S: Server> ServerHandler<S> for Handler {
 
     fn handle_create_ic(
         &mut self,
-        server: &mut S,
-        input_context: &mut InputContext<Self::InputContextData>,
+        _server: &mut S,
+        _input_context: &mut InputContext<Self::InputContextData>,
     ) -> Result<(), ServerError> {
-        server.set_event_mask(input_context, 1, 1)
+        Ok(())
     }
 
     fn handle_forward_event(

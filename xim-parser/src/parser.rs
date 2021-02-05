@@ -52,6 +52,23 @@ pub enum CommitData {
         syncronous: bool,
     },
 }
+
+impl CommitData {
+    pub fn is_sync(&self) -> bool {
+        match self {
+            CommitData::Keysym { syncronous, .. }
+            | CommitData::Chars { syncronous, .. }
+            | CommitData::Both { syncronous, .. } => *syncronous,
+        }
+    }
+}
+
+impl ForwardEventFlag {
+    pub fn is_sync(self) -> bool {
+        self.contains(Self::SYNCHRONOUS)
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct InputStyleList {
     pub styles: Vec<InputStyle>,
@@ -1343,11 +1360,6 @@ impl XimWrite for AttributeName {
 }
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Request {
-    AuthNext {},
-    AuthNg {},
-    AuthReply {},
-    AuthRequired {},
-    AuthSetup {},
     Close {
         input_method_id: u16,
     },
@@ -1542,8 +1554,6 @@ pub enum Request {
         input_method_id: u16,
         input_context_id: u16,
     },
-    StrConversion {},
-    StrConversionReply {},
     Sync {
         input_method_id: u16,
         input_context_id: u16,
@@ -1571,11 +1581,6 @@ pub enum Request {
 impl Request {
     pub fn name(&self) -> &'static str {
         match self {
-            Request::AuthNext { .. } => "AuthNext",
-            Request::AuthNg { .. } => "AuthNg",
-            Request::AuthReply { .. } => "AuthReply",
-            Request::AuthRequired { .. } => "AuthRequired",
-            Request::AuthSetup { .. } => "AuthSetup",
             Request::Close { .. } => "Close",
             Request::CloseReply { .. } => "CloseReply",
             Request::Commit { .. } => "Commit",
@@ -1619,13 +1624,63 @@ impl Request {
             Request::StatusDone { .. } => "StatusDone",
             Request::StatusDraw { .. } => "StatusDraw",
             Request::StatusStart { .. } => "StatusStart",
-            Request::StrConversion { .. } => "StrConversion",
-            Request::StrConversionReply { .. } => "StrConversionReply",
             Request::Sync { .. } => "Sync",
             Request::SyncReply { .. } => "SyncReply",
             Request::TriggerNotify { .. } => "TriggerNotify",
             Request::TriggerNotifyReply { .. } => "TriggerNotifyReply",
             Request::UnsetIcFocus { .. } => "UnsetIcFocus",
+        }
+    }
+    pub fn is_sync(&self) -> bool {
+        match self {
+            Request::Close { .. } => true,
+            Request::CloseReply { .. } => false,
+            Request::Commit { data, .. } => data.is_sync(),
+            Request::Connect { .. } => false,
+            Request::ConnectReply { .. } => false,
+            Request::CreateIc { .. } => true,
+            Request::CreateIcReply { .. } => false,
+            Request::DestoryIc { .. } => true,
+            Request::DestroyIcReply { .. } => false,
+            Request::Disconnect { .. } => true,
+            Request::DisconnectReply { .. } => false,
+            Request::EncodingNegotiation { .. } => true,
+            Request::EncodingNegotiationReply { .. } => false,
+            Request::Error { .. } => false,
+            Request::ForwardEvent { flag, .. } => flag.is_sync(),
+            Request::Geometry { .. } => false,
+            Request::GetIcValues { .. } => true,
+            Request::GetIcValuesReply { .. } => false,
+            Request::GetImValues { .. } => true,
+            Request::GetImValuesReply { .. } => false,
+            Request::Open { .. } => true,
+            Request::OpenReply { .. } => false,
+            Request::PreeditCaret { .. } => false,
+            Request::PreeditCaretReply { .. } => true,
+            Request::PreeditDone { .. } => false,
+            Request::PreeditDraw { .. } => false,
+            Request::PreeditStart { .. } => true,
+            Request::PreeditStartReply { .. } => false,
+            Request::PreeditState { .. } => false,
+            Request::QueryExtension { .. } => true,
+            Request::QueryExtensionReply { .. } => false,
+            Request::RegisterTriggerKeys { .. } => false,
+            Request::ResetIc { .. } => true,
+            Request::ResetIcReply { .. } => false,
+            Request::SetEventMask { .. } => false,
+            Request::SetIcFocus { .. } => false,
+            Request::SetIcValues { .. } => true,
+            Request::SetIcValuesReply { .. } => false,
+            Request::SetImValues { .. } => true,
+            Request::SetImValuesReply { .. } => false,
+            Request::StatusDone { .. } => false,
+            Request::StatusDraw { .. } => false,
+            Request::StatusStart { .. } => false,
+            Request::Sync { .. } => true,
+            Request::SyncReply { .. } => false,
+            Request::TriggerNotify { .. } => true,
+            Request::TriggerNotifyReply { .. } => false,
+            Request::UnsetIcFocus { .. } => false,
         }
     }
 }
@@ -1635,11 +1690,6 @@ impl XimRead for Request {
         let minor_opcode = reader.u8()?;
         let _length = reader.u16()?;
         match (major_opcode, minor_opcode) {
-            (12, _) => Ok(Request::AuthNext {}),
-            (14, _) => Ok(Request::AuthNg {}),
-            (11, _) => Ok(Request::AuthReply {}),
-            (10, _) => Ok(Request::AuthRequired {}),
-            (13, _) => Ok(Request::AuthSetup {}),
             (32, _) => Ok(Request::Close {
                 input_method_id: {
                     let inner = u16::read(reader)?;
@@ -2064,8 +2114,6 @@ impl XimRead for Request {
                 input_method_id: u16::read(reader)?,
                 input_context_id: u16::read(reader)?,
             }),
-            (71, _) => Ok(Request::StrConversion {}),
-            (72, _) => Ok(Request::StrConversionReply {}),
             (61, _) => Ok(Request::Sync {
                 input_method_id: u16::read(reader)?,
                 input_context_id: u16::read(reader)?,
@@ -2098,31 +2146,6 @@ impl XimRead for Request {
 impl XimWrite for Request {
     fn write(&self, writer: &mut Writer) {
         match self {
-            Request::AuthNext {} => {
-                12u8.write(writer);
-                0u8.write(writer);
-                (((self.size() - 4) / 4) as u16).write(writer);
-            }
-            Request::AuthNg {} => {
-                14u8.write(writer);
-                0u8.write(writer);
-                (((self.size() - 4) / 4) as u16).write(writer);
-            }
-            Request::AuthReply {} => {
-                11u8.write(writer);
-                0u8.write(writer);
-                (((self.size() - 4) / 4) as u16).write(writer);
-            }
-            Request::AuthRequired {} => {
-                10u8.write(writer);
-                0u8.write(writer);
-                (((self.size() - 4) / 4) as u16).write(writer);
-            }
-            Request::AuthSetup {} => {
-                13u8.write(writer);
-                0u8.write(writer);
-                (((self.size() - 4) / 4) as u16).write(writer);
-            }
             Request::Close { input_method_id } => {
                 32u8.write(writer);
                 0u8.write(writer);
@@ -2704,16 +2727,6 @@ impl XimWrite for Request {
                 input_method_id.write(writer);
                 input_context_id.write(writer);
             }
-            Request::StrConversion {} => {
-                71u8.write(writer);
-                0u8.write(writer);
-                (((self.size() - 4) / 4) as u16).write(writer);
-            }
-            Request::StrConversionReply {} => {
-                72u8.write(writer);
-                0u8.write(writer);
-                (((self.size() - 4) / 4) as u16).write(writer);
-            }
             Request::Sync {
                 input_method_id,
                 input_context_id,
@@ -2775,11 +2788,6 @@ impl XimWrite for Request {
     fn size(&self) -> usize {
         let mut content_size = 0;
         match self {
-            Request::AuthNext {} => {}
-            Request::AuthNg {} => {}
-            Request::AuthReply {} => {}
-            Request::AuthRequired {} => {}
-            Request::AuthSetup {} => {}
             Request::Close { input_method_id } => {
                 content_size += input_method_id.size() + 2;
             }
@@ -3134,8 +3142,6 @@ impl XimWrite for Request {
                 content_size += input_method_id.size();
                 content_size += input_context_id.size();
             }
-            Request::StrConversion {} => {}
-            Request::StrConversionReply {} => {}
             Request::Sync {
                 input_method_id,
                 input_context_id,

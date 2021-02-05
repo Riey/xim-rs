@@ -1,6 +1,7 @@
 mod im_vec;
 
 use ahash::AHashMap;
+use std::collections::VecDeque;
 use std::num::{NonZeroU16, NonZeroU32};
 use xim_parser::{
     attrs, Attribute, AttributeName, ErrorCode, ForwardEventFlag, InputStyle, InputStyleList,
@@ -175,7 +176,9 @@ impl<T> InputMethod<T> {
 pub struct XimConnection<T> {
     pub(crate) client_win: u32,
     pub(crate) disconnected: bool,
+    sync: bool,
     pub(crate) input_methods: ImVec<InputMethod<T>>,
+    sync_queue: SyncQueue,
 }
 
 impl<T> XimConnection<T> {
@@ -183,7 +186,9 @@ impl<T> XimConnection<T> {
         Self {
             client_win,
             disconnected: false,
+            sync: false,
             input_methods: ImVec::new(),
+            sync_queue: SyncQueue::default(),
         }
     }
 
@@ -215,13 +220,41 @@ impl<T> XimConnection<T> {
             .ok_or(ServerError::ClientNotExists)
     }
 
+    pub(crate) fn process_sync_queue<S: ServerCore, H: ServerHandler<S, InputContextData = T>>(
+        &mut self,
+        server: &mut S,
+        handler: &mut H,
+    ) -> Result<(), ServerError> {
+        self.sync = false;
+
+        while let Some(req) = self.sync_queue.dequeue_read() {
+            log::debug!("<o> Processs pending request {}", req.name());
+            self.handle_request(server, handler, req)?;
+            // Exit when blocked
+            if self.sync {
+                return Ok(());
+            }
+        }
+
+        for write in self.sync_queue.drain_write() {
+            server.send_req(self.client_win, write)?;
+        }
+
+        Ok(())
+    }
+
     pub(crate) fn handle_request<S: ServerCore, H: ServerHandler<S, InputContextData = T>>(
         &mut self,
         server: &mut S,
-        req: Request,
         handler: &mut H,
+        req: Request,
     ) -> Result<(), ServerError> {
-        log::debug!("<-: {}", req.name());
+        let is_req_sync = req.is_sync();
+        if self.sync && is_req_sync {
+            log::debug!("<x> Request {} is blocking", req.name());
+            self.sync_queue.enqueue_read(req);
+            return Ok(());
+        }
 
         match req {
             Request::Error {
@@ -301,15 +334,27 @@ impl<T> XimConnection<T> {
                 let (input_context_id, ic) = im.new_ic(ic);
                 ic.inner.input_context_id = input_context_id;
 
-                server.send_req(
-                    ic.client_win(),
-                    Request::CreateIcReply {
-                        input_method_id,
-                        input_context_id: input_context_id.get(),
-                    },
-                )?;
-
                 handler.handle_create_ic(server, ic)?;
+
+                self.sync_queue.enqueue_write(Request::CreateIcReply {
+                    input_method_id,
+                    input_context_id: input_context_id.get(),
+                });
+
+                // TODO: trigger key
+
+                let mask = handler.filter_events();
+
+                let mask = if handler.sync_mode() { !mask } else { mask };
+
+                self.sync_queue.enqueue_write(Request::SetEventMask {
+                    input_method_id,
+                    input_context_id: input_context_id.get(),
+                    forward_event_mask: mask,
+                    synchronous_event_mask: !mask,
+                });
+
+                self.process_sync_queue(server, handler)?;
             }
 
             Request::DestoryIc {
@@ -321,13 +366,12 @@ impl<T> XimConnection<T> {
                     self.get_input_method(input_method_id)?
                         .remove_input_context(input_context_id)?,
                 )?;
-                server.send_req(
-                    self.client_win,
-                    Request::DestroyIcReply {
-                        input_method_id,
-                        input_context_id,
-                    },
-                )?;
+
+                self.sync_queue.enqueue_write(Request::DestroyIcReply {
+                    input_method_id,
+                    input_context_id,
+                });
+                self.process_sync_queue(server, handler)?;
             }
 
             Request::Close { input_method_id } => {
@@ -403,14 +447,12 @@ impl<T> XimConnection<T> {
                     .get_input_method(input_method_id)?
                     .get_input_context(input_context_id)?;
                 let ret = handler.handle_reset_ic(server, ic)?;
-                server.send_req(
-                    ic.client_win(),
-                    Request::ResetIcReply {
-                        input_method_id,
-                        input_context_id,
-                        preedit_string: server.encoding().write(ret),
-                    },
-                )?;
+                self.sync_queue.enqueue_write(Request::ResetIcReply {
+                    input_method_id,
+                    input_context_id,
+                    preedit_string: server.encoding().write(ret),
+                });
+                self.process_sync_queue(server, handler)?;
             }
             Request::GetImValues {
                 input_method_id,
@@ -575,8 +617,8 @@ impl<T> XimConnection<T> {
             Request::ForwardEvent {
                 input_method_id,
                 input_context_id,
-                serial_number: _,
-                flag,
+                serial_number,
+                flag: _,
                 xev,
             } => {
                 let ev = server.deserialize_event(&xev);
@@ -586,19 +628,26 @@ impl<T> XimConnection<T> {
                 let consumed = handler.handle_forward_event(server, input_context, &ev)?;
 
                 if !consumed {
+                    let flag = if handler.sync_mode() {
+                        self.sync = true;
+                        ForwardEventFlag::SYNCHRONOUS
+                    } else {
+                        ForwardEventFlag::empty()
+                    };
+
                     server.send_req(
                         self.client_win,
                         Request::ForwardEvent {
                             input_method_id,
                             input_context_id,
-                            serial_number: 0,
-                            flag: ForwardEventFlag::empty(),
+                            flag,
+                            serial_number,
                             xev,
                         },
                     )?;
                 }
 
-                if flag.contains(ForwardEventFlag::SYNCHRONOUS) {
+                if is_req_sync {
                     server.send_req(
                         self.client_win,
                         Request::SyncReply {
@@ -621,9 +670,9 @@ impl<T> XimConnection<T> {
                     },
                 )?;
             }
-
-            Request::SyncReply { .. } => {}
-
+            Request::SyncReply { .. } => {
+                self.process_sync_queue(server, handler)?;
+            }
             _ => {
                 log::warn!("Unknown request: {:?}", req);
             }
@@ -633,8 +682,32 @@ impl<T> XimConnection<T> {
     }
 }
 
+#[derive(Default)]
+pub struct SyncQueue {
+    pending_out_req: Vec<Request>,
+    pending_in_req: VecDeque<Request>,
+}
+
+impl SyncQueue {
+    pub fn enqueue_write(&mut self, req: Request) {
+        self.pending_out_req.push(req);
+    }
+
+    pub fn drain_write(&mut self) -> impl Iterator<Item = Request> + '_ {
+        self.pending_out_req.drain(..)
+    }
+
+    pub fn enqueue_read(&mut self, req: Request) {
+        self.pending_in_req.push_back(req);
+    }
+
+    pub fn dequeue_read(&mut self) -> Option<Request> {
+        self.pending_in_req.pop_front()
+    }
+}
+
 pub struct XimConnections<T> {
-    pub(crate) connections: AHashMap<u32, XimConnection<T>>,
+    connections: AHashMap<u32, XimConnection<T>>,
 }
 
 impl<T> XimConnections<T> {

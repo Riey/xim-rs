@@ -4,9 +4,6 @@ mod client;
 mod server;
 
 #[cfg(any(feature = "x11rb-server", feature = "x11rb-client"))]
-mod encoding;
-
-#[cfg(any(feature = "x11rb-server", feature = "x11rb-client"))]
 pub mod x11rb;
 #[cfg(feature = "xlib-client")]
 pub mod xlib;

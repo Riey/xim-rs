@@ -9,10 +9,7 @@ use xim_parser::{
 };
 
 use self::im_vec::ImVec;
-use crate::{
-    encoding::Encoding,
-    server::{Server, ServerCore, ServerError, ServerHandler},
-};
+use crate::server::{Server, ServerCore, ServerError, ServerHandler};
 
 struct InputContextInner {
     client_win: u32,
@@ -401,22 +398,9 @@ impl<T> XimConnection<T> {
             } => {
                 match encodings
                     .iter()
-                    .position(|e| e.starts_with(Encoding::Utf8.name()))
-                    .or_else(|| {
-                        encodings
-                            .iter()
-                            .position(|e| e.starts_with(Encoding::CompoundText.name()))
-                    }) {
+                    .position(|e| e.starts_with("COMPOUND_TEXT"))
+                {
                     Some(pos) => {
-                        let encoding = if encodings[pos].starts_with(Encoding::Utf8.name()) {
-                            Encoding::Utf8
-                        } else {
-                            Encoding::CompoundText
-                        };
-
-                        log::info!("Set encoding :{:?}", encoding);
-                        server.set_encoding(encoding);
-
                         server.send_req(
                             self.client_win,
                             Request::EncodingNegotiationReply {
@@ -427,7 +411,6 @@ impl<T> XimConnection<T> {
                         )?;
                     }
                     None => {
-                        server.set_encoding(Encoding::CompoundText);
                         server.send_req(
                             self.client_win,
                             Request::EncodingNegotiationReply {
@@ -450,7 +433,7 @@ impl<T> XimConnection<T> {
                 self.sync_queue.enqueue_write(Request::ResetIcReply {
                     input_method_id,
                     input_context_id,
-                    preedit_string: server.encoding().write(ret),
+                    preedit_string: ctext::utf8_to_compound_text(&ret),
                 });
                 self.process_sync_queue(server, handler)?;
             }

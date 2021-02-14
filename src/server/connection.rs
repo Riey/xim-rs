@@ -250,6 +250,7 @@ impl<T> XimConnection<T> {
         if self.sync && is_req_sync {
             log::debug!("<x> Request {} is blocking", req.name());
             self.sync_queue.enqueue_read(req);
+            self.process_sync_queue(server, handler)?;
             return Ok(());
         }
 
@@ -342,13 +343,11 @@ impl<T> XimConnection<T> {
 
                 let mask = handler.filter_events();
 
-                let mask = if handler.sync_mode() { !mask } else { mask };
-
                 self.sync_queue.enqueue_write(Request::SetEventMask {
                     input_method_id,
                     input_context_id: input_context_id.get(),
                     forward_event_mask: mask,
-                    synchronous_event_mask: !mask,
+                    synchronous_event_mask: mask,
                 });
 
                 self.process_sync_queue(server, handler)?;

@@ -341,13 +341,21 @@ impl<T> XimConnection<T> {
 
                 // TODO: trigger key
 
-                let mask = handler.filter_events();
+                let (forward_event_mask, synchronous_event_mask) = {
+                    let mask = handler.filter_events();
+
+                    if handler.sync_mode() {
+                        (mask, mask)
+                    } else {
+                        (mask, 0)
+                    }
+                };
 
                 self.sync_queue.enqueue_write(Request::SetEventMask {
                     input_method_id,
                     input_context_id: input_context_id.get(),
-                    forward_event_mask: mask,
-                    synchronous_event_mask: mask,
+                    forward_event_mask,
+                    synchronous_event_mask,
                 });
 
                 self.process_sync_queue(server, handler)?;

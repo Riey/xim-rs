@@ -246,7 +246,6 @@ Requests:
     major_opcode: 3
     minor_opcode: ~
     body: []
-    sync: true
 
   DisconnectReply:
     major_opcode: 4
@@ -255,30 +254,30 @@ Requests:
 
 # Don't implement auth request since it doesn't used at all
 
-  # AuthRequired:
-  #   major_opcode: 10
-  #   minor_opcode: ~
-  #   body: []
+  AuthRequired:
+    major_opcode: 10
+    minor_opcode: ~
+    body: []
 
-  # AuthReply:
-  #   major_opcode: 11
-  #   minor_opcode: ~
-  #   body: []
+  AuthReply:
+    major_opcode: 11
+    minor_opcode: ~
+    body: []
 
-  # AuthNext:
-  #   major_opcode: 12
-  #   minor_opcode: ~
-  #   body: []
+  AuthNext:
+    major_opcode: 12
+    minor_opcode: ~
+    body: []
 
-  # AuthSetup:
-  #   major_opcode: 13
-  #   minor_opcode: ~
-  #   body: []
+  AuthSetup:
+    major_opcode: 13
+    minor_opcode: ~
+    body: []
 
-  # AuthNg:
-  #   major_opcode: 14
-  #   minor_opcode: ~
-  #   body: []
+  AuthNg:
+    major_opcode: 14
+    minor_opcode: ~
+    body: []
 
   Error:
     major_opcode: 20
@@ -295,7 +294,6 @@ Requests:
     minor_opcode: ~
     body:
       - "locale @pad string1"
-    sync: true
 
   OpenReply:
     major_opcode: 31
@@ -310,7 +308,6 @@ Requests:
     minor_opcode: ~
     body:
       - "input_method_id @append2 u16"
-    sync: true
 
   CloseReply:
     major_opcode: 33
@@ -335,7 +332,6 @@ Requests:
       - "flag TriggerNotifyFlag"
       - "index u32"
       - "event_mask u32"
-    sync: true
 
   TriggerNotifyReply:
     major_opcode: 36
@@ -360,7 +356,6 @@ Requests:
       - "input_method_id u16"
       - "encodings @padadd2 @list string1"
       - "encoding_infos @list22 @pad string"
-    sync: true
 
   EncodingNegotiationReply:
     major_opcode: 39
@@ -376,7 +371,6 @@ Requests:
     body:
       - "input_method_id u16"
       - "extensions @pad @list string1"
-    sync: true
 
   QueryExtensionReply:
     major_opcode: 41
@@ -391,7 +385,6 @@ Requests:
     body:
       - "input_method_id u16"
       - "attributes @list Attribute"
-    sync: true
 
   SetImValuesReply:
     major_opcode: 43
@@ -405,7 +398,6 @@ Requests:
     body:
       - "input_method_id u16"
       - "im_attributes @padadd2 @list u16"
-    sync: true
 
   GetImValuesReply:
     major_opcode: 45
@@ -420,7 +412,6 @@ Requests:
     body:
       - "input_method_id u16"
       - "ic_attributes @list Attribute"
-    sync: true
 
   CreateIcReply:
     major_opcode: 51
@@ -435,7 +426,6 @@ Requests:
     body:
       - "input_method_id u16"
       - "input_context_id u16"
-    sync: true
 
   DestroyIcReply:
     major_opcode: 53
@@ -451,7 +441,6 @@ Requests:
       - "input_method_id u16"
       - "input_context_id u16"
       - "ic_attributes @list22 Attribute"
-    sync: true
 
   SetIcValuesReply:
     major_opcode: 55
@@ -467,7 +456,6 @@ Requests:
       - "input_method_id u16"
       - "input_context_id u16"
       - "ic_attributes @pad @list u16"
-    sync: true
 
   GetIcValuesReply:
     major_opcode: 57
@@ -500,7 +488,6 @@ Requests:
       - "flag ForwardEventFlag"
       - "serial_number u16"
       - "xev XEvent"
-    sync: flag
 
   Sync:
     major_opcode: 61
@@ -508,7 +495,6 @@ Requests:
     body:
       - "input_method_id u16"
       - "input_context_id u16"
-    sync: true
 
   SyncReply:
     major_opcode: 62
@@ -524,7 +510,6 @@ Requests:
       - "input_method_id u16"
       - "input_context_id u16"
       - "data CommitData"
-    sync: data
 
   ResetIc:
     major_opcode: 64
@@ -532,7 +517,6 @@ Requests:
     body:
       - "input_method_id u16"
       - "input_context_id u16"
-    sync: true
 
   ResetIcReply:
     major_opcode: 65
@@ -551,15 +535,15 @@ Requests:
 
 # Don't implement StrConversion same as auth
 
-  # StrConversion:
-  #   major_opcode: 71
-  #   minor_opcode: ~
-  #   body: []
+  StrConversion:
+    major_opcode: 71
+    minor_opcode: ~
+    body: []
 
-  # StrConversionReply:
-  #   major_opcode: 72
-  #   minor_opcode: ~
-  #   body: []
+  StrConversionReply:
+    major_opcode: 72
+    minor_opcode: ~
+    body: []
 
 
 
@@ -569,7 +553,6 @@ Requests:
     body:
       - "input_method_id u16"
       - "input_context_id u16"
-    sync: true
 
   PreeditStartReply:
     major_opcode: 74
@@ -609,7 +592,6 @@ Requests:
       - "input_method_id u16"
       - "input_context_id u16"
       - "position i32"
-    sync: true
 
   PreeditDone:
     major_opcode: 78

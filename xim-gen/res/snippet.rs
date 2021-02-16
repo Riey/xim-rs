@@ -52,25 +52,6 @@ pub enum CommitData {
         syncronous: bool,
     },
 }
-
-impl CommitData {
-    pub fn is_sync(&self) -> bool {
-        match self {
-            CommitData::Keysym { syncronous, .. } |
-            CommitData::Chars { syncronous, .. } |
-            CommitData::Both { syncronous, .. } => {
-                *syncronous
-            }
-        }
-    }
-}
-
-impl ForwardEventFlag {
-    pub fn is_sync(self) -> bool {
-        self.contains(Self::SYNCHRONOUS)
-    }
-}
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct InputStyleList {
     pub styles: Vec<InputStyle>,

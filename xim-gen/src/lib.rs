@@ -105,72 +105,12 @@ impl EnumFormat {
     }
 }
 
-#[cfg_attr(debug_assertions, derive(Debug, Eq, PartialEq))]
-enum SyncType {
-    Defined(bool),
-    Field(String),
-}
-
-impl Default for SyncType {
-    fn default() -> Self {
-        SyncType::Defined(false)
-    }
-}
-struct SyncTypeVisitor;
-
-impl<'de> serde::de::Visitor<'de> for SyncTypeVisitor {
-    type Value = SyncType;
-
-    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        formatter.write_str("SyncType")
-    }
-
-    fn visit_none<E>(self) -> Result<Self::Value, E>
-    where
-        E: serde::de::Error,
-    {
-        Ok(SyncType::default())
-    }
-
-    fn visit_bool<E>(self, v: bool) -> Result<Self::Value, E>
-    where
-        E: serde::de::Error,
-    {
-        Ok(SyncType::Defined(v))
-    }
-
-    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-    where
-        E: serde::de::Error,
-    {
-        Ok(SyncType::Field(v.into()))
-    }
-
-    fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
-    where
-        E: serde::de::Error,
-    {
-        Ok(SyncType::Field(v))
-    }
-}
-
-impl<'de> Deserialize<'de> for SyncType {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        deserializer.deserialize_any(SyncTypeVisitor)
-    }
-}
-
 #[derive(Deserialize)]
 #[cfg_attr(debug_assertions, derive(Debug, Eq, PartialEq))]
 struct RequestFormat {
     major_opcode: u8,
     minor_opcode: Option<u8>,
     body: Vec<Field>,
-    #[serde(default)]
-    sync: SyncType,
 }
 
 #[derive(Deserialize)]
@@ -345,24 +285,6 @@ impl XimFormat {
         writeln!(out, "}}")?;
         // fn name
         writeln!(out, "}}")?;
-
-        writeln!(out, "pub fn is_sync(&self) -> bool {{")?;
-        writeln!(out, "match self {{")?;
-        for (name, req) in self.requests.iter() {
-            match req.sync {
-                SyncType::Defined(b) => {
-                    writeln!(out, "Request::{} {{ .. }} => {},", name, b)?;
-                }
-                SyncType::Field(ref f) => {
-                    writeln!(out, "Request::{} {{ {}, .. }} => {}.is_sync(),", name, f, f)?;
-                }
-            }
-        }
-        // match
-        writeln!(out, "}}")?;
-        // fn is_sync
-        writeln!(out, "}}")?;
-
         // impl Request
         writeln!(out, "}}")?;
 

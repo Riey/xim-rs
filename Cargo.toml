@@ -30,7 +30,7 @@ x11rb-xcb = ["x11rb/allow-unsafe-code"]
 xim-parser = { path = "./xim-parser" }
 thiserror = "1.0.22"
 log = "0.4.11"
-ahash = "0.6.2"
+ahash = "0.7.0"
 ctext = { git = "https://github.com/Riey/ctext-rs" }
 
 x11rb = { version = "0.8.0", optional = true }

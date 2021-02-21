@@ -10,7 +10,7 @@ use xim_parser::{
 use self::im_vec::ImVec;
 use crate::server::{Server, ServerCore, ServerError, ServerHandler};
 
-struct InputContextInner {
+pub struct InputContext {
     client_win: u32,
     app_win: Option<NonZeroU32>,
     app_focus_win: Option<NonZeroU32>,
@@ -21,7 +21,7 @@ struct InputContextInner {
     locale: String,
 }
 
-impl InputContextInner {
+impl InputContext {
     pub fn new(
         client_win: u32,
         input_method_id: NonZeroU16,
@@ -39,52 +39,52 @@ impl InputContextInner {
             locale,
         }
     }
-}
-
-pub struct InputContext<T> {
-    inner: InputContextInner,
-    pub user_data: T,
-}
-
-impl<T> InputContext<T> {
-    fn new(inner: InputContextInner, user_data: T) -> Self {
-        Self { inner, user_data }
-    }
 
     pub fn client_win(&self) -> u32 {
-        self.inner.client_win
+        self.client_win
     }
 
     pub fn app_win(&self) -> Option<NonZeroU32> {
-        self.inner.app_win
+        self.app_win
     }
 
     pub fn app_focus_win(&self) -> Option<NonZeroU32> {
-        self.inner.app_focus_win
+        self.app_focus_win
     }
 
     pub fn preedit_spot(&self) -> Point {
-        self.inner.preedit_spot.clone()
+        self.preedit_spot.clone()
     }
 
     pub fn input_method_id(&self) -> NonZeroU16 {
-        self.inner.input_method_id
+        self.input_method_id
     }
 
     pub fn input_context_id(&self) -> NonZeroU16 {
-        self.inner.input_context_id
+        self.input_context_id
     }
 
     pub fn input_style(&self) -> InputStyle {
-        self.inner.input_style
+        self.input_style
     }
 
     pub fn locale(&self) -> &str {
-        self.inner.locale.as_str()
+        self.locale.as_str()
     }
 }
 
-fn set_ic_attrs(ic: &mut InputContextInner, ic_attributes: Vec<Attribute>) {
+pub struct UserInputContext<T> {
+    pub ic: InputContext,
+    pub user_data: T,
+}
+
+impl<T> UserInputContext<T> {
+    pub fn new(ic: InputContext, user_data: T) -> Self {
+        Self { ic, user_data }
+    }
+}
+
+fn set_ic_attrs(ic: &mut InputContext, ic_attributes: Vec<Attribute>) {
     for attr in ic_attributes {
         let name = if let Some(name) = attrs::get_name(attr.id) {
             name
@@ -137,7 +137,7 @@ fn set_ic_attrs(ic: &mut InputContextInner, ic_attributes: Vec<Attribute>) {
 
 pub struct InputMethod<T> {
     pub(crate) locale: String,
-    pub(crate) input_contexts: ImVec<InputContext<T>>,
+    pub(crate) input_contexts: ImVec<UserInputContext<T>>,
 }
 
 impl<T> InputMethod<T> {
@@ -152,17 +152,20 @@ impl<T> InputMethod<T> {
         self.locale.clone()
     }
 
-    pub fn new_ic(&mut self, ic: InputContext<T>) -> (NonZeroU16, &mut InputContext<T>) {
+    pub fn new_ic(&mut self, ic: UserInputContext<T>) -> (NonZeroU16, &mut UserInputContext<T>) {
         self.input_contexts.new_item(ic)
     }
 
-    pub fn remove_input_context(&mut self, ic_id: u16) -> Result<InputContext<T>, ServerError> {
+    pub fn remove_input_context(&mut self, ic_id: u16) -> Result<UserInputContext<T>, ServerError> {
         self.input_contexts
             .remove_item(ic_id)
             .ok_or(ServerError::ClientNotExists)
     }
 
-    pub fn get_input_context(&mut self, ic_id: u16) -> Result<&mut InputContext<T>, ServerError> {
+    pub fn get_input_context(
+        &mut self,
+        ic_id: u16,
+    ) -> Result<&mut UserInputContext<T>, ServerError> {
         self.input_contexts
             .get_item(ic_id)
             .ok_or(ServerError::ClientNotExists)
@@ -286,7 +289,7 @@ impl<T> XimConnection<T> {
             } => {
                 let client_win = self.client_win;
                 let im = self.get_input_method(input_method_id)?;
-                let mut ic = InputContextInner::new(
+                let mut ic = InputContext::new(
                     client_win,
                     NonZeroU16::new(input_method_id).unwrap(),
                     NonZeroU16::new(1).unwrap(),
@@ -294,12 +297,12 @@ impl<T> XimConnection<T> {
                 );
                 set_ic_attrs(&mut ic, ic_attributes);
                 let input_style = ic.input_style;
-                let ic = InputContext::new(ic, handler.new_ic_data(server, input_style)?);
+                let ic = UserInputContext::new(ic, handler.new_ic_data(server, input_style)?);
                 let (input_context_id, ic) = im.new_ic(ic);
-                ic.inner.input_context_id = input_context_id;
+                ic.ic.input_context_id = input_context_id;
 
                 server.send_req(
-                    ic.client_win(),
+                    ic.ic.client_win(),
                     Request::CreateIcReply {
                         input_method_id,
                         input_context_id: input_context_id.get(),
@@ -387,7 +390,7 @@ impl<T> XimConnection<T> {
                     .get_input_context(input_context_id)?;
                 let ret = handler.handle_reset_ic(server, ic)?;
                 server.send_req(
-                    ic.client_win(),
+                    ic.ic.client_win(),
                     Request::ResetIcReply {
                         input_method_id,
                         input_context_id,
@@ -437,9 +440,10 @@ impl<T> XimConnection<T> {
                 input_context_id,
                 ic_attributes,
             } => {
-                let ic = self
+                let ic = &self
                     .get_input_method(input_method_id)?
-                    .get_input_context(input_context_id)?;
+                    .get_input_context(input_context_id)?
+                    .ic;
                 let mut out = Vec::with_capacity(ic_attributes.len());
 
                 for name in ic_attributes.into_iter().filter_map(attrs::get_name) {
@@ -498,10 +502,10 @@ impl<T> XimConnection<T> {
                     .get_input_method(input_method_id)?
                     .get_input_context(input_context_id)?;
 
-                set_ic_attrs(&mut ic.inner, ic_attributes);
+                set_ic_attrs(&mut ic.ic, ic_attributes);
 
                 server.send_req(
-                    ic.client_win(),
+                    ic.ic.client_win(),
                     Request::SetIcValuesReply {
                         input_method_id,
                         input_context_id,

@@ -16,8 +16,8 @@ pub const ALL_LOCALES: &str = include_str!("./all_locales.txt");
 
 #[cfg(feature = "server")]
 pub use crate::server::{
-    InputContext, InputMethod, Server, ServerCore, ServerError, ServerHandler, XimConnection,
-    XimConnections,
+    InputContext, InputMethod, Server, ServerCore, ServerError, ServerHandler, UserInputContext,
+    XimConnection, XimConnections,
 };
 pub use ahash::AHashMap;
 pub use xim_parser::*;

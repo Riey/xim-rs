@@ -7,7 +7,7 @@ members = [
 
 [package]
 name = "xim"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["Riey <creeper844@gmail.com>"]
 edition = "2018"
 license = "MIT"

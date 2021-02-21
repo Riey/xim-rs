@@ -7,7 +7,9 @@ use xim_parser::{
     Request,
 };
 
-pub use self::connection::{InputContext, InputMethod, XimConnection, XimConnections};
+pub use self::connection::{
+    InputContext, InputMethod, UserInputContext, XimConnection, XimConnections,
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ServerError {
@@ -43,49 +45,49 @@ pub trait ServerHandler<S: Server> {
     fn handle_create_ic(
         &mut self,
         server: &mut S,
-        input_context: &mut InputContext<Self::InputContextData>,
+        user_ic: &mut UserInputContext<Self::InputContextData>,
     ) -> Result<(), ServerError>;
 
     fn handle_destory_ic(
         &mut self,
         server: &mut S,
-        input_context: InputContext<Self::InputContextData>,
+        user_ic: UserInputContext<Self::InputContextData>,
     ) -> Result<(), ServerError>;
     fn handle_reset_ic(
         &mut self,
         server: &mut S,
-        input_context: &mut InputContext<Self::InputContextData>,
+        user_ic: &mut UserInputContext<Self::InputContextData>,
     ) -> Result<String, ServerError>;
 
     fn handle_set_focus(
         &mut self,
         server: &mut S,
-        input_context: &mut InputContext<Self::InputContextData>,
+        user_ic: &mut UserInputContext<Self::InputContextData>,
     ) -> Result<(), ServerError>;
 
     fn handle_unset_focus(
         &mut self,
         server: &mut S,
-        input_context: &mut InputContext<Self::InputContextData>,
+        user_ic: &mut UserInputContext<Self::InputContextData>,
     ) -> Result<(), ServerError>;
 
     fn handle_set_ic_values(
         &mut self,
         server: &mut S,
-        input_context: &mut InputContext<Self::InputContextData>,
+        user_ic: &mut UserInputContext<Self::InputContextData>,
     ) -> Result<(), ServerError>;
 
     fn handle_caret(
         &mut self,
         server: &mut S,
-        input_context: &mut InputContext<Self::InputContextData>,
+        user_ic: &mut UserInputContext<Self::InputContextData>,
         position: i32,
     ) -> Result<(), ServerError>;
 
     fn handle_preedit_start(
         &mut self,
         server: &mut S,
-        input_context: &mut InputContext<Self::InputContextData>,
+        user_ic: &mut UserInputContext<Self::InputContextData>,
     ) -> Result<(), ServerError>;
 
     /// return `false` when event back to client
@@ -93,7 +95,7 @@ pub trait ServerHandler<S: Server> {
     fn handle_forward_event(
         &mut self,
         server: &mut S,
-        input_context: &mut InputContext<Self::InputContextData>,
+        user_ic: &mut UserInputContext<Self::InputContextData>,
         xev: &S::XEvent,
     ) -> Result<bool, ServerError>;
 }
@@ -107,24 +109,24 @@ pub trait Server {
         code: ErrorCode,
         detail: String,
         input_method_id: Option<NonZeroU16>,
-        input_context_id: Option<NonZeroU16>,
+        user_ic_id: Option<NonZeroU16>,
     ) -> Result<(), ServerError>;
 
-    fn preedit_caret<T>(
+    fn preedit_caret(
         &mut self,
-        ic: &InputContext<T>,
+        ic: &InputContext,
         position: i32,
         direction: CaretDirection,
         style: CaretStyle,
     ) -> Result<(), ServerError>;
-    fn preedit_start<T>(&mut self, ic: &mut InputContext<T>) -> Result<(), ServerError>;
-    fn preedit_draw<T>(&mut self, ic: &mut InputContext<T>, s: &str) -> Result<(), ServerError>;
-    fn preedit_done<T>(&mut self, ic: &mut InputContext<T>) -> Result<(), ServerError>;
-    fn commit<T>(&mut self, ic: &mut InputContext<T>, s: &str) -> Result<(), ServerError>;
+    fn preedit_start(&mut self, ic: &InputContext) -> Result<(), ServerError>;
+    fn preedit_draw(&mut self, ic: &InputContext, s: &str) -> Result<(), ServerError>;
+    fn preedit_done(&mut self, ic: &InputContext) -> Result<(), ServerError>;
+    fn commit(&mut self, ic: &InputContext, s: &str) -> Result<(), ServerError>;
 
-    fn set_event_mask<T>(
+    fn set_event_mask(
         &mut self,
-        ic: &InputContext<T>,
+        ic: &InputContext,
         forward_event_mask: u32,
         synchronous_event_mask: u32,
     ) -> Result<(), ServerError>;
@@ -139,7 +141,7 @@ impl<S: ServerCore> Server for S {
         code: ErrorCode,
         detail: String,
         input_method_id: Option<NonZeroU16>,
-        input_context_id: Option<NonZeroU16>,
+        user_ic_id: Option<NonZeroU16>,
     ) -> Result<(), ServerError> {
         let mut flag = ErrorFlag::empty();
 
@@ -150,7 +152,7 @@ impl<S: ServerCore> Server for S {
             0
         };
 
-        let input_context_id = if let Some(id) = input_context_id {
+        let input_context_id = if let Some(id) = user_ic_id {
             flag |= ErrorFlag::INPUT_CONTEXT_ID_VALID;
             id.get()
         } else {
@@ -169,9 +171,9 @@ impl<S: ServerCore> Server for S {
         )
     }
 
-    fn preedit_caret<T>(
+    fn preedit_caret(
         &mut self,
-        ic: &InputContext<T>,
+        ic: &InputContext,
         position: i32,
         direction: CaretDirection,
         style: CaretStyle,
@@ -188,7 +190,7 @@ impl<S: ServerCore> Server for S {
         )
     }
 
-    fn preedit_start<T>(&mut self, ic: &mut InputContext<T>) -> Result<(), ServerError> {
+    fn preedit_start(&mut self, ic: &InputContext) -> Result<(), ServerError> {
         self.send_req(
             ic.client_win(),
             Request::PreeditStart {
@@ -198,7 +200,7 @@ impl<S: ServerCore> Server for S {
         )
     }
 
-    fn preedit_done<T>(&mut self, ic: &mut InputContext<T>) -> Result<(), ServerError> {
+    fn preedit_done(&mut self, ic: &InputContext) -> Result<(), ServerError> {
         self.send_req(
             ic.client_win(),
             Request::PreeditDone {
@@ -208,7 +210,7 @@ impl<S: ServerCore> Server for S {
         )
     }
 
-    fn preedit_draw<T>(&mut self, ic: &mut InputContext<T>, s: &str) -> Result<(), ServerError> {
+    fn preedit_draw(&mut self, ic: &InputContext, s: &str) -> Result<(), ServerError> {
         let preedit = ctext::utf8_to_compound_text(s);
 
         self.send_req(
@@ -226,7 +228,7 @@ impl<S: ServerCore> Server for S {
         )
     }
 
-    fn commit<T>(&mut self, ic: &mut InputContext<T>, s: &str) -> Result<(), ServerError> {
+    fn commit(&mut self, ic: &InputContext, s: &str) -> Result<(), ServerError> {
         self.send_req(
             ic.client_win(),
             Request::Commit {
@@ -240,9 +242,9 @@ impl<S: ServerCore> Server for S {
         )
     }
 
-    fn set_event_mask<T>(
+    fn set_event_mask(
         &mut self,
-        ic: &InputContext<T>,
+        ic: &InputContext,
         forward_event_mask: u32,
         synchronous_event_mask: u32,
     ) -> Result<(), ServerError> {

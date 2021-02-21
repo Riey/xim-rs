@@ -1,5 +1,7 @@
 use x11rb::connection::Connection;
-use xim::{x11rb::X11rbServer, InputContext, Server, ServerError, ServerHandler, XimConnections};
+use xim::{
+    x11rb::X11rbServer, Server, ServerError, ServerHandler, UserInputContext, XimConnections,
+};
 use xim_parser::InputStyle;
 
 #[derive(Default)]
@@ -40,25 +42,25 @@ impl<S: Server> ServerHandler<S> for Handler {
     fn handle_create_ic(
         &mut self,
         server: &mut S,
-        input_context: &mut InputContext<Self::InputContextData>,
+        user_ic: &mut UserInputContext<Self::InputContextData>,
     ) -> Result<(), ServerError> {
-        server.set_event_mask(input_context, 1, 1)
+        server.set_event_mask(&user_ic.ic, 1, 1)
     }
 
     fn handle_forward_event(
         &mut self,
         server: &mut S,
-        input_context: &mut InputContext<Self::InputContextData>,
+        user_ic: &mut UserInputContext<Self::InputContextData>,
         _xev: &S::XEvent,
     ) -> Result<bool, ServerError> {
-        server.commit(input_context, "가".into())?;
+        server.commit(&user_ic.ic, "가".into())?;
         Ok(true)
     }
 
     fn handle_destory_ic(
         &mut self,
         _server: &mut S,
-        _input_context: InputContext<Self::InputContextData>,
+        _user_ic: UserInputContext<Self::InputContextData>,
     ) -> Result<(), ServerError> {
         Ok(())
     }
@@ -66,7 +68,7 @@ impl<S: Server> ServerHandler<S> for Handler {
     fn handle_preedit_start(
         &mut self,
         _server: &mut S,
-        _input_context: &mut InputContext<Self::InputContextData>,
+        _user_ic: &mut UserInputContext<Self::InputContextData>,
     ) -> Result<(), ServerError> {
         Ok(())
     }
@@ -74,7 +76,7 @@ impl<S: Server> ServerHandler<S> for Handler {
     fn handle_caret(
         &mut self,
         _server: &mut S,
-        _input_context: &mut InputContext<Self::InputContextData>,
+        _user_ic: &mut UserInputContext<Self::InputContextData>,
         _position: i32,
     ) -> Result<(), ServerError> {
         Ok(())
@@ -83,7 +85,7 @@ impl<S: Server> ServerHandler<S> for Handler {
     fn handle_reset_ic(
         &mut self,
         _server: &mut S,
-        _input_context: &mut InputContext<Self::InputContextData>,
+        _user_ic: &mut UserInputContext<Self::InputContextData>,
     ) -> Result<String, ServerError> {
         Ok(String::new())
     }
@@ -91,7 +93,7 @@ impl<S: Server> ServerHandler<S> for Handler {
     fn handle_set_ic_values(
         &mut self,
         _server: &mut S,
-        _input_context: &mut InputContext<Self::InputContextData>,
+        _user_ic: &mut UserInputContext<Self::InputContextData>,
     ) -> Result<(), ServerError> {
         Ok(())
     }
@@ -99,7 +101,7 @@ impl<S: Server> ServerHandler<S> for Handler {
     fn handle_set_focus(
         &mut self,
         _server: &mut S,
-        _input_context: &mut InputContext<Self::InputContextData>,
+        _user_ic: &mut UserInputContext<Self::InputContextData>,
     ) -> Result<(), ServerError> {
         Ok(())
     }
@@ -107,7 +109,7 @@ impl<S: Server> ServerHandler<S> for Handler {
     fn handle_unset_focus(
         &mut self,
         _server: &mut S,
-        _input_context: &mut InputContext<Self::InputContextData>,
+        _user_ic: &mut UserInputContext<Self::InputContextData>,
     ) -> Result<(), ServerError> {
         Ok(())
     }

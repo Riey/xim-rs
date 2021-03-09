@@ -1,12 +1,7 @@
 [package]
-name = "xim-gen"
+name = "xim-ctext"
 version = "0.1.0"
 authors = ["Riey <creeper844@gmail.com>"]
 repository = "https://github.com/Riey/xim-rs"
 edition = "2018"
 license = "MIT"
-
-[dependencies]
-convert_case = "0.4.0"
-serde = { version = "1.0.118", features = ["derive"] }
-serde_yaml = "0.8.14"

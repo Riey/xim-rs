@@ -225,11 +225,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ctext"
-version = "0.1.0"
-source = "git+https://github.com/Riey/ctext-rs#94b83abb5e7a23e55b134a2fd1cfded9d8f7912d"
-
-[[package]]
 name = "ctor"
 version = "0.1.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -912,18 +907,22 @@ dependencies = [
 
 [[package]]
 name = "xim"
-version = "0.4.0"
+version = "0.1.0"
 dependencies = [
  "ahash",
  "criterion",
- "ctext",
  "log",
  "pretty_env_logger",
  "thiserror",
  "x11-dl",
  "x11rb",
+ "xim-ctext",
  "xim-parser",
 ]
+
+[[package]]
+name = "xim-ctext"
+version = "0.1.0"
 
 [[package]]
 name = "xim-gen"
@@ -939,9 +938,9 @@ name = "xim-parser"
 version = "0.1.0"
 dependencies = [
  "bitflags",
- "ctext",
  "pretty_assertions",
  "thiserror",
+ "xim-ctext",
  "xim-gen",
 ]
 

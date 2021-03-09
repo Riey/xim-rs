@@ -1,5 +1,5 @@
 fn dump(s: &str) {
-    let b = ctext::utf8_to_compound_text(s);
+    let b = xim_ctext::utf8_to_compound_text(s);
 
     println!("{}", s);
 

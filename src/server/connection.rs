@@ -394,7 +394,7 @@ impl<T> XimConnection<T> {
                     Request::ResetIcReply {
                         input_method_id,
                         input_context_id,
-                        preedit_string: ctext::utf8_to_compound_text(&ret),
+                        preedit_string: xim_ctext::utf8_to_compound_text(&ret),
                     },
                 )?;
             }

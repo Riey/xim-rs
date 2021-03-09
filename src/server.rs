@@ -211,7 +211,7 @@ impl<S: ServerCore> Server for S {
     }
 
     fn preedit_draw(&mut self, ic: &InputContext, s: &str) -> Result<(), ServerError> {
-        let preedit = ctext::utf8_to_compound_text(s);
+        let preedit = xim_ctext::utf8_to_compound_text(s);
 
         self.send_req(
             ic.client_win(),
@@ -235,7 +235,7 @@ impl<S: ServerCore> Server for S {
                 input_method_id: ic.input_method_id().get(),
                 input_context_id: ic.input_context_id().get(),
                 data: CommitData::Chars {
-                    commited: ctext::utf8_to_compound_text(s),
+                    commited: xim_ctext::utf8_to_compound_text(s),
                     syncronous: false,
                 },
             },

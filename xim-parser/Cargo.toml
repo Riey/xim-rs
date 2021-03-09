@@ -1,5 +1,6 @@
 [package]
 name = "xim-parser"
+description = "XIM protocl parser"
 version = "0.1.0"
 authors = ["Riey <creeper844@gmail.com>"]
 repository = "https://github.com/Riey/xim-rs"

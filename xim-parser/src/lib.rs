@@ -83,7 +83,7 @@ mod tests {
             input_method_id: 1,
             input_context_id: 1,
             data: CommitData::Chars {
-                commited: ctext::utf8_to_compound_text("맘"),
+                commited: xim_ctext::utf8_to_compound_text("맘"),
                 syncronous: false,
             },
         };

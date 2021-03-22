@@ -18,6 +18,8 @@ pub struct InputContext {
     input_context_id: NonZeroU16,
     input_style: InputStyle,
     preedit_spot: Point,
+    pub(super) preedit_started: bool,
+    pub(super) prev_preedit_length: usize,
     locale: String,
 }
 
@@ -36,6 +38,8 @@ impl InputContext {
             input_context_id,
             input_style: InputStyle::empty(),
             preedit_spot: Point { x: 0, y: 0 },
+            preedit_started: false,
+            prev_preedit_length: 0,
             locale,
         }
     }
@@ -96,6 +100,7 @@ fn set_ic_attrs(ic: &mut InputContext, ic_attributes: Vec<Attribute>) {
         match name {
             AttributeName::InputStyle => {
                 if let Some(style) = xim_parser::read(&attr.value).ok() {
+                    log::debug!("Style: {:?}", style);
                     ic.input_style = style;
                 }
             }
@@ -114,6 +119,7 @@ fn set_ic_attrs(ic: &mut InputContext, ic_attributes: Vec<Attribute>) {
                             match attrs::get_name(attr.id) {
                                 Some(AttributeName::SpotLocation) => {
                                     if let Ok(spot) = xim_parser::read(&attr.value) {
+                                        log::debug!("Spot: {:?}", spot);
                                         ic.preedit_spot = spot;
                                     }
                                 }
@@ -222,6 +228,7 @@ impl<T> XimConnection<T> {
         handler: &mut H,
     ) -> Result<(), ServerError> {
         log::debug!("<-: {}", req.name());
+        log::trace!("<-: {:?}", req);
 
         match req {
             Request::Error {
@@ -355,6 +362,8 @@ impl<T> XimConnection<T> {
                 encodings,
                 ..
             } => {
+                log::debug!("Encodings: {:?}", encodings);
+
                 match encodings
                     .iter()
                     .position(|e| e.starts_with("COMPOUND_TEXT"))
@@ -535,27 +544,8 @@ impl<T> XimConnection<T> {
                 handler.handle_unset_focus(server, ic)?;
             }
 
-            Request::PreeditCaretReply {
-                input_method_id,
-                input_context_id,
-                position,
-            } => {
-                let ic = self
-                    .get_input_method(input_method_id)?
-                    .get_input_context(input_context_id)?;
-                handler.handle_preedit_caret(server, ic, position)?;
-            }
-
-            Request::PreeditStartReply {
-                input_method_id,
-                input_context_id,
-                return_value: _,
-            } => {
-                let ic = self
-                    .get_input_method(input_method_id)?
-                    .get_input_context(input_context_id)?;
-                handler.handle_preedit_start(server, ic)?;
-            }
+            // Ignore start reply
+            Request::PreeditStartReply { .. } => {}
 
             Request::ForwardEvent {
                 input_method_id,

@@ -674,6 +674,7 @@ fn send_req_impl<C: HasConnection, E: From<ConnectionError> + From<ReplyError>>(
     req: &Request,
 ) -> Result<(), E> {
     log::debug!("->: {}", req.name());
+    log::trace!("->: {:?}", req);
     buf.resize(req.size(), 0);
     xim_parser::write(req, buf);
 

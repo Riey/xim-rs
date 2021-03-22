@@ -3,8 +3,7 @@ mod connection;
 use std::num::NonZeroU16;
 
 use xim_parser::{
-    CaretDirection, CaretStyle, CommitData, ErrorCode, ErrorFlag, Feedback, InputStyle,
-    PreeditDrawStatus, Request,
+    CommitData, ErrorCode, ErrorFlag, Feedback, InputStyle, PreeditDrawStatus, Request,
 };
 
 pub use self::connection::{
@@ -77,19 +76,6 @@ pub trait ServerHandler<S: Server> {
         user_ic: &mut UserInputContext<Self::InputContextData>,
     ) -> Result<(), ServerError>;
 
-    fn handle_preedit_caret(
-        &mut self,
-        server: &mut S,
-        user_ic: &mut UserInputContext<Self::InputContextData>,
-        position: i32,
-    ) -> Result<(), ServerError>;
-
-    fn handle_preedit_start(
-        &mut self,
-        server: &mut S,
-        user_ic: &mut UserInputContext<Self::InputContextData>,
-    ) -> Result<(), ServerError>;
-
     /// return `false` when event back to client
     /// if return `true` it consumed and don't back to client
     fn handle_forward_event(
@@ -112,16 +98,7 @@ pub trait Server {
         user_ic_id: Option<NonZeroU16>,
     ) -> Result<(), ServerError>;
 
-    fn preedit_caret(
-        &mut self,
-        ic: &InputContext,
-        position: i32,
-        direction: CaretDirection,
-        style: CaretStyle,
-    ) -> Result<(), ServerError>;
-    fn preedit_start(&mut self, ic: &InputContext) -> Result<(), ServerError>;
-    fn preedit_draw(&mut self, ic: &InputContext, s: &str) -> Result<(), ServerError>;
-    fn preedit_done(&mut self, ic: &InputContext) -> Result<(), ServerError>;
+    fn preedit_draw(&mut self, ic: &mut InputContext, s: &str) -> Result<(), ServerError>;
     fn commit(&mut self, ic: &InputContext, s: &str) -> Result<(), ServerError>;
 
     fn set_event_mask(
@@ -171,65 +148,60 @@ impl<S: ServerCore> Server for S {
         )
     }
 
-    fn preedit_caret(
-        &mut self,
-        ic: &InputContext,
-        position: i32,
-        direction: CaretDirection,
-        style: CaretStyle,
-    ) -> Result<(), ServerError> {
-        self.send_req(
-            ic.client_win(),
-            Request::PreeditCaret {
-                input_method_id: ic.input_method_id().get(),
-                input_context_id: ic.input_context_id().get(),
-                direction,
-                position,
-                style,
-            },
-        )
-    }
+    fn preedit_draw(&mut self, ic: &mut InputContext, s: &str) -> Result<(), ServerError> {
+        let preedit_length = s.chars().count();
 
-    fn preedit_start(&mut self, ic: &InputContext) -> Result<(), ServerError> {
-        self.send_req(
-            ic.client_win(),
-            Request::PreeditStart {
-                input_method_id: ic.input_method_id().get(),
-                input_context_id: ic.input_context_id().get(),
-            },
-        )
-    }
+        if preedit_length == 0 {
+            if ic.preedit_started {
+                self.send_req(
+                    ic.client_win(),
+                    Request::PreeditDraw {
+                        input_method_id: ic.input_method_id().get(),
+                        input_context_id: ic.input_context_id().get(),
+                        chg_first: 0,
+                        chg_length: ic.prev_preedit_length as _,
+                        caret: preedit_length as _,
+                        preedit_string: Vec::new(),
+                        feedbacks: Vec::new(),
+                        status: PreeditDrawStatus::NO_FEEDBACK | PreeditDrawStatus::NO_STRING,
+                    },
+                )?;
+                self.send_req(
+                    ic.client_win(),
+                    Request::PreeditDone {
+                        input_method_id: ic.input_method_id().get(),
+                        input_context_id: ic.input_context_id().get(),
+                    },
+                )?;
+            }
+        } else {
+            if !ic.preedit_started {
+                self.send_req(
+                    ic.client_win(),
+                    Request::PreeditStart {
+                        input_method_id: ic.input_method_id().get(),
+                        input_context_id: ic.input_context_id().get(),
+                    },
+                )?;
+                ic.preedit_started = true;
+            }
 
-    fn preedit_done(&mut self, ic: &InputContext) -> Result<(), ServerError> {
-        self.send_req(
-            ic.client_win(),
-            Request::PreeditDraw {
-                input_method_id: ic.input_method_id().get(),
-                input_context_id: ic.input_context_id().get(),
-                chg_first: 0,
-                chg_length: ic.preedit_pos,
-                caret: 0,
-                preedit_string: ic.preedit_string.clone(),
-                status: PreeditDrawStatus::empty(),
-                feedbacks: vec![Feedback::Underline],
-            },
-        )
-    }
+            self.send_req(
+                ic.client_win(),
+                Request::PreeditDraw {
+                    input_method_id: ic.input_method_id().get(),
+                    input_context_id: ic.input_context_id().get(),
+                    chg_first: 0,
+                    chg_length: ic.prev_preedit_length as _,
+                    caret: preedit_length as _,
+                    preedit_string: xim_ctext::utf8_to_compound_text(s),
+                    feedbacks: vec![Feedback::Underline; preedit_length],
+                    status: PreeditDrawStatus::empty(),
+                },
+            )?;
+        }
 
-    fn preedit_draw(&mut self, ic: &InputContext, s: &str) -> Result<(), ServerError> {
-        let preedit = xim_ctext::utf8_to_compound_text(s);
-
-        self.send_req(
-            ic.client_win(),
-            Request::PreeditCaret {
-                input_method_id: ic.input_method_id().get(),
-                input_context_id: ic.input_context_id().get(),
-                direction: CaretDirection::ForwardChar,
-                style: CaretStyle::Invisible,
-                position: ic.preedit_pos,
-            },
-        )?;
-        ic.preedit_pos = s.len() as i32;
+        ic.prev_preedit_length = preedit_length;
 
         Ok(())
     }

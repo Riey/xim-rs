@@ -16,7 +16,7 @@ bitflags = "1.2.1"
 
 [dev-dependencies]
 xim-ctext = { path = "../xim-ctext", version = "0.1.0" }
-pretty_assertions = "0.6.1"
+pretty_assertions = "0.7.1"
 
 [build-dependencies]
 xim-gen = { path = "../xim-gen", optional = true, version = "0.1.0" }

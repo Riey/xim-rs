@@ -9,9 +9,9 @@ struct Handler {}
 
 impl Handler {}
 
-impl<S: Server> ServerHandler<S> for Handler {
+impl<S: Server<XEvent = x11rb::protocol::xproto::KeyPressEvent>> ServerHandler<S> for Handler {
     type InputContextData = ();
-    type InputStyleArray = [InputStyle; 3];
+    type InputStyleArray = [InputStyle; 4];
 
     fn new_ic_data(
         &mut self,
@@ -23,6 +23,7 @@ impl<S: Server> ServerHandler<S> for Handler {
 
     fn input_styles(&self) -> Self::InputStyleArray {
         [
+            InputStyle::PREEDIT_CALLBACKS | InputStyle::STATUS_NOTHING,
             // over-spot
             InputStyle::PREEDIT_NOTHING | InputStyle::STATUS_NOTHING,
             InputStyle::PREEDIT_POSITION | InputStyle::STATUS_NOTHING,
@@ -44,16 +45,22 @@ impl<S: Server> ServerHandler<S> for Handler {
         server: &mut S,
         user_ic: &mut UserInputContext<Self::InputContextData>,
     ) -> Result<(), ServerError> {
-        server.set_event_mask(&user_ic.ic, 1, 1)
+        server.set_event_mask(&user_ic.ic, 1, 0)
     }
 
     fn handle_forward_event(
         &mut self,
         server: &mut S,
         user_ic: &mut UserInputContext<Self::InputContextData>,
-        _xev: &S::XEvent,
+        xev: &S::XEvent,
     ) -> Result<bool, ServerError> {
-        server.commit(&user_ic.ic, "가".into())?;
+        // Enter
+        if xev.detail == 36 {
+            server.preedit_draw(&mut user_ic.ic, "")?;
+            server.commit(&user_ic.ic, "가나다")?;
+        } else {
+            server.preedit_draw(&mut user_ic.ic, "가나다")?;
+        }
         Ok(true)
     }
 
@@ -61,23 +68,6 @@ impl<S: Server> ServerHandler<S> for Handler {
         &mut self,
         _server: &mut S,
         _user_ic: UserInputContext<Self::InputContextData>,
-    ) -> Result<(), ServerError> {
-        Ok(())
-    }
-
-    fn handle_preedit_start(
-        &mut self,
-        _server: &mut S,
-        _user_ic: &mut UserInputContext<Self::InputContextData>,
-    ) -> Result<(), ServerError> {
-        Ok(())
-    }
-
-    fn handle_caret(
-        &mut self,
-        _server: &mut S,
-        _user_ic: &mut UserInputContext<Self::InputContextData>,
-        _position: i32,
     ) -> Result<(), ServerError> {
         Ok(())
     }

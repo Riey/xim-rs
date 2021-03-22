@@ -173,6 +173,8 @@ impl<S: ServerCore> Server for S {
                         input_context_id: ic.input_context_id().get(),
                     },
                 )?;
+                ic.preedit_started = false;
+                ic.prev_preedit_length = 0;
             }
         } else {
             if !ic.preedit_started {
@@ -199,9 +201,9 @@ impl<S: ServerCore> Server for S {
                     status: PreeditDrawStatus::empty(),
                 },
             )?;
-        }
 
-        ic.prev_preedit_length = preedit_length;
+            ic.prev_preedit_length = preedit_length;
+        }
 
         Ok(())
     }

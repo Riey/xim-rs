@@ -6,3 +6,6 @@ authors = ["Riey <creeper844@gmail.com>"]
 repository = "https://github.com/Riey/xim-rs"
 edition = "2018"
 license = "MIT"
+
+[dependencies]
+thiserror = "1.0.26"

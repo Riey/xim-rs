@@ -52,12 +52,36 @@ pub fn utf8_to_compound_text(text: &str) -> Vec<u8> {
     ret
 }
 
-/// Decoding COMPOUND_TEXT to utf8 only works with utf8 escaped text
-pub fn compound_text_to_utf8(bytes: &[u8]) -> Result<&str, &[u8]> {
-    if bytes.starts_with(UTF8_START) && bytes.ends_with(UTF8_END) {
-        std::str::from_utf8(&bytes[3..bytes.len() - 3]).map_err(|_| bytes)
-    } else {
-        Err(bytes)
+#[derive(Debug, Clone, thiserror::Error)]
+pub enum DecodeError {
+    #[error("Invalid compound text")]
+    InvalidEncoding,
+    #[error("This encoding is not supported yet")]
+    UnsupportedEncoding,
+    #[error("Not a valid utf8 {0}")]
+    Utf8Error(#[from] std::string::FromUtf8Error),
+}
+
+pub fn compound_text_to_utf8(bytes: &[u8]) -> Result<String, DecodeError> {
+    let mut iter = bytes.iter();
+
+    match iter.next() {
+        None => Ok(String::new()),
+        Some(0x1B) => {
+            match (iter.next(), iter.next()) {
+                // UTF-8
+                (Some(0x25), Some(0x47)) => {
+                    let left = iter.as_slice();
+                    Ok(String::from_utf8(left.split_at(left.len() - 3).0.to_vec())?)
+                }
+                // 94N
+                (Some(0x24), Some(0x28)) => Err(DecodeError::UnsupportedEncoding),
+                // Invalid encode
+                _ => Err(DecodeError::InvalidEncoding),
+            }
+        }
+        // unescaped string
+        Some(_) => Ok(String::from_utf8(bytes.to_vec())?),
     }
 }
 
@@ -70,6 +94,13 @@ mod tests {
             27, 37, 71, 234, 176, 128, 235, 130, 152, 235, 139, 164, 27, 37, 64,
         ];
         assert_eq!(crate::utf8_to_compound_text(UTF8), COMP);
+        assert_eq!(crate::compound_text_to_utf8(COMP).unwrap(), UTF8);
+    }
+
+    #[test]
+    fn shift_jis() {
+        const UTF8: &str = "東京";
+        const COMP: &[u8] = &[27, 36, 40, 66, 69, 108, 53, 126];
         assert_eq!(crate::compound_text_to_utf8(COMP).unwrap(), UTF8);
     }
 }

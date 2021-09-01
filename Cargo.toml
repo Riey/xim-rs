@@ -30,8 +30,8 @@ x11rb-server = ["server", "x11rb"]
 x11rb-xcb = ["x11rb/allow-unsafe-code"]
 
 [dependencies]
-xim-parser = { path = "./xim-parser", version = "0.1.0" }
-xim-ctext = { path = "./xim-ctext", version = "0.1.0" }
+xim-parser = { path = "./xim-parser" }
+xim-ctext = { path = "./xim-ctext" }
 thiserror = "1.0.22"
 log = "0.4.11"
 ahash = "0.7.0"

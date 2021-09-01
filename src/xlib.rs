@@ -418,6 +418,12 @@ impl<X: XlibRef> XlibClient<X> {
     }
 
     fn send_req_impl(&mut self, req: Request) {
+        if log::log_enabled!(log::Level::Trace) {
+            log::trace!("->: {:?}", req);
+        } else {
+            log::debug!("->: {}", req.name());
+        }
+
         self.buf.resize(req.size(), 0);
         xim_parser::write(&req, &mut self.buf);
 

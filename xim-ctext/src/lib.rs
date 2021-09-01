@@ -135,7 +135,7 @@ mod tests {
     }
 
     #[test]
-    fn shift_jis() {
+    fn iso_2011_jp() {
         const UTF8: &str = "東京";
         const COMP: &[u8] = &[27, 36, 40, 66, 69, 108, 53, 126];
         assert_eq!(crate::compound_text_to_utf8(COMP).unwrap(), UTF8);

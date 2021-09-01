@@ -145,7 +145,7 @@ pub fn handle_request<C: ClientCore>(
                     client,
                     input_method_id,
                     input_context_id,
-                    xim_ctext::compound_text_to_utf8(&commited).expect("Encoding Error"),
+                    &xim_ctext::compound_text_to_utf8(&commited).expect("Encoding Error"),
                 )?;
 
                 if syncronous {

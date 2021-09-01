@@ -75,7 +75,44 @@ pub fn compound_text_to_utf8(bytes: &[u8]) -> Result<String, DecodeError> {
                     Ok(String::from_utf8(left.split_at(left.len() - 3).0.to_vec())?)
                 }
                 // 94N
-                (Some(0x24), Some(0x28)) => Err(DecodeError::UnsupportedEncoding),
+                (Some(0x24), Some(0x28)) => {
+                    macro_rules! make_encode {
+                        ($iter:expr, $(($code:literal, $encoding:ident, $prefix:expr),)+) => {
+                            match $iter.next() {
+                                $(
+                                    Some($code) => {
+                                        let left = iter.as_slice();
+                                        let mut decoder =
+                                            encoding_rs::$encoding.new_decoder_without_bom_handling();
+                                        let max_len = decoder
+                                            .max_utf8_buffer_length_without_replacement(left.len() + $prefix.len())
+                                            .unwrap_or_default();
+                                        let mut out = String::with_capacity(max_len);
+
+                                        let (ret, _, _) = decoder.decode_to_string($prefix, &mut out, false);
+
+                                        assert!(matches!(ret, encoding_rs::CoderResult::InputEmpty));
+
+                                        let (ret, _, _) = decoder.decode_to_string(left, &mut out, true);
+
+                                        assert!(matches!(ret, encoding_rs::CoderResult::InputEmpty));
+
+                                        Ok(out)
+                                    }
+                                )+
+                                _ => Err(DecodeError::InvalidEncoding),
+                            }
+                        };
+                    }
+
+                    make_encode!(
+                        iter,
+                        (0x42, ISO_2022_JP, &[0x1B, 0x24, 0x42]),
+                        // not sure
+                        (0x41, GB18030, &[0x1B, 0x24, 0x41]),
+                        (0x43, EUC_KR, &[0x1B, 0x24, 0x43]),
+                    )
+                }
                 // Invalid encode
                 _ => Err(DecodeError::InvalidEncoding),
             }

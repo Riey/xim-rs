@@ -8,4 +8,5 @@ edition = "2018"
 license = "MIT"
 
 [dependencies]
+encoding_rs = "0.8.28"
 thiserror = "1.0.26"

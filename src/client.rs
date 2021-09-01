@@ -27,7 +27,11 @@ pub fn handle_request<C: ClientCore>(
     handler: &mut impl ClientHandler<C>,
     req: Request,
 ) -> Result<(), ClientError> {
-    log::debug!("<-: {}", req.name());
+    if log::log_enabled!(log::Level::Trace) {
+        log::trace!("<-: {:?}", req);
+    } else {
+        log::debug!("<-: {}", req.name());
+    }
 
     match req {
         Request::ConnectReply {

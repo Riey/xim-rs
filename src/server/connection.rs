@@ -227,8 +227,11 @@ impl<T> XimConnection<T> {
         req: Request,
         handler: &mut H,
     ) -> Result<(), ServerError> {
-        log::debug!("<-: {}", req.name());
-        log::trace!("<-: {:?}", req);
+        if log::log_enabled!(log::Level::Trace) {
+            log::trace!("<-: {:?}", req);
+        } else {
+            log::debug!("<-: {}", req.name());
+        }
 
         match req {
             Request::Error {

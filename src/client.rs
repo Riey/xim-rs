@@ -27,7 +27,11 @@ pub fn handle_request<C: ClientCore>(
     handler: &mut impl ClientHandler<C>,
     req: Request,
 ) -> Result<(), ClientError> {
-    log::debug!("<-: {}", req.name());
+    if log::log_enabled!(log::Level::Trace) {
+        log::trace!("<-: {:?}", req);
+    } else {
+        log::debug!("<-: {}", req.name());
+    }
 
     match req {
         Request::ConnectReply {
@@ -141,7 +145,7 @@ pub fn handle_request<C: ClientCore>(
                     client,
                     input_method_id,
                     input_context_id,
-                    xim_ctext::compound_text_to_utf8(&commited).expect("Encoding Error"),
+                    &xim_ctext::compound_text_to_utf8(&commited).expect("Encoding Error"),
                 )?;
 
                 if syncronous {

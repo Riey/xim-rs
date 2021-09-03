@@ -38,5 +38,5 @@ xim protocol parser generator
 ## limitations
 
 * Only native endian is supported
-* Only support utf-8 mode of CTEXT
+* Only support utf-8 and JIS X0208-1983 of CTEXT
 * Auth, StrConvertion doesn't supported since they are not used in real world

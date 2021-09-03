@@ -62,6 +62,25 @@ pub enum DecodeError {
     Utf8Error(#[from] std::string::FromUtf8Error),
 }
 
+macro_rules! decode {
+    ($decoder:expr, $out:expr, $bytes:expr, $last:expr) => {
+        loop {
+            let (ret, _, _) = $decoder.decode_to_string($bytes, $out, $last);
+
+            match ret {
+                encoding_rs::CoderResult::InputEmpty => break,
+                encoding_rs::CoderResult::OutputFull => {
+                    $out.reserve(
+                        $decoder
+                            .max_utf8_buffer_length($bytes.len())
+                            .unwrap_or_default(),
+                    );
+                }
+            }
+        }
+    };
+}
+
 pub fn compound_text_to_utf8(bytes: &[u8]) -> Result<String, DecodeError> {
     let mut iter = bytes.iter();
 
@@ -75,44 +94,28 @@ pub fn compound_text_to_utf8(bytes: &[u8]) -> Result<String, DecodeError> {
                     Ok(String::from_utf8(left.split_at(left.len() - 3).0.to_vec())?)
                 }
                 // 94N
-                (Some(0x24), Some(0x28)) => {
-                    macro_rules! make_encode {
-                        ($iter:expr, $(($code:literal, $encoding:ident, $prefix:expr),)+) => {
-                            match $iter.next() {
-                                $(
-                                    Some($code) => {
-                                        let left = iter.as_slice();
-                                        let mut decoder =
-                                            encoding_rs::$encoding.new_decoder_without_bom_handling();
-                                        let max_len = decoder
-                                            .max_utf8_buffer_length_without_replacement(left.len() + $prefix.len())
-                                            .unwrap_or_default();
-                                        let mut out = String::with_capacity(max_len);
+                (Some(0x24), Some(0x28)) => match iter.next() {
+                    // JP
+                    Some(0x42) => {
+                        let left = iter.as_slice();
+                        let mut decoder =
+                            encoding_rs::ISO_2022_JP.new_decoder_without_bom_handling();
+                        let mut out = String::new();
 
-                                        let (ret, _, _) = decoder.decode_to_string($prefix, &mut out, false);
+                        decode!(decoder, &mut out, &[0x1B, 0x24, 0x42], false);
+                        decode!(decoder, &mut out, left, true);
 
-                                        assert!(matches!(ret, encoding_rs::CoderResult::InputEmpty));
-
-                                        let (ret, _, _) = decoder.decode_to_string(left, &mut out, true);
-
-                                        assert!(matches!(ret, encoding_rs::CoderResult::InputEmpty));
-
-                                        Ok(out)
-                                    }
-                                )+
-                                _ => Err(DecodeError::InvalidEncoding),
-                            }
-                        };
+                        Ok(out)
                     }
 
-                    make_encode!(
-                        iter,
-                        (0x42, ISO_2022_JP, &[0x1B, 0x24, 0x42]),
-                        // not sure
-                        (0x41, GB18030, &[0x1B, 0x24, 0x41]),
-                        (0x43, EUC_KR, &[0x1B, 0x24, 0x43]),
-                    )
-                }
+                    // CN
+                    Some(0x41) => Err(DecodeError::UnsupportedEncoding),
+
+                    // KR
+                    Some(0x43) => Err(DecodeError::UnsupportedEncoding),
+
+                    _ => Err(DecodeError::InvalidEncoding),
+                },
                 // Invalid encode
                 _ => Err(DecodeError::InvalidEncoding),
             }

@@ -3,7 +3,8 @@ mod attribute_builder;
 pub use self::attribute_builder::AttributeBuilder;
 use ahash::AHashMap;
 use xim_parser::{
-    Attr, Attribute, AttributeName, CommitData, Extension, ForwardEventFlag, Request,
+    Attr, Attribute, AttributeName, CommitData, Extension, Feedback, ForwardEventFlag,
+    PreeditDrawStatus, Request,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -169,6 +170,37 @@ pub fn handle_request<C: ClientCore>(
         Request::SyncReply { .. } => {
             // Nothing to do
             Ok(())
+        }
+        Request::PreeditStart {
+            input_method_id,
+            input_context_id,
+        } => handler.handle_preedit_start(client, input_method_id, input_context_id),
+        Request::PreeditDone {
+            input_method_id,
+            input_context_id,
+        } => handler.handle_preedit_done(client, input_method_id, input_context_id),
+        Request::PreeditDraw {
+            input_method_id,
+            input_context_id,
+            caret,
+            chg_first,
+            chg_length,
+            preedit_string,
+            status,
+            feedbacks,
+        } => {
+            let preedit_string = xim_ctext::compound_text_to_utf8(&preedit_string).unwrap();
+            handler.handle_preedit_draw(
+                client,
+                input_method_id,
+                input_context_id,
+                caret,
+                chg_first,
+                chg_length,
+                status,
+                &preedit_string,
+                feedbacks,
+            )
         }
         _ => {
             log::warn!("Unknown request {:?}", req);
@@ -422,5 +454,29 @@ pub trait ClientHandler<C: Client> {
         input_context_id: u16,
         forward_event_mask: u32,
         synchronous_event_mask: u32,
+    ) -> Result<(), ClientError>;
+    fn handle_preedit_start(
+        &mut self,
+        client: &mut C,
+        input_method_id: u16,
+        input_context_id: u16,
+    ) -> Result<(), ClientError>;
+    fn handle_preedit_draw(
+        &mut self,
+        client: &mut C,
+        input_method_id: u16,
+        input_context_id: u16,
+        caret: i32,
+        chg_first: i32,
+        chg_len: i32,
+        status: PreeditDrawStatus,
+        preedit_string: &str,
+        feedbacks: Vec<Feedback>,
+    ) -> Result<(), ClientError>;
+    fn handle_preedit_done(
+        &mut self,
+        client: &mut C,
+        input_method_id: u16,
+        input_context_id: u16,
     ) -> Result<(), ClientError>;
 }

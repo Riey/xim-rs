@@ -1,3 +1,5 @@
+use std::convert::TryInto;
+
 use xim::{AHashMap, Client, ClientError, ClientHandler};
 use xim_parser::{AttributeName, InputStyle, Point};
 
@@ -127,6 +129,51 @@ impl<C: Client> ClientHandler<C> for ExampleHandler {
             forward_event_mask,
             synchronous_event_mask
         );
+        Ok(())
+    }
+
+    fn handle_preedit_start(
+        &mut self,
+        _client: &mut C,
+        input_method_id: u16,
+        input_context_id: u16,
+    ) -> Result<(), ClientError> {
+        log::info!("Preedit start {}, {}", input_method_id, input_context_id);
+        Ok(())
+    }
+
+    fn handle_preedit_done(
+        &mut self,
+        _client: &mut C,
+        input_method_id: u16,
+        input_context_id: u16,
+    ) -> Result<(), ClientError> {
+        log::info!("Preedit done {}, {}", input_method_id, input_context_id);
+        Ok(())
+    }
+
+    fn handle_preedit_draw(
+        &mut self,
+        _client: &mut C,
+        _input_method_id: u16,
+        _input_context_id: u16,
+        caret: i32,
+        _chg_first: i32,
+        _chg_len: i32,
+        _status: xim::PreeditDrawStatus,
+        preedit_string: &str,
+        feedbacks: Vec<xim::Feedback>,
+    ) -> Result<(), ClientError> {
+        let mut caret_string = String::new();
+
+        let mut chars = preedit_string.chars();
+
+        caret_string.extend(chars.by_ref().take(caret.try_into().unwrap_or_default()));
+        caret_string.push('|');
+        caret_string.extend(chars);
+
+        log::info!("Preedit {}({:?})", caret_string, feedbacks);
+
         Ok(())
     }
 }

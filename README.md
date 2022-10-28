@@ -2,6 +2,10 @@
 
 XIM protocol handler in Rust
 
+## Server example
+
+You can see xim server example in my [IME](https://github.com/Riey/kime/tree/develop/src/frontends/xim)
+
 ## project structure
 
 ### xim

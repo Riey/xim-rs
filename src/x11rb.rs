@@ -188,7 +188,7 @@ impl<C: HasConnection> X11rbServer<C> {
             )?
             .reply()?;
 
-        if reply.type_ != x11rb::NONE && (reply.type_ != Into::<u32>::into(AtomEnum::ATOM)) {
+        if reply.type_ != x11rb::NONE && (reply.type_ != AtomEnum::ATOM.into()) {
             return Err(ServerError::InvalidReply);
         }
 

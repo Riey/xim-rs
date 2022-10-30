@@ -1,4 +1,7 @@
 use std::{convert::TryInto, rc::Rc, sync::Arc};
+use alloc::format;
+use alloc::string::String;
+use alloc::vec::Vec;
 
 #[cfg(feature = "x11rb-client")]
 use crate::client::{
@@ -7,7 +10,7 @@ use crate::client::{
 #[cfg(feature = "x11rb-server")]
 use crate::server::{ServerCore, ServerError, ServerHandler, XimConnection, XimConnections};
 #[cfg(feature = "x11rb-client")]
-use ahash::AHashMap;
+use crate::AHashMap;
 #[cfg(feature = "x11rb-client")]
 use xim_parser::{Attr, AttributeName};
 
@@ -185,7 +188,7 @@ impl<C: HasConnection> X11rbServer<C> {
             )?
             .reply()?;
 
-        if reply.type_ != x11rb::NONE && (reply.type_ != AtomEnum::ATOM.into()) {
+        if reply.type_ != x11rb::NONE && (reply.type_ != Into::<u32>::into(AtomEnum::ATOM)) {
             return Err(ServerError::InvalidReply);
         }
 
@@ -457,8 +460,8 @@ impl<C: HasConnection> X11rbClient<C> {
                             atoms,
                             server_atom,
                             server_owner_window: server_owner,
-                            im_attributes: AHashMap::new(),
-                            ic_attributes: AHashMap::new(),
+                            im_attributes: AHashMap::with_hasher(Default::default()),
+                            ic_attributes: AHashMap::with_hasher(Default::default()),
                             im_window: x11rb::NONE,
                             transport_max: 20,
                             client_window,

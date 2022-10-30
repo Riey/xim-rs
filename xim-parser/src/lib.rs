@@ -1,3 +1,12 @@
+#![no_std]
+
+extern crate alloc;
+
+#[cfg(any(test, feature = "std"))]
+extern crate std;
+
+use alloc::vec::Vec;
+
 pub mod attrs;
 mod parser;
 
@@ -5,12 +14,12 @@ pub use parser::*;
 
 pub fn write_extend_vec(f: impl XimWrite, out: &mut Vec<u8>) {
     let from = out.len();
-    out.extend(std::iter::repeat(0).take(f.size()));
+    out.extend(core::iter::repeat(0).take(f.size()));
     f.write(&mut Writer::new(&mut out[from..]));
 }
 
 pub fn write_to_vec(f: impl XimWrite) -> Vec<u8> {
-    let mut out: Vec<u8> = std::iter::repeat(0).take(f.size()).collect();
+    let mut out: Vec<u8> = core::iter::repeat(0).take(f.size()).collect();
     f.write(&mut Writer::new(&mut out));
     out
 }
@@ -19,6 +28,8 @@ pub fn write_to_vec(f: impl XimWrite) -> Vec<u8> {
 mod tests {
     use crate::{parser::*, write_to_vec};
     use pretty_assertions::assert_eq;
+    use alloc::vec::Vec;
+    use alloc::vec;
 
     #[cfg(target_endian = "little")]
     #[test]

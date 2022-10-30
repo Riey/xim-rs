@@ -1,6 +1,17 @@
 //! Currently only support utf8 mode
 
-use std::fmt;
+#![no_std]
+
+extern crate alloc;
+
+#[cfg(feature = "std")]
+extern crate std;
+
+use alloc::string::String;
+use alloc::vec::Vec;
+use core::fmt;
+
+#[cfg(feature = "std")]
 use std::io::{self, Write};
 
 const UTF8_START: &[u8] = &[0x1B, 0x25, 0x47];
@@ -34,6 +45,7 @@ impl<'s> CText<'s> {
         self.utf8.len() + UTF8_START.len() + UTF8_END.len()
     }
 
+    #[cfg(feature = "std")]
     pub fn write(self, mut out: impl Write) -> io::Result<usize> {
         let mut writed = 0;
         writed += out.write(UTF8_START)?;
@@ -52,14 +64,27 @@ pub fn utf8_to_compound_text(text: &str) -> Vec<u8> {
     ret
 }
 
-#[derive(Debug, Clone, thiserror::Error)]
+#[derive(Debug, Clone)]
 pub enum DecodeError {
-    #[error("Invalid compound text")]
     InvalidEncoding,
-    #[error("This encoding is not supported yet")]
     UnsupportedEncoding,
-    #[error("Not a valid utf8 {0}")]
-    Utf8Error(#[from] std::string::FromUtf8Error),
+    Utf8Error(alloc::string::FromUtf8Error),
+}
+
+impl From<alloc::string::FromUtf8Error> for DecodeError {
+    fn from(err: alloc::string::FromUtf8Error) -> Self {
+        DecodeError::Utf8Error(err)
+    }
+}
+
+impl fmt::Display for DecodeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidEncoding => write!(f, "Invalid compound text"),
+            Self::UnsupportedEncoding => write!(f, "This encoding is not supported yet"),
+            Self::Utf8Error(e) => write!(f, "Not a valid utf8 {}", e),
+        }
+    }
 }
 
 macro_rules! decode {

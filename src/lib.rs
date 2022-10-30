@@ -1,3 +1,10 @@
+#![no_std]
+
+extern crate alloc;
+
+#[cfg(feature = "std")]
+extern crate std;
+
 #[cfg(feature = "client")]
 mod client;
 #[cfg(feature = "server")]
@@ -19,7 +26,7 @@ pub use crate::server::{
     InputContext, InputMethod, Server, ServerCore, ServerError, ServerHandler, UserInputContext,
     XimConnection, XimConnections,
 };
-pub use ahash::AHashMap;
+pub type AHashMap<K, V> = hashbrown::HashMap<K, V, ahash::RandomState>;
 pub use xim_parser::*;
 
 #[allow(non_snake_case)]

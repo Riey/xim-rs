@@ -1,4 +1,5 @@
-use ahash::AHashMap;
+use crate::AHashMap;
+use alloc::vec::Vec;
 use xim_parser::{Attribute, AttributeName, XimWrite};
 
 pub struct NestedListBuilder<'a> {

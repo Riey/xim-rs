@@ -1,6 +1,6 @@
-use ahash::AHashMap;
-use std::collections::hash_map::Entry;
-use std::num::NonZeroU16;
+use crate::AHashMap;
+use hashbrown::hash_map::Entry;
+use core::num::NonZeroU16;
 
 pub struct ImVec<T> {
     next: NonZeroU16,
@@ -11,7 +11,7 @@ impl<T> ImVec<T> {
     pub fn new() -> Self {
         Self {
             next: NonZeroU16::new(1).unwrap(),
-            inner: AHashMap::new(),
+            inner: AHashMap::with_hasher(Default::default()),
         }
     }
 
@@ -52,7 +52,7 @@ impl<T> ImVec<T> {
 impl<T> IntoIterator for ImVec<T> {
     type Item = (NonZeroU16, T);
 
-    type IntoIter = std::collections::hash_map::IntoIter<NonZeroU16, T>;
+    type IntoIter = hashbrown::hash_map::IntoIter<NonZeroU16, T>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.inner.into_iter()

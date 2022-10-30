@@ -3,7 +3,11 @@
 
 #![allow(clippy::identity_op)]
 
-use std::convert::TryInto;
+use alloc::string::{String, ToString};
+use alloc::vec::Vec;
+
+use core::convert::TryInto;
+use core::fmt;
 
 pub fn read<T>(b: &[u8]) -> Result<T, ReadError>
 where
@@ -89,17 +93,33 @@ pub struct HotKeyTriggers {
     pub triggers: Vec<(TriggerKey, HotKeyState)>,
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug)]
 pub enum ReadError {
-    #[error("End of Stream")]
     EndOfStream,
-    #[error("Invalid Data {0}: {1}")]
     InvalidData(&'static str, String),
-    #[error("Not a Utf8 text {0}")]
-    Utf8Error(#[from] std::string::FromUtf8Error),
-    #[error("Not a native endian")]
+    Utf8Error(alloc::string::FromUtf8Error),
     NotNativeEndian,
 }
+
+impl From<alloc::string::FromUtf8Error> for ReadError {
+    fn from(e: alloc::string::FromUtf8Error) -> Self {
+        Self::Utf8Error(e)
+    }
+}
+
+impl fmt::Display for ReadError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::EndOfStream => write!(f, "End of Stream"),
+            Self::InvalidData(name, reason) => write!(f, "Invalid Data {}: {}", name, reason),
+            Self::Utf8Error(e) => write!(f, "Not a Utf8 text {}", e),
+            Self::NotNativeEndian => write!(f, "Not a native endian"),
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for ReadError {}
 
 fn pad4(len: usize) -> usize {
     match len % 4 {
@@ -286,7 +306,7 @@ impl XimWrite for StatusContent {
     fn size(&self) -> usize {
         let size = match self {
             StatusContent::Text(content) => content.size(),
-            StatusContent::Pixmap(pixmap) => std::mem::size_of_val(pixmap),
+            StatusContent::Pixmap(pixmap) => core::mem::size_of_val(pixmap),
         };
 
         size + 4
@@ -457,7 +477,7 @@ macro_rules! impl_int {
             }
 
             fn size(&self) -> usize {
-                std::mem::size_of::<$ty>()
+                core::mem::size_of::<$ty>()
             }
         }
     };

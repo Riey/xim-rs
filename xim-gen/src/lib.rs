@@ -94,7 +94,7 @@ impl EnumFormat {
 
         writeln!(
             out,
-            "fn size(&self) -> usize {{ std::mem::size_of::<{}>() }}",
+            "fn size(&self) -> usize {{ core::mem::size_of::<{}>() }}",
             self.repr
         )?;
 
@@ -239,7 +239,7 @@ impl XimFormat {
         for (key, value) in self.attribute_names.iter() {
             writeln!(out, "b\"{}\" => Ok(Self::{}),", value, key)?;
         }
-        writeln!(out, "bytes => Err(reader.invalid_data(\"AttributeName\", std::str::from_utf8(bytes).unwrap_or(\"NOT_UTF8\"))),")?;
+        writeln!(out, "bytes => Err(reader.invalid_data(\"AttributeName\", core::str::from_utf8(bytes).unwrap_or(\"NOT_UTF8\"))),")?;
         // match
         writeln!(out, "}}")?;
         // fn read
@@ -320,7 +320,7 @@ impl XimFormat {
             writeln!(out, "}}),")?;
         }
 
-        writeln!(out, "_ => Err(reader.invalid_data(\"Opcode\", format!(\"({{}}, {{}})\", major_opcode, minor_opcode))),")?;
+        writeln!(out, "_ => Err(reader.invalid_data(\"Opcode\", alloc::format!(\"({{}}, {{}})\", major_opcode, minor_opcode))),")?;
 
         // match
         writeln!(out, "}}")?;

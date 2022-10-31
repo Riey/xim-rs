@@ -16,8 +16,8 @@ bootstrap = ["xim-gen"]
 bitflags = { version = "1.3.2", default-features = false }
 
 [dev-dependencies]
-xim-ctext = { path = "../xim-ctext", version = "0.2.0" }
-pretty_assertions = "0.7.2"
+xim-ctext = { path = "../xim-ctext", version = "0.3.0" }
+pretty_assertions = "1"
 
 [build-dependencies]
 xim-gen = { path = "../xim-gen", optional = true, version = "0.1.0" }

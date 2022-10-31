@@ -1,9 +1,10 @@
-use ahash::AHashMap;
+use crate::AHashMap;
 use std::ffi::CStr;
 use std::mem::MaybeUninit;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::{convert::TryInto, os::raw::c_long};
+use alloc::vec::Vec;
 
 use crate::{
     client::{handle_request, ClientCore, ClientError, ClientHandler},
@@ -223,8 +224,8 @@ impl<X: XlibRef> XlibClient<X> {
                             transport_max: 0,
                             display,
                             x,
-                            ic_attributes: AHashMap::new(),
-                            im_attributes: AHashMap::new(),
+                            ic_attributes: AHashMap::with_hasher(Default::default()),
+                            im_attributes: AHashMap::with_hasher(Default::default()),
                             buf: Vec::with_capacity(1024),
                             sequence: 0,
                         });
@@ -454,7 +455,7 @@ impl<X: XlibRef> XlibClient<X> {
                 );
             }
         } else {
-            let name = format!("_XIM_DATA_{}\0", self.sequence);
+            let name = alloc::format!("_XIM_DATA_{}\0", self.sequence);
             self.sequence += 1;
             let prop =
                 unsafe { (self.x.xlib().XInternAtom)(self.display, name.as_ptr().cast(), 0) };

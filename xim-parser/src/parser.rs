@@ -3,7 +3,11 @@
 
 #![allow(clippy::identity_op)]
 
-use std::convert::TryInto;
+use alloc::string::{String, ToString};
+use alloc::vec::Vec;
+
+use core::convert::TryInto;
+use core::fmt;
 
 pub fn read<T>(b: &[u8]) -> Result<T, ReadError>
 where
@@ -89,17 +93,33 @@ pub struct HotKeyTriggers {
     pub triggers: Vec<(TriggerKey, HotKeyState)>,
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug)]
 pub enum ReadError {
-    #[error("End of Stream")]
     EndOfStream,
-    #[error("Invalid Data {0}: {1}")]
     InvalidData(&'static str, String),
-    #[error("Not a Utf8 text {0}")]
-    Utf8Error(#[from] std::string::FromUtf8Error),
-    #[error("Not a native endian")]
+    Utf8Error(alloc::string::FromUtf8Error),
     NotNativeEndian,
 }
+
+impl From<alloc::string::FromUtf8Error> for ReadError {
+    fn from(e: alloc::string::FromUtf8Error) -> Self {
+        Self::Utf8Error(e)
+    }
+}
+
+impl fmt::Display for ReadError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::EndOfStream => write!(f, "End of Stream"),
+            Self::InvalidData(name, reason) => write!(f, "Invalid Data {}: {}", name, reason),
+            Self::Utf8Error(e) => write!(f, "Not a Utf8 text {}", e),
+            Self::NotNativeEndian => write!(f, "Not a native endian"),
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for ReadError {}
 
 fn pad4(len: usize) -> usize {
     match len % 4 {
@@ -286,7 +306,7 @@ impl XimWrite for StatusContent {
     fn size(&self) -> usize {
         let size = match self {
             StatusContent::Text(content) => content.size(),
-            StatusContent::Pixmap(pixmap) => std::mem::size_of_val(pixmap),
+            StatusContent::Pixmap(pixmap) => core::mem::size_of_val(pixmap),
         };
 
         size + 4
@@ -457,7 +477,7 @@ macro_rules! impl_int {
             }
 
             fn size(&self) -> usize {
-                std::mem::size_of::<$ty>()
+                core::mem::size_of::<$ty>()
             }
         }
     };
@@ -514,7 +534,7 @@ impl XimWrite for AttrType {
         (*self as u16).write(writer);
     }
     fn size(&self) -> usize {
-        std::mem::size_of::<u16>()
+        core::mem::size_of::<u16>()
     }
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -558,7 +578,7 @@ impl XimWrite for CaretDirection {
         (*self as u32).write(writer);
     }
     fn size(&self) -> usize {
-        std::mem::size_of::<u32>()
+        core::mem::size_of::<u32>()
     }
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -584,7 +604,7 @@ impl XimWrite for CaretStyle {
         (*self as u32).write(writer);
     }
     fn size(&self) -> usize {
-        std::mem::size_of::<u32>()
+        core::mem::size_of::<u32>()
     }
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -638,7 +658,7 @@ impl XimWrite for ErrorCode {
         (*self as u16).write(writer);
     }
     fn size(&self) -> usize {
-        std::mem::size_of::<u16>()
+        core::mem::size_of::<u16>()
     }
 }
 bitflags::bitflags! {
@@ -658,7 +678,7 @@ impl XimWrite for ErrorFlag {
         self.bits().write(writer);
     }
     fn size(&self) -> usize {
-        std::mem::size_of::<u16>()
+        core::mem::size_of::<u16>()
     }
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -696,7 +716,7 @@ impl XimWrite for Feedback {
         (*self as u32).write(writer);
     }
     fn size(&self) -> usize {
-        std::mem::size_of::<u32>()
+        core::mem::size_of::<u32>()
     }
 }
 bitflags::bitflags! {
@@ -717,7 +737,7 @@ impl XimWrite for ForwardEventFlag {
         self.bits().write(writer);
     }
     fn size(&self) -> usize {
-        std::mem::size_of::<u16>()
+        core::mem::size_of::<u16>()
     }
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -741,7 +761,7 @@ impl XimWrite for HotKeyState {
         (*self as u32).write(writer);
     }
     fn size(&self) -> usize {
-        std::mem::size_of::<u32>()
+        core::mem::size_of::<u32>()
     }
 }
 bitflags::bitflags! {
@@ -768,7 +788,7 @@ impl XimWrite for InputStyle {
         self.bits().write(writer);
     }
     fn size(&self) -> usize {
-        std::mem::size_of::<u32>()
+        core::mem::size_of::<u32>()
     }
 }
 bitflags::bitflags! {
@@ -788,7 +808,7 @@ impl XimWrite for PreeditDrawStatus {
         self.bits().write(writer);
     }
     fn size(&self) -> usize {
-        std::mem::size_of::<u32>()
+        core::mem::size_of::<u32>()
     }
 }
 bitflags::bitflags! {
@@ -809,7 +829,7 @@ impl XimWrite for PreeditStateFlag {
         self.bits().write(writer);
     }
     fn size(&self) -> usize {
-        std::mem::size_of::<u32>()
+        core::mem::size_of::<u32>()
     }
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -833,7 +853,7 @@ impl XimWrite for TriggerNotifyFlag {
         (*self as u32).write(writer);
     }
     fn size(&self) -> usize {
-        std::mem::size_of::<u32>()
+        core::mem::size_of::<u32>()
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -1326,7 +1346,7 @@ impl XimRead for AttributeName {
             b"visiblePosition" => Ok(Self::VisiblePosition),
             bytes => Err(reader.invalid_data(
                 "AttributeName",
-                std::str::from_utf8(bytes).unwrap_or("NOT_UTF8"),
+                core::str::from_utf8(bytes).unwrap_or("NOT_UTF8"),
             )),
         }
     }
@@ -2089,9 +2109,10 @@ impl XimRead for Request {
                 input_method_id: u16::read(reader)?,
                 input_context_id: u16::read(reader)?,
             }),
-            _ => {
-                Err(reader.invalid_data("Opcode", format!("({}, {})", major_opcode, minor_opcode)))
-            }
+            _ => Err(reader.invalid_data(
+                "Opcode",
+                alloc::format!("({}, {})", major_opcode, minor_opcode),
+            )),
         }
     }
 }

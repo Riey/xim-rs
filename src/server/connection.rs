@@ -1,7 +1,10 @@
 mod im_vec;
 
-use ahash::AHashMap;
-use std::num::{NonZeroU16, NonZeroU32};
+use crate::AHashMap;
+use alloc::string::String;
+use alloc::vec::Vec;
+use alloc::vec;
+use core::num::{NonZeroU16, NonZeroU32};
 use xim_parser::{
     attrs, Attribute, AttributeName, ErrorCode, ForwardEventFlag, InputStyle, InputStyleList,
     Point, Request, XimWrite,
@@ -618,7 +621,7 @@ pub struct XimConnections<T> {
 impl<T> XimConnections<T> {
     pub fn new() -> Self {
         Self {
-            connections: AHashMap::new(),
+            connections: AHashMap::with_hasher(Default::default()),
         }
     }
 

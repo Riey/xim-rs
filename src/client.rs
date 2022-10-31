@@ -1,27 +1,53 @@
 mod attribute_builder;
 
 pub use self::attribute_builder::AttributeBuilder;
-use ahash::AHashMap;
+use crate::AHashMap;
 use xim_parser::{
     Attr, Attribute, AttributeName, CommitData, Extension, Feedback, ForwardEventFlag,
     PreeditDrawStatus, Request,
 };
 
-#[derive(Debug, thiserror::Error)]
+use alloc::string::String;
+use alloc::vec::Vec;
+use alloc::vec;
+use core::fmt;
+
+#[derive(Debug)]
+#[non_exhaustive]
 pub enum ClientError {
-    #[error("Can't read xim message {0}")]
-    ReadProtocol(#[from] xim_parser::ReadError),
-    #[error("Server send error code: {0:?}, detail: {1}")]
+    ReadProtocol(xim_parser::ReadError),
     XimError(xim_parser::ErrorCode, String),
-    #[error("Server Transport is not supported")]
     UnsupportedTransport,
-    #[error("Invalid reply from server")]
     InvalidReply,
-    #[error("Can't connect xim server")]
     NoXimServer,
-    #[error(transparent)]
-    Other(Box<dyn std::error::Error + Send + Sync>),
+    #[cfg(feature = "std")]
+    Other(alloc::boxed::Box<dyn std::error::Error + Send + Sync>),
 }
+
+impl From<xim_parser::ReadError> for ClientError {
+    fn from(e: xim_parser::ReadError) -> Self {
+        Self::ReadProtocol(e)
+    }
+}
+
+impl fmt::Display for ClientError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ClientError::ReadProtocol(e) => write!(f, "Can't read xim message: {}", e),
+            ClientError::XimError(code, detail) => {
+                write!(f, "Server send error code: {:?}, detail: {}", code, detail)
+            }
+            ClientError::UnsupportedTransport => write!(f, "Server Transport is not supported"),
+            ClientError::InvalidReply => write!(f, "Invalid reply from server"),
+            ClientError::NoXimServer => write!(f, "Can't connect xim server"),
+            #[cfg(feature = "std")]
+            ClientError::Other(e) => write!(f, "Other error: {}", e),
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for ClientError {}
 
 pub fn handle_request<C: ClientCore>(
     client: &mut C,

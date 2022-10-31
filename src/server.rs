@@ -1,6 +1,10 @@
 mod connection;
 
-use std::num::NonZeroU16;
+use alloc::string::String;
+use alloc::vec::Vec;
+use alloc::vec;
+use core::fmt;
+use core::num::NonZeroU16;
 
 use xim_parser::{
     CommitData, ErrorCode, ErrorFlag, Feedback, InputStyle, PreeditDrawStatus, Request,
@@ -10,21 +14,40 @@ pub use self::connection::{
     InputContext, InputMethod, UserInputContext, XimConnection, XimConnections,
 };
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug)]
+#[non_exhaustive]
 pub enum ServerError {
-    #[error("Client doesn't exists")]
     ClientNotExists,
-    #[error("Can't read xim message {0}")]
-    ReadProtocol(#[from] xim_parser::ReadError),
-    #[error("Client send error code: {0:?}, detail: {1}")]
+    ReadProtocol(xim_parser::ReadError),
     XimError(xim_parser::ErrorCode, String),
-    #[error("Invalid reply from client")]
     InvalidReply,
-    #[error("Internal error: {0}")]
     Internal(String),
-    #[error(transparent)]
-    Other(Box<dyn std::error::Error + Send + Sync>),
+    #[cfg(feature = "std")]
+    Other(alloc::boxed::Box<dyn std::error::Error + Send + Sync>),
 }
+
+impl From<xim_parser::ReadError> for ServerError {
+    fn from(e: xim_parser::ReadError) -> Self {
+        ServerError::ReadProtocol(e)
+    }
+}
+
+impl fmt::Display for ServerError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ServerError::ClientNotExists => write!(f, "Client doesn't exists"),
+            ServerError::ReadProtocol(e) => write!(f, "Can't read xim message: {}", e),
+            ServerError::XimError(e, d) => write!(f, "Client send error code: {:?}, detail: {}", e, d),
+            ServerError::InvalidReply => write!(f, "Invalid reply from client"),
+            ServerError::Internal(e) => write!(f, "Internal error: {}", e),
+            #[cfg(feature = "std")]
+            ServerError::Other(e) => write!(f, "Other error: {}", e),
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for ServerError {}
 
 pub trait ServerHandler<S: Server> {
     type InputStyleArray: AsRef<[InputStyle]>;

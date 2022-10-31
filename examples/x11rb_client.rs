@@ -1,5 +1,6 @@
 use x11rb::connection::Connection;
 use x11rb::protocol::{xproto::*, Event};
+use xim::ClientError;
 use xim::{x11rb::X11rbClient, Client};
 use xim_parser::ForwardEventFlag;
 

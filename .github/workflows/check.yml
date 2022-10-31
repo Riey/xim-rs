@@ -1,0 +1,30 @@
+name: Check
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Cargo Target Cache
+      uses: actions/cache@v3
+      with:
+        path: target
+        key: ${{ runner.os }}-cargo-target-${{ hashFiles('**/Cargo.toml') }}-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-target-${{ hashFiles('**/Cargo.toml') }}
+          ${{ runner.os }}-cargo-target
+    - name: Build
+      run: cargo build --verbose --all --all-features
+    - name: Run tests
+      run: cargo test --verbose --all --all-features
+

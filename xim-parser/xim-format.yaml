@@ -420,7 +420,7 @@ Requests:
       - "input_method_id u16"
       - "input_context_id u16"
 
-  DestoryIc:
+  DestroyIc:
     major_opcode: 52
     minor_opcode: ~
     body:

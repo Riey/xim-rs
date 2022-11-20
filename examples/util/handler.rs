@@ -85,7 +85,7 @@ impl<C: Client> ClientHandler<C> for ExampleHandler {
         client.disconnect()
     }
 
-    fn handle_destory_ic(
+    fn handle_destroy_ic(
         &mut self,
         client: &mut C,
         input_method_id: u16,

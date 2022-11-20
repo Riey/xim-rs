@@ -276,7 +276,7 @@ pub trait Client {
         input_method_id: u16,
         ic_attributes: Vec<Attribute>,
     ) -> Result<(), ClientError>;
-    fn destory_ic(
+    fn destroy_ic(
         &mut self,
         input_method_id: u16,
         input_context_id: u16,
@@ -391,12 +391,12 @@ where
         self.send_req(Request::Close { input_method_id })
     }
 
-    fn destory_ic(
+    fn destroy_ic(
         &mut self,
         input_method_id: u16,
         input_context_id: u16,
     ) -> Result<(), ClientError> {
-        self.send_req(Request::DestoryIc {
+        self.send_req(Request::DestroyIc {
             input_method_id,
             input_context_id,
         })
@@ -452,7 +452,7 @@ pub trait ClientHandler<C: Client> {
         input_method_id: u16,
         input_context_id: u16,
     ) -> Result<(), ClientError>;
-    fn handle_destory_ic(
+    fn handle_destroy_ic(
         &mut self,
         client: &mut C,
         input_method_id: u16,

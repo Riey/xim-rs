@@ -72,7 +72,7 @@ pub trait ServerHandler<S: Server> {
         user_ic: &mut UserInputContext<Self::InputContextData>,
     ) -> Result<(), ServerError>;
 
-    fn handle_destory_ic(
+    fn handle_destroy_ic(
         &mut self,
         server: &mut S,
         user_ic: UserInputContext<Self::InputContextData>,

@@ -64,7 +64,7 @@ impl<S: Server<XEvent = x11rb::protocol::xproto::KeyPressEvent>> ServerHandler<S
         Ok(true)
     }
 
-    fn handle_destory_ic(
+    fn handle_destroy_ic(
         &mut self,
         _server: &mut S,
         _user_ic: UserInputContext<Self::InputContextData>,

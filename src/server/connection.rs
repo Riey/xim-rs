@@ -203,7 +203,7 @@ impl<T> XimConnection<T> {
     ) -> Result<(), ServerError> {
         for (_id, im) in self.input_methods.drain() {
             for (_id, ic) in im.input_contexts {
-                handler.handle_destory_ic(server, ic)?;
+                handler.handle_destroy_ic(server, ic)?;
             }
         }
 
@@ -325,11 +325,11 @@ impl<T> XimConnection<T> {
                 handler.handle_create_ic(server, ic)?;
             }
 
-            Request::DestoryIc {
+            Request::DestroyIc {
                 input_context_id,
                 input_method_id,
             } => {
-                handler.handle_destory_ic(
+                handler.handle_destroy_ic(
                     server,
                     self.get_input_method(input_method_id)?
                         .remove_input_context(input_context_id)?,
@@ -345,7 +345,7 @@ impl<T> XimConnection<T> {
 
             Request::Close { input_method_id } => {
                 for (_id, ic) in self.remove_input_method(input_method_id)?.input_contexts {
-                    handler.handle_destory_ic(server, ic)?;
+                    handler.handle_destroy_ic(server, ic)?;
                 }
 
                 server.send_req(self.client_win, Request::CloseReply { input_method_id })?;

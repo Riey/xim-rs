@@ -1397,7 +1397,7 @@ pub enum Request {
         input_method_id: u16,
         input_context_id: u16,
     },
-    DestoryIc {
+    DestroyIc {
         input_method_id: u16,
         input_context_id: u16,
     },
@@ -1603,7 +1603,7 @@ impl Request {
             Request::ConnectReply { .. } => "ConnectReply",
             Request::CreateIc { .. } => "CreateIc",
             Request::CreateIcReply { .. } => "CreateIcReply",
-            Request::DestoryIc { .. } => "DestoryIc",
+            Request::DestroyIc { .. } => "destroyIc",
             Request::DestroyIcReply { .. } => "DestroyIcReply",
             Request::Disconnect { .. } => "Disconnect",
             Request::DisconnectReply { .. } => "DisconnectReply",
@@ -1724,7 +1724,7 @@ impl XimRead for Request {
                 input_method_id: u16::read(reader)?,
                 input_context_id: u16::read(reader)?,
             }),
-            (52, _) => Ok(Request::DestoryIc {
+            (52, _) => Ok(Request::DestroyIc {
                 input_method_id: u16::read(reader)?,
                 input_context_id: u16::read(reader)?,
             }),
@@ -2232,7 +2232,7 @@ impl XimWrite for Request {
                 input_method_id.write(writer);
                 input_context_id.write(writer);
             }
-            Request::DestoryIc {
+            Request::DestroyIc {
                 input_method_id,
                 input_context_id,
             } => {
@@ -2853,7 +2853,7 @@ impl XimWrite for Request {
                 content_size += input_method_id.size();
                 content_size += input_context_id.size();
             }
-            Request::DestoryIc {
+            Request::DestroyIc {
                 input_method_id,
                 input_context_id,
             } => {

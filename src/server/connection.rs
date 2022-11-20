@@ -2,8 +2,8 @@ mod im_vec;
 
 use crate::AHashMap;
 use alloc::string::String;
-use alloc::vec::Vec;
 use alloc::vec;
+use alloc::vec::Vec;
 use core::num::{NonZeroU16, NonZeroU32};
 use xim_parser::{
     attrs, Attribute, AttributeName, ErrorCode, ForwardEventFlag, InputStyle, InputStyleList,

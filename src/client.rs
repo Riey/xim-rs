@@ -8,8 +8,8 @@ use xim_parser::{
 };
 
 use alloc::string::String;
-use alloc::vec::Vec;
 use alloc::vec;
+use alloc::vec::Vec;
 use core::fmt;
 
 #[derive(Debug)]

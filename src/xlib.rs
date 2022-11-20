@@ -1,10 +1,10 @@
 use crate::AHashMap;
+use alloc::vec::Vec;
 use std::ffi::CStr;
 use std::mem::MaybeUninit;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::{convert::TryInto, os::raw::c_long};
-use alloc::vec::Vec;
 
 use crate::{
     client::{handle_request, ClientCore, ClientError, ClientHandler},

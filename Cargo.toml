@@ -16,7 +16,7 @@ edition = "2018"
 license = "MIT"
 
 [features]
-default = ["x11rb-client", "std"]
+default = ["std"]
 
 bootstrap-parser = ["xim-parser/bootstrap"]
 
@@ -37,9 +37,24 @@ xim-ctext = { path = "./xim-ctext", version = "0.3.0", default-features = false 
 log = { version = "0.4", default-features = false }
 ahash = { version = "0.8", default-features = false, features = ["compile-time-rng"] }
 
-x11rb = { version = "0.10", optional = true }
+x11rb = { version = "0.11", optional = true }
 x11-dl = { version = "2.18.5", optional = true }
-hashbrown = { version = "0.12.3", default-features = false }
+hashbrown = { version = "0.13", default-features = false }
+
+[[example]]
+name = "x11rb_client"
+path = "examples/x11rb_client.rs"
+required-features = ["x11rb-client"]
+
+[[example]]
+name = "x11rb_server"
+path = "examples/x11rb_server.rs"
+required-features = ["x11rb-server"]
+
+[[example]]
+name = "xlib_client"
+path = "examples/xlib_client.rs"
+required-features = ["xlib-client"]
 
 [dev-dependencies]
 criterion = "0.4"

@@ -1,8 +1,8 @@
 mod connection;
 
 use alloc::string::String;
-use alloc::vec::Vec;
 use alloc::vec;
+use alloc::vec::Vec;
 use core::fmt;
 use core::num::NonZeroU16;
 
@@ -37,7 +37,9 @@ impl fmt::Display for ServerError {
         match self {
             ServerError::ClientNotExists => write!(f, "Client doesn't exists"),
             ServerError::ReadProtocol(e) => write!(f, "Can't read xim message: {}", e),
-            ServerError::XimError(e, d) => write!(f, "Client send error code: {:?}, detail: {}", e, d),
+            ServerError::XimError(e, d) => {
+                write!(f, "Client send error code: {:?}, detail: {}", e, d)
+            }
             ServerError::InvalidReply => write!(f, "Invalid reply from client"),
             ServerError::Internal(e) => write!(f, "Internal error: {}", e),
             #[cfg(feature = "std")]

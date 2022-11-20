@@ -1,7 +1,8 @@
-use std::{convert::TryInto, rc::Rc, sync::Arc};
 use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
+use std::{convert::TryInto, rc::Rc, sync::Arc};
+use x11rb::protocol::xproto::EventMask;
 
 #[cfg(feature = "x11rb-client")]
 use crate::client::{
@@ -270,7 +271,7 @@ impl<C: HasConnection> X11rbServer<C> {
                     self.conn().send_event(
                         false,
                         client_win,
-                        0u32,
+                        EventMask::NO_EVENT,
                         ClientMessageEvent {
                             format: 32,
                             type_: self.atoms.XIM_XCONNECT,
@@ -342,7 +343,8 @@ impl<C: HasConnection> X11rbServer<C> {
             req.target,
             data.as_bytes(),
         )?;
-        self.conn().send_event(false, req.requestor, 0u32, e)?;
+        self.conn()
+            .send_event(false, req.requestor, EventMask::NO_EVENT, e)?;
         self.conn().flush()?;
 
         Ok(())
@@ -589,7 +591,7 @@ impl<C: HasConnection> X11rbClient<C> {
         self.conn().send_event(
             false,
             self.server_owner_window,
-            0u32,
+            EventMask::NO_EVENT,
             ClientMessageEvent {
                 data: [self.client_window, 0, 0, 0, 0].into(),
                 format: 32,
@@ -643,7 +645,7 @@ impl<C: HasConnection> ClientCore for X11rbClient<C> {
             root_y: xev.root_y,
             event_x: xev.event_x,
             event_y: xev.event_y,
-            state: xev.state,
+            state: xev.state.into(),
             same_screen: xev.same_screen,
         }
     }
@@ -693,7 +695,7 @@ fn send_req_impl<C: HasConnection, E: From<ConnectionError> + From<ReplyError>>(
         c.conn().send_event(
             false,
             target,
-            0u32,
+            EventMask::NO_EVENT,
             ClientMessageEvent {
                 response_type: CLIENT_MESSAGE_EVENT,
                 data: buf.into(),
@@ -722,7 +724,7 @@ fn send_req_impl<C: HasConnection, E: From<ConnectionError> + From<ReplyError>>(
         c.conn().send_event(
             false,
             target,
-            0u32,
+            EventMask::NO_EVENT,
             ClientMessageEvent {
                 data: [buf.len() as u32, prop, 0, 0, 0].into(),
                 format: 32,
@@ -752,7 +754,7 @@ fn deserialize_event_impl(xev: &xim_parser::XEvent) -> KeyPressEvent {
         root_y: xev.root_y,
         event_x: xev.event_x,
         event_y: xev.event_y,
-        state: xev.state,
+        state: xev.state.into(),
         same_screen: xev.same_screen,
     }
 }

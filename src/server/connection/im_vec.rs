@@ -1,6 +1,6 @@
 use crate::AHashMap;
-use hashbrown::hash_map::Entry;
 use core::num::NonZeroU16;
+use hashbrown::hash_map::Entry;
 
 pub struct ImVec<T> {
     next: NonZeroU16,

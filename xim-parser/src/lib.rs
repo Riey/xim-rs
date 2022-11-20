@@ -27,9 +27,9 @@ pub fn write_to_vec(f: impl XimWrite) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use crate::{parser::*, write_to_vec};
-    use pretty_assertions::assert_eq;
-    use alloc::vec::Vec;
     use alloc::vec;
+    use alloc::vec::Vec;
+    use pretty_assertions::assert_eq;
 
     #[cfg(target_endian = "little")]
     #[test]

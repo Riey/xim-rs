@@ -63,3 +63,6 @@ pretty_env_logger = "0.4.0"
 [[bench]]
 name = "rw"
 harness = false
+
+[package.metadata.docs.rs]
+all-features = true

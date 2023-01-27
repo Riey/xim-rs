@@ -1,6 +1,13 @@
-//! Currently only support utf8 mode
+//! A parser for the compound text encoding used by the X Input Method protocol.
+//!
+//! Currently only support utf8 mode. This is intended to be used as a building block for
+//! higher level libraries. See the [`xim`] crate for an example.
+//!
+//! [xim]: https://crates.io/crates/xim
 
 #![no_std]
+#![allow(clippy::uninlined_format_args)]
+#![forbid(unsafe_code, future_incompatible)]
 
 extern crate alloc;
 
@@ -43,6 +50,10 @@ impl<'s> CText<'s> {
 
     pub const fn len(self) -> usize {
         self.utf8.len() + UTF8_START.len() + UTF8_END.len()
+    }
+
+    pub const fn is_empty(self) -> bool {
+        self.utf8.is_empty()
     }
 
     #[cfg(feature = "std")]

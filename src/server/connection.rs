@@ -102,7 +102,7 @@ fn set_ic_attrs(ic: &mut InputContext, ic_attributes: Vec<Attribute>) {
 
         match name {
             AttributeName::InputStyle => {
-                if let Some(style) = xim_parser::read(&attr.value).ok() {
+                if let Ok(style) = xim_parser::read(&attr.value) {
                     log::debug!("Style: {:?}", style);
                     ic.input_style = style;
                 }
@@ -616,6 +616,12 @@ impl<T> XimConnection<T> {
 
 pub struct XimConnections<T> {
     pub(crate) connections: AHashMap<u32, XimConnection<T>>,
+}
+
+impl<T> Default for XimConnections<T> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<T> XimConnections<T> {

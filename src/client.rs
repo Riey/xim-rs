@@ -162,7 +162,8 @@ pub fn handle_request<C: ClientCore>(
             data,
         } => match data {
             CommitData::Keysym { keysym: _, .. } => {
-                todo!()
+                log::warn!("Keysym commit is not supported");
+                Ok(())
             }
             CommitData::Chars {
                 commited,
@@ -184,7 +185,10 @@ pub fn handle_request<C: ClientCore>(
 
                 Ok(())
             }
-            _ => todo!(),
+            data => {
+                log::warn!("Unknown commit data: {:?}", data);
+                Ok(())
+            }
         },
         Request::Sync {
             input_method_id,
@@ -373,7 +377,7 @@ where
         flag: ForwardEventFlag,
         xev: &Self::XEvent,
     ) -> Result<(), ClientError> {
-        let ev = self.serialize_event(&xev);
+        let ev = self.serialize_event(xev);
         self.send_req(Request::ForwardEvent {
             input_method_id,
             input_context_id,

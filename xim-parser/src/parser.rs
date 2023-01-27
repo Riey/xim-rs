@@ -362,7 +362,7 @@ impl XimWrite for CommitData {
                 let flag = if *syncronous { 3u16 } else { 2u16 };
                 flag.write(writer);
                 (commited.len() as u16).write(writer);
-                writer.write(commited);
+                writer.write(&commited);
                 writer.write_pad4();
             }
             Self::Keysym { keysym, syncronous } => {
@@ -381,7 +381,7 @@ impl XimWrite for CommitData {
                 0u16.write(writer);
                 keysym.write(writer);
                 (commited.len() as u16).write(writer);
-                writer.write(commited);
+                writer.write(&commited);
                 writer.write_pad4();
             }
         }
@@ -1603,7 +1603,7 @@ impl Request {
             Request::ConnectReply { .. } => "ConnectReply",
             Request::CreateIc { .. } => "CreateIc",
             Request::CreateIcReply { .. } => "CreateIcReply",
-            Request::DestroyIc { .. } => "destroyIc",
+            Request::DestroyIc { .. } => "DestroyIc",
             Request::DestroyIcReply { .. } => "DestroyIcReply",
             Request::Disconnect { .. } => "Disconnect",
             Request::DisconnectReply { .. } => "DisconnectReply",
@@ -2502,7 +2502,7 @@ impl XimWrite for Request {
                 chg_length.write(writer);
                 status.write(writer);
                 (preedit_string.len() as u16).write(writer);
-                writer.write(preedit_string);
+                writer.write(&preedit_string);
                 writer.write_pad4();
                 ((feedbacks.iter().map(|e| e.size()).sum::<usize>() + 2 + 2 - 2 - 2) as u16)
                     .write(writer);
@@ -2618,7 +2618,7 @@ impl XimWrite for Request {
                 input_method_id.write(writer);
                 input_context_id.write(writer);
                 (preedit_string.len() as u16).write(writer);
-                writer.write(preedit_string);
+                writer.write(&preedit_string);
                 writer.write_pad4();
             }
             Request::SetEventMask {

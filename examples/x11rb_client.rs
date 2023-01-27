@@ -37,8 +37,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     log::info!("Start event loop");
 
-    let mut handler = ExampleHandler::default();
-    handler.window = window;
+    let mut handler = ExampleHandler {
+        window,
+        ..ExampleHandler::default()
+    };
 
     loop {
         let e = conn.wait_for_event()?;

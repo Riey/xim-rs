@@ -185,8 +185,8 @@ pub fn handle_request<C: ClientCore>(
 
                 Ok(())
             }
-            data => {
-                log::warn!("Unknown commit data: {:?}", data);
+            CommitData::Both { .. } => {
+                log::warn!("Both commit data is not supported");
                 Ok(())
             }
         },

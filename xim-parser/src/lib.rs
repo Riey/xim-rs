@@ -1,3 +1,12 @@
+//! A parser for reading and writing the X Input Method protocol.
+//!
+//! This is intended to be used as a building block for higher level libraries. See the
+//! [`xim`] crate for an example.
+//!
+//! [`xim`]: https://crates.io/crates/xim
+
+#![allow(clippy::uninlined_format_args)]
+#![forbid(unsafe_code, future_incompatible)]
 #![no_std]
 
 extern crate alloc;
@@ -203,7 +212,21 @@ mod tests {
             input_context_id: 0,
             flag: ForwardEventFlag::empty(),
             serial_number: 0,
-            xev: unsafe { std::mem::zeroed() },
+            xev: XEvent {
+                response_type: 0,
+                detail: 0,
+                sequence: 0,
+                time: 0,
+                root: 0,
+                event: 0,
+                child: 0,
+                root_x: 0,
+                root_y: 0,
+                event_x: 0,
+                event_y: 0,
+                state: 0,
+                same_screen: false,
+            },
         };
         assert_eq!(req.size(), 4 + 8 + 32);
 

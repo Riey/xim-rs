@@ -33,8 +33,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         log::info!("Start event loop");
 
-        let mut handler = ExampleHandler::default();
-        handler.window = window as u32;
+        let mut handler = ExampleHandler {
+            window: window as _,
+            ..ExampleHandler::default()
+        };
 
         (xlib.XSelectInput)(display, window, xlib::KeyPressMask | xlib::KeyReleaseMask);
 

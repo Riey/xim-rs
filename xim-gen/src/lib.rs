@@ -1,3 +1,7 @@
+//! The code generator used to create the `xim_parser` crate.
+
+#![allow(clippy::uninlined_format_args)]
+
 use crate::format_type::Field;
 use convert_case::{Case, Casing};
 use serde::Deserialize;
@@ -20,7 +24,7 @@ impl EnumFormat {
     pub fn write(&self, name: &str, out: &mut impl Write) -> io::Result<()> {
         // reorder variants for variant value
         let mut variants = self.variants.iter().collect::<Vec<_>>();
-        variants.sort_unstable_by(|l, r| l.1.cmp(&r.1));
+        variants.sort_unstable_by(|l, r| l.1.cmp(r.1));
 
         if self.bitflag {
             writeln!(out, "bitflags::bitflags! {{")?;

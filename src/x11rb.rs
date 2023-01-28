@@ -1,3 +1,10 @@
+//! Provides an implementation of XIM using [`x11rb`] as a transport.
+//!
+//! Wrap your `Connection` in an [`X11rbClient`] or [`X11rbServer`] and use it as a
+//! client or server.
+//!
+//! [`x11rb`]: https://crates.io/crates/x11rb
+
 use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -719,7 +726,7 @@ fn send_req_impl<C: HasConnection, E: From<ConnectionError> + From<ReplyError>>(
             AtomEnum::STRING,
             8,
             buf.len() as u32,
-            &buf,
+            buf,
         )?;
         c.conn().send_event(
             false,

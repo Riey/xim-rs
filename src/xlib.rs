@@ -1,3 +1,8 @@
+//! Provides a wrapper around Xlib (through the [`x11-dl`] crate) that allows to use Xlib as a
+//! client for XIM.
+//!
+//! Note that it is generally discouraged to use Xlib in the modern era.
+
 use crate::AHashMap;
 use alloc::vec::Vec;
 use std::ffi::CStr;
@@ -133,8 +138,11 @@ pub struct XlibClient<X: XlibRef> {
 }
 
 impl<X: XlibRef> XlibClient<X> {
+    /// Initialize a new `XlibClient` from an Xlib connection.
+    ///
     /// # Safety
-    /// display must avaliable
+    ///
+    /// The `display` pointer must be a valid Xlib display.
     pub unsafe fn init(
         x: X,
         display: *mut xlib::Display,
@@ -241,8 +249,11 @@ impl<X: XlibRef> XlibClient<X> {
         }
     }
 
+    /// Filter an event and call the handler if it is relevant.
+    ///
     /// # Safety
-    /// e must have valid format
+    ///
+    /// The event `e` must be a valid Xlib event.
     pub unsafe fn filter_event(
         &mut self,
         e: &xlib::XEvent,

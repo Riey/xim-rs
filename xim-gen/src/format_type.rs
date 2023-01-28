@@ -172,7 +172,7 @@ impl<'de> Deserialize<'de> for Field {
     {
         let text = String::deserialize(deserializer)?;
         let pos = text
-            .find(" ")
+            .find(' ')
             .ok_or_else(|| D::Error::custom("Can't parse field"))?;
         let (name, left) = text.split_at(pos);
 
@@ -199,7 +199,7 @@ impl std::str::FromStr for FormatType {
             if left.chars().next().unwrap().is_numeric() {
                 let (num, new_left) = left.split_at(2);
                 left = new_left;
-                let num = num.parse::<usize>().or_else(|_| Err("Invalid number"))?;
+                let num = num.parse::<usize>().map_err(|_| "Invalid number")?;
                 prefix = num / 10;
                 len = num % 10;
             }
@@ -209,7 +209,7 @@ impl std::str::FromStr for FormatType {
             let (n, left) = left.split_at(1);
             Ok(Self::Append(
                 Box::new(left.parse()?),
-                n.parse().or_else(|_| Err("@append need number!"))?,
+                n.parse().map_err(|_| "@append need number!")?,
             ))
         } else if s.starts_with("xstring") {
             Ok(Self::XString)
@@ -228,12 +228,10 @@ impl std::str::FromStr for FormatType {
                 len: 2,
                 between_unused: 0,
             })
+        } else if s.starts_with('@') {
+            Err("Invalid format command")
         } else {
-            if s.starts_with("@") {
-                Err("Invalid format command")
-            } else {
-                Ok(Self::Normal(s.into()))
-            }
+            Ok(Self::Normal(s.into()))
         }
     }
 }

@@ -1,3 +1,4 @@
+#[allow(clippy::uninlined_format_args)]
 fn dump(s: &str) {
     let b = xim_ctext::utf8_to_compound_text(s);
 
@@ -7,7 +8,7 @@ fn dump(s: &str) {
         print!("{:02}/{:02}({:2X}), ", b / 16, b % 16, b);
     }
 
-    println!("");
+    println!();
 }
 
 fn main() {

@@ -27,4 +27,31 @@ jobs:
       run: cargo build --verbose --all --all-features
     - name: Run tests
       run: cargo test --verbose --all --all-features
+  
+  msrv:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        rust: ["1.61.0"]
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Install Rust
+      run: |
+        rustup toolchain install ${{ matrix.rust }}
+        rustup default ${{ matrix.rust }}
+    - name: Cargo Target Cache
+      uses: actions/cache@v3
+      with:
+        path: target
+        key: ${{ runner.os }}-cargo-target-${{ hashFiles('**/Cargo.toml') }}-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-target-${{ hashFiles('**/Cargo.toml') }}
+          ${{ runner.os }}-cargo-target
+
+    - name: Build
+      run: cargo build --verbose --all --all-features
+    
+  
 

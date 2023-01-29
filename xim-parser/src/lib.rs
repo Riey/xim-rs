@@ -5,7 +5,7 @@
 //!
 //! [`xim`]: https://crates.io/crates/xim
 
-#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::uninlined_format_args, clippy::needless_borrow)]
 #![forbid(unsafe_code, future_incompatible)]
 #![no_std]
 

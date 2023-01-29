@@ -3,8 +3,8 @@ mod attribute_builder;
 pub use self::attribute_builder::AttributeBuilder;
 use crate::AHashMap;
 use xim_parser::{
-    Attr, Attribute, AttributeName, CommitData, Extension, Feedback, ForwardEventFlag,
-    PreeditDrawStatus, Request,
+    Attr, Attribute, AttributeName, CaretDirection, CaretStyle, CommitData, Extension, Feedback,
+    ForwardEventFlag, PreeditDrawStatus, Request,
 };
 
 use alloc::string::String;
@@ -231,6 +231,30 @@ pub fn handle_request<C: ClientCore>(
                 &preedit_string,
                 feedbacks,
             )
+        }
+        Request::PreeditCaret {
+            input_method_id,
+            input_context_id,
+            mut position,
+            direction,
+            style,
+        } => {
+            // Handle the request.
+            handler.handle_preedit_caret(
+                client,
+                input_method_id,
+                input_context_id,
+                &mut position,
+                direction,
+                style,
+            )?;
+
+            // Send the reply.
+            client.send_req(Request::PreeditCaretReply {
+                input_method_id,
+                input_context_id,
+                position,
+            })
         }
         _ => {
             log::warn!("Unknown request {:?}", req);
@@ -503,6 +527,27 @@ pub trait ClientHandler<C: Client> {
         preedit_string: &str,
         feedbacks: Vec<Feedback>,
     ) -> Result<(), ClientError>;
+    fn handle_preedit_caret(
+        &mut self,
+        client: &mut C,
+        input_method_id: u16,
+        input_context_id: u16,
+        position: &mut i32,
+        direction: CaretDirection,
+        style: CaretStyle,
+    ) -> Result<(), ClientError> {
+        let _ = (
+            client,
+            input_method_id,
+            input_context_id,
+            position,
+            direction,
+            style,
+        );
+
+        // Returning this here avoids a breaking change.
+        Ok(())
+    }
     fn handle_preedit_done(
         &mut self,
         client: &mut C,

@@ -9,7 +9,7 @@ members = [
 [package]
 name = "xim"
 description = "XIM protocol parser, handler"
-version = "0.2.2"
+version = "0.2.3"
 authors = ["Riey <creeper844@gmail.com>"]
 repository = "https://github.com/Riey/xim-rs"
 edition = "2018"
@@ -21,9 +21,6 @@ default = ["std"]
 
 bootstrap-parser = ["xim-parser/bootstrap"]
 
-client = []
-server = []
-
 std = ["xim-parser/std", "xim-ctext/std", "ahash/std"]
 
 x11rb-client = ["client", "x11rb", "std"]
@@ -31,6 +28,11 @@ xlib-client = ["client", "x11-dl", "std"]
 
 x11rb-server = ["server", "x11rb", "std"]
 x11rb-xcb = ["x11rb/allow-unsafe-code", "std"]
+
+# only for internal usage
+
+client = []
+server = []
 
 [dependencies]
 xim-parser = { path = "./xim-parser", version = "0.2.0", default-features = false }
@@ -66,4 +68,4 @@ name = "rw"
 harness = false
 
 [package.metadata.docs.rs]
-all-features = true
+features = ["x11rb-client", "x11rb-server", "x11rb-xcb", "xlib-client"]

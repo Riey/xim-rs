@@ -45,14 +45,6 @@ impl<C: Client> ClientHandler<C> for ExampleHandler {
         client.create_ic(input_method_id, ic_attributes)
     }
 
-    fn handle_query_extension(
-        &mut self,
-        _client: &mut C,
-        _extensions: &[xim_parser::Extension],
-    ) -> Result<(), ClientError> {
-        Ok(())
-    }
-
     fn handle_create_ic(
         &mut self,
         _client: &mut C,
@@ -92,26 +84,6 @@ impl<C: Client> ClientHandler<C> for ExampleHandler {
         _input_context_id: u16,
     ) -> Result<(), ClientError> {
         client.close(input_method_id)
-    }
-
-    fn handle_forward_event(
-        &mut self,
-        _client: &mut C,
-        _input_method_id: u16,
-        _input_context_id: u16,
-        _flag: xim_parser::ForwardEventFlag,
-        _xev: C::XEvent,
-    ) -> Result<(), ClientError> {
-        Ok(())
-    }
-
-    fn handle_set_ic_values(
-        &mut self,
-        _client: &mut C,
-        _input_method_id: u16,
-        _input_context_id: u16,
-    ) -> Result<(), ClientError> {
-        Ok(())
     }
 
     fn handle_set_event_mask(

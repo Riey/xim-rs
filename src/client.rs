@@ -452,47 +452,66 @@ where
     }
 }
 
+#[allow(unused_variables)]
 pub trait ClientHandler<C: Client> {
-    fn handle_connect(&mut self, client: &mut C) -> Result<(), ClientError>;
-    fn handle_disconnect(&mut self);
-    fn handle_open(&mut self, client: &mut C, input_method_id: u16) -> Result<(), ClientError>;
-    fn handle_close(&mut self, client: &mut C, input_method_id: u16) -> Result<(), ClientError>;
+    fn handle_connect(&mut self, client: &mut C) -> Result<(), ClientError> {
+        Ok(())
+    }
+    fn handle_disconnect(&mut self) {}
+    fn handle_open(&mut self, client: &mut C, input_method_id: u16) -> Result<(), ClientError> {
+        Ok(())
+    }
+    fn handle_close(&mut self, client: &mut C, input_method_id: u16) -> Result<(), ClientError> {
+        Ok(())
+    }
     fn handle_query_extension(
         &mut self,
         client: &mut C,
         extensions: &[Extension],
-    ) -> Result<(), ClientError>;
+    ) -> Result<(), ClientError> {
+        Ok(())
+    }
     fn handle_get_im_values(
         &mut self,
         client: &mut C,
         input_method_id: u16,
         attributes: AHashMap<AttributeName, Vec<u8>>,
-    ) -> Result<(), ClientError>;
+    ) -> Result<(), ClientError> {
+        Ok(())
+    }
     fn handle_set_ic_values(
         &mut self,
         client: &mut C,
         input_method_id: u16,
         input_context_id: u16,
-    ) -> Result<(), ClientError>;
+    ) -> Result<(), ClientError> {
+        Ok(())
+    }
     fn handle_create_ic(
         &mut self,
         client: &mut C,
         input_method_id: u16,
         input_context_id: u16,
-    ) -> Result<(), ClientError>;
+    ) -> Result<(), ClientError> {
+        Ok(())
+    }
     fn handle_destroy_ic(
         &mut self,
         client: &mut C,
         input_method_id: u16,
         input_context_id: u16,
-    ) -> Result<(), ClientError>;
+    ) -> Result<(), ClientError> {
+        Ok(())
+    }
     fn handle_commit(
         &mut self,
         client: &mut C,
         input_method_id: u16,
         input_context_id: u16,
         text: &str,
-    ) -> Result<(), ClientError>;
+    ) -> Result<(), ClientError> {
+        Ok(())
+    }
     fn handle_forward_event(
         &mut self,
         client: &mut C,
@@ -500,7 +519,9 @@ pub trait ClientHandler<C: Client> {
         input_context_id: u16,
         flag: ForwardEventFlag,
         xev: C::XEvent,
-    ) -> Result<(), ClientError>;
+    ) -> Result<(), ClientError> {
+        Ok(())
+    }
     fn handle_set_event_mask(
         &mut self,
         client: &mut C,
@@ -508,13 +529,17 @@ pub trait ClientHandler<C: Client> {
         input_context_id: u16,
         forward_event_mask: u32,
         synchronous_event_mask: u32,
-    ) -> Result<(), ClientError>;
+    ) -> Result<(), ClientError> {
+        Ok(())
+    }
     fn handle_preedit_start(
         &mut self,
         client: &mut C,
         input_method_id: u16,
         input_context_id: u16,
-    ) -> Result<(), ClientError>;
+    ) -> Result<(), ClientError> {
+        Ok(())
+    }
     fn handle_preedit_draw(
         &mut self,
         client: &mut C,
@@ -526,7 +551,9 @@ pub trait ClientHandler<C: Client> {
         status: PreeditDrawStatus,
         preedit_string: &str,
         feedbacks: Vec<Feedback>,
-    ) -> Result<(), ClientError>;
+    ) -> Result<(), ClientError> {
+        Ok(())
+    }
     fn handle_preedit_caret(
         &mut self,
         client: &mut C,
@@ -536,16 +563,6 @@ pub trait ClientHandler<C: Client> {
         direction: CaretDirection,
         style: CaretStyle,
     ) -> Result<(), ClientError> {
-        let _ = (
-            client,
-            input_method_id,
-            input_context_id,
-            position,
-            direction,
-            style,
-        );
-
-        // Returning this here avoids a breaking change.
         Ok(())
     }
     fn handle_preedit_done(
@@ -553,5 +570,7 @@ pub trait ClientHandler<C: Client> {
         client: &mut C,
         input_method_id: u16,
         input_context_id: u16,
-    ) -> Result<(), ClientError>;
+    ) -> Result<(), ClientError> {
+        Ok(())
+    }
 }

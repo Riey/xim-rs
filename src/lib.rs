@@ -54,8 +54,7 @@ pub use crate::server::{
 pub type AHashMap<K, V> = hashbrown::HashMap<K, V, ahash::RandomState>;
 pub use xim_parser::*;
 
-#[allow(non_snake_case)]
-#[derive(Copy, Clone, Debug)]
+#[allow(non_snake_case, dead_code)]
 struct Atoms<Atom> {
     XIM_SERVERS: Atom,
     LOCALES: Atom,

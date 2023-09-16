@@ -14,7 +14,7 @@ std = []
 bootstrap = ["xim-gen"]
 
 [dependencies]
-bitflags = { version = "1.3.2", default-features = false }
+bitflags = { version = "2.4.0", default-features = false }
 
 [dev-dependencies]
 xim-ctext = { path = "../xim-ctext", version = "0.3.0" }

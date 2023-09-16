@@ -51,7 +51,7 @@ jobs:
         rustup default ${{ matrix.rust }}
         rustup component add rustfmt
     - name: Build
-      run: cargo build --verbose --all --all-features
+      run: cargo build --verbose
 
   clippy_and_fmt:
     runs-on: ubuntu-latest

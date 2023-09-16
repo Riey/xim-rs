@@ -28,7 +28,7 @@ impl EnumFormat {
 
         if self.bitflag {
             writeln!(out, "bitflags::bitflags! {{")?;
-
+            writeln!(out, "#[derive(Clone, Copy, Debug, Eq, PartialEq)]")?;
             writeln!(out, "pub struct {}: {} {{", name, self.repr)?;
             for (name, variant) in variants.iter() {
                 writeln!(
@@ -406,7 +406,7 @@ pub fn write_format(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let format: XimFormat = serde_yaml::from_str(format_str)?;
 
-    let mut file = std::fs::File::create(out_path.as_ref())?;
+    let mut file = std::io::BufWriter::new(std::fs::File::create(out_path.as_ref())?);
 
     file.write_all(include_bytes!("../res/snippet.rs"))?;
     format.write(&mut file)?;

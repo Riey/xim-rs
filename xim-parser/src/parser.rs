@@ -662,6 +662,7 @@ impl XimWrite for ErrorCode {
     }
 }
 bitflags::bitflags! {
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ErrorFlag: u16 {
 const INPUT_METHOD_ID_VALID = 1;
 const INPUT_CONTEXT_ID_VALID = 2;
@@ -720,6 +721,7 @@ impl XimWrite for Feedback {
     }
 }
 bitflags::bitflags! {
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ForwardEventFlag: u16 {
 const SYNCHRONOUS = 1;
 const REQUEST_FILTERING = 2;
@@ -765,6 +767,7 @@ impl XimWrite for HotKeyState {
     }
 }
 bitflags::bitflags! {
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct InputStyle: u32 {
 const PREEDIT_AREA = 1;
 const PREEDIT_CALLBACKS = 2;
@@ -792,6 +795,7 @@ impl XimWrite for InputStyle {
     }
 }
 bitflags::bitflags! {
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct PreeditDrawStatus: u32 {
 const NO_STRING = 1;
 const NO_FEEDBACK = 2;
@@ -812,6 +816,7 @@ impl XimWrite for PreeditDrawStatus {
     }
 }
 bitflags::bitflags! {
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct PreeditStateFlag: u32 {
 const UNKNOWN = 0;
 const ENABLE = 1;

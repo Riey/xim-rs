@@ -46,7 +46,7 @@ ahash = { version = "0.8", default-features = false, features = ["compile-time-r
 
 x11rb = { version = "0.12", optional = true }
 x11-dl = { version = "2.18.5", optional = true }
-hashbrown = { version = "0.13", default-features = false }
+hashbrown = { version = "0.14.0", default-features = false }
 
 [[example]]
 name = "x11rb_client"
@@ -64,8 +64,8 @@ path = "examples/xlib_client.rs"
 required-features = ["xlib-client"]
 
 [dev-dependencies]
-criterion = "0.4"
-pretty_env_logger = "0.4.0"
+criterion = "0.5.1"
+pretty_env_logger = "0.5.0"
 
 [[bench]]
 name = "rw"

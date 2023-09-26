@@ -8,7 +8,7 @@ You can see xim server example in my [IME](https://github.com/Riey/kime/tree/dev
 
 ## Minimum Safe Rust Version
 
-The current Minimum Safe Rust Version in **1.61**. The current **tentative** policy is that any change in the MSRV will be accompanied by a minor version bump.
+The current Minimum Safe Rust Version in **1.63**. The current **tentative** policy is that any change in the MSRV will be accompanied by a minor version bump.
 
 ## project structure
 

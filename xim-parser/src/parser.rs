@@ -682,39 +682,29 @@ impl XimWrite for ErrorFlag {
         core::mem::size_of::<u16>()
     }
 }
+bitflags::bitflags! {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-#[repr(u32)]
-pub enum Feedback {
-    Reverse = 1,
-    Underline = 2,
-    Highlight = 4,
-    Primary = 8,
-    Secondary = 16,
-    Tertiary = 32,
-    VisibleToForward = 64,
-    VisibleToBackward = 128,
-    VisibleCenter = 256,
+pub struct Feedback: u32 {
+const REVERSE = 1;
+const UNDERLINE = 2;
+const HIGHLIGHT = 4;
+const PRIMARY = 8;
+const SECONDARY = 16;
+const TERTIARY = 32;
+const VISIBLE_TO_FORWARD = 64;
+const VISIBLE_TO_BACKWARD = 128;
+const VISIBLE_CENTER = 256;
+}
 }
 impl XimRead for Feedback {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
         let repr = u32::read(reader)?;
-        match repr {
-            1 => Ok(Self::Reverse),
-            2 => Ok(Self::Underline),
-            4 => Ok(Self::Highlight),
-            8 => Ok(Self::Primary),
-            16 => Ok(Self::Secondary),
-            32 => Ok(Self::Tertiary),
-            64 => Ok(Self::VisibleToForward),
-            128 => Ok(Self::VisibleToBackward),
-            256 => Ok(Self::VisibleCenter),
-            _ => Err(reader.invalid_data("Feedback", repr)),
-        }
+        Self::from_bits(repr).ok_or_else(|| reader.invalid_data("Feedback", repr))
     }
 }
 impl XimWrite for Feedback {
     fn write(&self, writer: &mut Writer) {
-        (*self as u32).write(writer);
+        self.bits().write(writer);
     }
     fn size(&self) -> usize {
         core::mem::size_of::<u32>()

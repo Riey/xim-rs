@@ -100,8 +100,9 @@ impl fmt::Display for DecodeError {
 
 macro_rules! decode {
     ($decoder:expr, $out:expr, $bytes:expr, $last:expr) => {
+        let mut _current_bytes: &[u8] = $bytes;
         loop {
-            let (ret, _, _) = $decoder.decode_to_string($bytes, $out, $last);
+            let (ret, nread, _) = $decoder.decode_to_string(_current_bytes, $out, $last);
 
             match ret {
                 encoding_rs::CoderResult::InputEmpty => break,
@@ -111,6 +112,7 @@ macro_rules! decode {
                             .max_utf8_buffer_length($bytes.len())
                             .unwrap_or_default(),
                     );
+                    _current_bytes = &_current_bytes[nread..];
                 }
             }
         }
@@ -271,7 +273,7 @@ mod tests {
     }
 
     #[test]
-    fn iso_2011_jp() {
+    fn iso_2022_jp() {
         const UTF8: &str = "東京";
         const COMP: &[u8] = &[27, 36, 40, 66, 69, 108, 53, 126];
         assert_eq!(crate::compound_text_to_utf8(COMP).unwrap(), UTF8);
@@ -316,6 +318,15 @@ mod tests {
     fn iso_8859_2() {
         const UTF8: &str = "ĄŁĽŚŠŤ";
         const COMP: &[u8] = &[0x1b, 0x2d, 0x42, 0xa1, 0xa3, 0xa5, 0xa6, 0xa9, 0xab];
+        assert_eq!(crate::compound_text_to_utf8(COMP).unwrap(), UTF8);
+    }
+
+    #[test]
+    fn iso_2022_jp_long() {
+        const UTF8: &str = "知ってるつもり";
+        const COMP: &[u8] = &[
+            27, 36, 40, 66, 67, 78, 36, 67, 36, 70, 36, 107, 36, 68, 36, 98, 36, 106, 27, 40, 66,
+        ];
         assert_eq!(crate::compound_text_to_utf8(COMP).unwrap(), UTF8);
     }
 }

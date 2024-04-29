@@ -31,6 +31,7 @@ Enums:
 
   Feedback:
     repr: u32
+    bitflag: true
     variants:
       Reverse: 0x1
       Underline: 0x2

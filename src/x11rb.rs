@@ -578,11 +578,15 @@ impl<C: HasConnection> X11rbClient<C> {
     ) -> Result<(), ClientError> {
         if msg.format == 32 {
             let [length, atom, ..] = msg.data.as_data32();
-            let data = self
+            let reply = self
                 .conn()
                 .get_property(true, msg.window, atom, AtomEnum::ANY, 0, length)?
-                .reply()?
-                .value;
+                .reply()?;
+            // handle fcitx4 occasionally sending empty reply
+            if reply.value_len == 0 {
+                return Err(ClientError::InvalidReply);
+            }
+            let data = reply.value;
             let req = xim_parser::read(&data)?;
             client_handle_request(self, handler, req)?;
         } else if msg.format == 8 {

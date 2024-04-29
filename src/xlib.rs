@@ -386,6 +386,11 @@ impl<X: XlibRef> XlibClient<X> {
                 let _bytes = bytes.assume_init();
                 let prop = prop.assume_init();
 
+                // handle fcitx4 occasionally sending empty reply
+                if _bytes == 0 {
+                    return Err(ClientError::InvalidReply);
+                }
+
                 let data = std::slice::from_raw_parts(prop, items as usize);
 
                 let req = xim_parser::read(data)?;

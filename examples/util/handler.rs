@@ -11,9 +11,16 @@ pub struct ExampleHandler {
     pub window: u32,
 }
 
-impl<C: Client<XEvent = x11rb::protocol::xproto::KeyPressEvent>> ClientHandler<C>
-    for ExampleHandler
-{
+#[cfg(all(feature = "x11rb-client", not(feature = "xlib-client")))]
+trait ClientAlias = Client<XEvent = x11rb::protocol::xproto::KeyPressEvent>;
+
+#[cfg(all(feature = "xlib-client", not(feature = "x11rb-client")))]
+trait ClientAlias = Client<XEvent = x11_dl::xlib::XKeyPressedEvent>;
+
+#[cfg(all(feature = "xlib-client", feature = "x11rb-client"))]
+trait ClientAlias = Client;
+
+impl<C: ClientAlias> ClientHandler<C> for ExampleHandler {
     fn handle_connect(&mut self, client: &mut C) -> Result<(), ClientError> {
         log::trace!("Connected");
         client.open("en_US")
@@ -67,7 +74,17 @@ impl<C: Client<XEvent = x11rb::protocol::xproto::KeyPressEvent>> ClientHandler<C
         flag: xim::ForwardEventFlag,
         xev: C::XEvent,
     ) -> Result<(), ClientError> {
-        log::info!("Handle forward event {:?}, {}", flag, xev.detail);
+        #[cfg(all(feature = "x11rb-client", not(feature = "xlib-client")))]
+        let keycode = xev.detail;
+        #[cfg(all(feature = "xlib-client", not(feature = "x11rb-client")))]
+        let keycode = xev.keycode;
+
+        // When both feature are enabled, emit flag only.
+        #[cfg(all(feature = "xlib-client", feature = "x11rb-client"))]
+        log::info!("Handle forward event {:?}", flag);
+
+        #[cfg(not(all(feature = "xlib-client", feature = "x11rb-client")))]
+        log::info!("Handle forward event {:?}, {}", flag, keycode);
         Ok(())
     }
 

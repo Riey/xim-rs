@@ -1,3 +1,5 @@
+#![feature(trait_alias)]
+
 use std::{mem::MaybeUninit, ptr};
 use x11_dl::xlib;
 use xim::{xlib::XlibClient, Client};

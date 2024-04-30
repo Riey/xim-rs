@@ -1,3 +1,5 @@
+#![feature(trait_alias)]
+
 use x11rb::connection::Connection;
 use x11rb::protocol::{xproto::*, Event};
 use xim::{x11rb::X11rbClient, Client};

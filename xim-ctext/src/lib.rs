@@ -118,47 +118,144 @@ macro_rules! decode {
 }
 
 pub fn compound_text_to_utf8(bytes: &[u8]) -> Result<String, DecodeError> {
-    let mut iter = bytes.iter();
+    let split: Vec<&[u8]> = bytes.split(|&b| b == 0x1b).collect();
 
-    match iter.next() {
-        None => Ok(String::new()),
-        Some(0x1B) => {
-            match (iter.next(), iter.next()) {
-                // UTF-8
-                (Some(0x25), Some(0x47)) => {
-                    let left = iter.as_slice();
-                    Ok(String::from_utf8(left.split_at(left.len() - 3).0.to_vec())?)
-                }
-                // 94N
-                (Some(0x24), Some(0x28)) => match iter.next() {
-                    // JP
-                    Some(0x42) => {
-                        let left = iter.as_slice();
-                        let mut decoder =
-                            encoding_rs::ISO_2022_JP.new_decoder_without_bom_handling();
-                        let mut out = String::new();
+    let mut result = String::new();
 
-                        decode!(decoder, &mut out, &[0x1B, 0x24, 0x42], false);
-                        decode!(decoder, &mut out, left, true);
-
-                        Ok(out)
-                    }
-
-                    // CN
-                    Some(0x41) => Err(DecodeError::UnsupportedEncoding),
-
-                    // KR
-                    Some(0x43) => Err(DecodeError::UnsupportedEncoding),
-
-                    _ => Err(DecodeError::InvalidEncoding),
-                },
-                // Invalid encode
-                _ => Err(DecodeError::InvalidEncoding),
+    for chunk in split {
+        let mut iter = chunk.iter();
+        match (iter.next(), iter.next()) {
+            // UTF-8
+            (Some(0x25), Some(0x47)) => {
+                let left = iter.as_slice().to_vec();
+                match String::from_utf8(left) {
+                    Ok(out) => result.push_str(&out),
+                    Err(e) => return Err(DecodeError::from(e)),
+                };
             }
-        }
-        // unescaped string
-        Some(_) => Ok(String::from_utf8(bytes.to_vec())?),
+            // UTF-8 End
+            (Some(0x25), Some(0x40)) => {}
+            // 94N
+            (Some(0x24), Some(0x28)) => match iter.next() {
+                // JP
+                Some(0x42) => {
+                    let left = iter.as_slice();
+                    let mut decoder = encoding_rs::ISO_2022_JP.new_decoder_without_bom_handling();
+                    let mut out = String::new();
+                    decode!(decoder, &mut out, &[0x1B, 0x24, 0x42], false);
+                    decode!(decoder, &mut out, &left, true);
+
+                    result.push_str(&out);
+                }
+
+                // CN (GB2312)
+                Some(0x41) => {
+                    let left: Vec<u8> = iter.map(|&b| b + 0x80).collect();
+                    let (out, _) = encoding_rs::GBK.decode_without_bom_handling(&left);
+                    result.push_str(&out);
+                }
+
+                // KR (KS C 5601)
+                Some(0x43) => {
+                    let left: Vec<u8> = iter.map(|&b| b + 0x80).collect();
+                    let (out, _) = encoding_rs::EUC_KR.decode_with_bom_removal(&left);
+                    result.push_str(&out);
+                }
+                // Invalid encode
+                _ => return Err(DecodeError::InvalidEncoding),
+            },
+            // ISO-8859-1
+            (Some(0x2d), Some(0x41)) => {
+                let left = iter.as_slice();
+                let out = encoding_rs::mem::decode_latin1(left);
+                result.push_str(&out);
+            }
+            // ISO-8859-2
+            (Some(0x2d), Some(0x42)) => {
+                let left = iter.as_slice();
+                let (out, _) = encoding_rs::ISO_8859_2.decode_without_bom_handling(left);
+                result.push_str(&out);
+            }
+            // ISO-8859-3
+            (Some(0x2d), Some(0x43)) => {
+                let left = iter.as_slice();
+                let (out, _) = encoding_rs::ISO_8859_3.decode_without_bom_handling(left);
+                result.push_str(&out);
+            }
+            // ISO-8859-4
+            (Some(0x2d), Some(0x44)) => {
+                let left = iter.as_slice();
+                let (out, _) = encoding_rs::ISO_8859_4.decode_without_bom_handling(left);
+                result.push_str(&out);
+            }
+            // ISO-8859-7
+            (Some(0x2d), Some(0x46)) => {
+                let left = iter.as_slice();
+                let (out, _) = encoding_rs::ISO_8859_7.decode_without_bom_handling(left);
+                result.push_str(&out);
+            }
+            // ISO-8859-6
+            (Some(0x2d), Some(0x47)) => {
+                let left = iter.as_slice();
+                let (out, _) = encoding_rs::ISO_8859_6.decode_without_bom_handling(left);
+                result.push_str(&out);
+            }
+            // ISO-8859-8
+            (Some(0x2d), Some(0x48)) => {
+                let left = iter.as_slice();
+                let (out, _) = encoding_rs::ISO_8859_8.decode_without_bom_handling(left);
+                result.push_str(&out);
+            }
+            // ISO-8859-5
+            (Some(0x2d), Some(0x4c)) => {
+                let left = iter.as_slice();
+                let (out, _) = encoding_rs::ISO_8859_5.decode_without_bom_handling(left);
+                result.push_str(&out);
+            }
+            // ISO-8859-9
+            (Some(0x2d), Some(0x4d)) => {
+                let left = iter.as_slice();
+                let (out, _) = encoding_rs::WINDOWS_1254.decode_without_bom_handling(left);
+                result.push_str(&out);
+            }
+            // ISO-8859-10
+            (Some(0x2d), Some(0x56)) => {
+                let left = iter.as_slice();
+                let (out, _) = encoding_rs::ISO_8859_10.decode_without_bom_handling(left);
+                result.push_str(&out);
+            }
+            // ISO-8859-13
+            (Some(0x2d), Some(0x59)) => {
+                let left = iter.as_slice();
+                let (out, _) = encoding_rs::ISO_8859_13.decode_without_bom_handling(left);
+                result.push_str(&out);
+            }
+            // ISO-8859-14
+            (Some(0x2d), Some(0x5f)) => {
+                let left = iter.as_slice();
+                let (out, _) = encoding_rs::ISO_8859_14.decode_without_bom_handling(left);
+                result.push_str(&out);
+            }
+            // ISO-8859-15
+            (Some(0x2d), Some(0x62)) => {
+                let left = iter.as_slice();
+                let (out, _) = encoding_rs::ISO_8859_15.decode_without_bom_handling(left);
+                result.push_str(&out);
+            }
+            // ISO-8859-16
+            (Some(0x2d), Some(0x66)) => {
+                let left = iter.as_slice();
+                let (out, _) = encoding_rs::ISO_8859_16.decode_without_bom_handling(left);
+                result.push_str(&out);
+            }
+            // defaults to ISO-8859-1
+            _ => {
+                let out = encoding_rs::mem::decode_latin1(chunk);
+                result.push_str(&out);
+            }
+        };
     }
+    Ok(result)
 }
 
 #[cfg(test)]
@@ -177,6 +274,48 @@ mod tests {
     fn iso_2011_jp() {
         const UTF8: &str = "東京";
         const COMP: &[u8] = &[27, 36, 40, 66, 69, 108, 53, 126];
+        assert_eq!(crate::compound_text_to_utf8(COMP).unwrap(), UTF8);
+    }
+
+    #[test]
+    fn gb2312_cn() {
+        const UTF8: &str = "很高兴认识你";
+        const COMP: &[u8] = &[
+            0x1b, 0x24, 0x28, 0x41, 0x3a, 0x5c, 0x38, 0x5f, 0x50, 0x4b, 0x48, 0x4f, 0x4a, 0x36,
+            0x44, 0x63,
+        ];
+        assert_eq!(crate::compound_text_to_utf8(COMP).unwrap(), UTF8);
+    }
+
+    #[test]
+    fn gb2312_cn_mixed() {
+        const UTF8: &str = "炸哦你";
+        const COMP: &[u8] = &[
+            0x1b, 0x24, 0x28, 0x42, 0x5f, 0x5a, 0x53, 0x28, 0x1b, 0x24, 0x28, 0x41, 0x44, 0x63,
+        ];
+        assert_eq!(crate::compound_text_to_utf8(COMP).unwrap(), UTF8);
+    }
+
+    #[test]
+    fn ks_c_5601() {
+        const UTF8: &str = "넌최고야";
+        const COMP: &[u8] = &[
+            0x1b, 0x24, 0x28, 0x43, 0x33, 0x4d, 0x43, 0x56, 0x30, 0x6d, 0x3e, 0x5f,
+        ];
+        assert_eq!(crate::compound_text_to_utf8(COMP).unwrap(), UTF8);
+    }
+
+    #[test]
+    fn iso_8859_1() {
+        const UTF8: &str = "¡¸ÀÑâó";
+        const COMP: &[u8] = &[0x1b, 0x2d, 0x41, 0xa1, 0xb8, 0xc0, 0xd1, 0xe2, 0xf3];
+        assert_eq!(crate::compound_text_to_utf8(COMP).unwrap(), UTF8);
+    }
+
+    #[test]
+    fn iso_8859_2() {
+        const UTF8: &str = "ĄŁĽŚŠŤ";
+        const COMP: &[u8] = &[0x1b, 0x2d, 0x42, 0xa1, 0xa3, 0xa5, 0xa6, 0xa9, 0xab];
         assert_eq!(crate::compound_text_to_utf8(COMP).unwrap(), UTF8);
     }
 }

@@ -4,8 +4,9 @@ description = "compound text en/decoder"
 version = "0.4.0"
 authors = ["Riey <creeper844@gmail.com>"]
 repository = "https://github.com/Riey/xim-rs"
-edition = "2018"
+edition = "2021"
 license = "MIT"
+rust-version = "1.82"
 
 [dependencies]
 encoding_rs = "0.8.35"

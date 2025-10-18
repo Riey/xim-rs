@@ -4,8 +4,9 @@ description = "XIM protocl parser"
 version = "0.2.2"
 authors = ["Riey <creeper844@gmail.com>"]
 repository = "https://github.com/Riey/xim-rs"
-edition = "2018"
+edition = "2021"
 license = "MIT"
+rust-version = "1.82"
 
 [features]
 default = ["std"]

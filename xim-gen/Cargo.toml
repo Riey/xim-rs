@@ -4,8 +4,9 @@ description = "XIM protocol parser generator"
 version = "0.1.2"
 authors = ["Riey <creeper844@gmail.com>"]
 repository = "https://github.com/Riey/xim-rs"
-edition = "2018"
+edition = "2021"
 license = "MIT"
+rust-version = "1.82"
 
 [dependencies]
 convert_case = "0.8"

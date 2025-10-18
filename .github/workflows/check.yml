@@ -23,6 +23,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-target-${{ hashFiles('**/Cargo.toml') }}
             ${{ runner.os }}-cargo-target
+      - run: sudo apt-get install -y libx11-xcb-dev
       - name: Build
         run: cargo build --verbose --all --all-features
       - name: Run tests

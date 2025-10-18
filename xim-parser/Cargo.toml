@@ -1,12 +1,11 @@
 [package]
 name = "xim-parser"
 description = "XIM protocl parser"
-version = "0.2.1"
+version = "0.2.2"
 authors = ["Riey <creeper844@gmail.com>"]
 repository = "https://github.com/Riey/xim-rs"
 edition = "2018"
 license = "MIT"
-rust-version = "1.61"
 
 [features]
 default = ["std"]
@@ -17,9 +16,8 @@ bootstrap = ["xim-gen"]
 bitflags = { version = "2.4.0", default-features = false }
 
 [dev-dependencies]
-xim-ctext = { path = "../xim-ctext", version = "0.3.0" }
+xim-ctext = { path = "../xim-ctext", version = "0.4.0" }
 pretty_assertions = "1"
 
 [build-dependencies]
 xim-gen = { path = "../xim-gen", optional = true, version = "0.1.0" }
-

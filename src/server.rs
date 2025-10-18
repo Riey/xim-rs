@@ -222,7 +222,7 @@ impl<S: ServerCore> Server for S {
                     chg_length: ic.prev_preedit_length as _,
                     caret: preedit_length as _,
                     preedit_string: xim_ctext::utf8_to_compound_text(s),
-                    feedbacks: vec![Feedback::Underline; preedit_length],
+                    feedbacks: vec![Feedback::UNDERLINE; preedit_length],
                     status: PreeditDrawStatus::empty(),
                 },
             )?;

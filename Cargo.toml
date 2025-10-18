@@ -1,10 +1,5 @@
 [workspace]
-members = [
-    ".",
-    "xim-ctext",
-    "xim-gen",
-    "xim-parser",
-]
+members = [".", "xim-ctext", "xim-gen", "xim-parser"]
 
 [package]
 name = "xim"
@@ -42,11 +37,13 @@ server = []
 xim-parser = { path = "./xim-parser", version = "0.2.0", default-features = false }
 xim-ctext = { path = "./xim-ctext", version = "0.3.0", default-features = false }
 log = { version = "0.4", default-features = false }
-ahash = { version = "0.8", default-features = false, features = ["compile-time-rng"] }
+ahash = { version = "0.8", default-features = false, features = [
+    "compile-time-rng",
+] }
 
 x11rb = { version = "0.13", optional = true }
 x11-dl = { version = "2.18.5", optional = true }
-hashbrown = { version = "0.14.0", default-features = false }
+hashbrown = { version = "0.16.0", default-features = false }
 
 [[example]]
 name = "x11rb_client"

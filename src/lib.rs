@@ -41,7 +41,7 @@ pub mod x11rb;
 pub mod xlib;
 
 #[cfg(feature = "client")]
-pub use crate::client::{Client, ClientError, ClientHandler};
+pub use crate::client::{Client, ClientCore, ClientError, ClientHandler};
 
 #[cfg(feature = "server")]
 pub const ALL_LOCALES: &str = include_str!("./all_locales.txt");

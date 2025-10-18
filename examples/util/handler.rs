@@ -1,6 +1,6 @@
 use std::convert::TryInto;
 
-use xim::{AHashMap, Client, ClientError, ClientHandler};
+use xim::{AHashMap, Client, ClientCore, ClientError, ClientHandler};
 use xim_parser::{AttributeName, InputStyle, Point};
 
 #[derive(Default)]
@@ -11,16 +11,7 @@ pub struct ExampleHandler {
     pub window: u32,
 }
 
-#[cfg(all(feature = "x11rb-client", not(feature = "xlib-client")))]
-trait ClientAlias = Client<XEvent = x11rb::protocol::xproto::KeyPressEvent>;
-
-#[cfg(all(feature = "xlib-client", not(feature = "x11rb-client")))]
-trait ClientAlias = Client<XEvent = x11_dl::xlib::XKeyPressedEvent>;
-
-#[cfg(all(feature = "xlib-client", feature = "x11rb-client"))]
-trait ClientAlias = Client;
-
-impl<C: ClientAlias> ClientHandler<C> for ExampleHandler {
+impl<T, C: Client<XEvent = T> + ClientCore<XEvent = T>> ClientHandler<C> for ExampleHandler {
     fn handle_connect(&mut self, client: &mut C) -> Result<(), ClientError> {
         log::trace!("Connected");
         client.open("en_US")
@@ -68,23 +59,15 @@ impl<C: ClientAlias> ClientHandler<C> for ExampleHandler {
 
     fn handle_forward_event(
         &mut self,
-        _client: &mut C,
+        client: &mut C,
         _input_method_id: u16,
         _input_context_id: u16,
         flag: xim::ForwardEventFlag,
-        xev: C::XEvent,
+        xev: T,
     ) -> Result<(), ClientError> {
-        #[cfg(all(feature = "x11rb-client", not(feature = "xlib-client")))]
-        let keycode = xev.detail;
-        #[cfg(all(feature = "xlib-client", not(feature = "x11rb-client")))]
-        let keycode = xev.keycode;
+        let xev = client.serialize_event(&xev);
+        log::info!("Handle forward event {:?}, {}", flag, xev.detail);
 
-        // When both feature are enabled, emit flag only.
-        #[cfg(all(feature = "xlib-client", feature = "x11rb-client"))]
-        log::info!("Handle forward event {:?}", flag);
-
-        #[cfg(not(all(feature = "xlib-client", feature = "x11rb-client")))]
-        log::info!("Handle forward event {:?}, {}", flag, keycode);
         Ok(())
     }
 

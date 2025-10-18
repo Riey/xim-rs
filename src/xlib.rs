@@ -88,7 +88,7 @@ impl<X: XlibRef> ClientCore for XlibClient<X> {
     }
 }
 
-impl<'a> XlibRef for &'a xlib::Xlib {
+impl XlibRef for &xlib::Xlib {
     fn xlib(&self) -> &xlib::Xlib {
         self
     }

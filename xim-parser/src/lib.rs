@@ -23,12 +23,12 @@ pub use parser::*;
 
 pub fn write_extend_vec(f: impl XimWrite, out: &mut Vec<u8>) {
     let from = out.len();
-    out.extend(core::iter::repeat(0).take(f.size()));
+    out.extend(core::iter::repeat_n(0, f.size()));
     f.write(&mut Writer::new(&mut out[from..]));
 }
 
 pub fn write_to_vec(f: impl XimWrite) -> Vec<u8> {
-    let mut out: Vec<u8> = core::iter::repeat(0).take(f.size()).collect();
+    let mut out: Vec<u8> = core::iter::repeat_n(0, f.size()).collect();
     f.write(&mut Writer::new(&mut out));
     out
 }

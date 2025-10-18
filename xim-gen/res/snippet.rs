@@ -241,7 +241,7 @@ pub trait XimWrite {
     fn size(&self) -> usize;
 }
 
-impl<'a, T> XimWrite for &'a T
+impl<T> XimWrite for &T
 where
     T: XimWrite,
 {

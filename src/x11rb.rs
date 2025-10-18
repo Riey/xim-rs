@@ -119,7 +119,7 @@ impl<C: HasConnection> HasConnection for X11rbServer<C> {
     }
 }
 
-impl<'x, C: HasConnection> HasConnection for &'x C {
+impl<C: HasConnection> HasConnection for &C {
     type Connection = C::Connection;
 
     #[inline(always)]

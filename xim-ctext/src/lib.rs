@@ -1,7 +1,6 @@
 //! A parser for the compound text encoding used by the X Input Method protocol.
 //!
-//! Currently only support utf8 mode. This is intended to be used as a building block for
-//! higher level libraries. See the [`xim`] crate for an example.
+//! This is intended to be used as a building block for higher level libraries. See the [`xim`] crate for an example.
 //!
 //! [xim]: https://crates.io/crates/xim
 

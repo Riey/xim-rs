@@ -120,7 +120,7 @@ macro_rules! decode {
 }
 
 pub fn compound_text_to_utf8(bytes: &[u8]) -> Result<String, DecodeError> {
-    let split: Vec<&[u8]> = bytes.split(|&b| b == 0x1b).collect();
+    let split = bytes.split(|&b| b == 0x1b);
 
     let mut result = String::new();
 
@@ -280,6 +280,15 @@ mod tests {
     }
 
     #[test]
+    fn iso_2022_jp_long() {
+        const UTF8: &str = "知ってるつもり(B";
+        const COMP: &[u8] = &[
+            27, 36, 40, 66, 67, 78, 36, 67, 36, 70, 36, 107, 36, 68, 36, 98, 36, 106, 27, 40, 66,
+        ];
+        assert_eq!(crate::compound_text_to_utf8(COMP).unwrap(), UTF8);
+    }
+
+    #[test]
     fn gb2312_cn() {
         const UTF8: &str = "很高兴认识你";
         const COMP: &[u8] = &[
@@ -318,15 +327,6 @@ mod tests {
     fn iso_8859_2() {
         const UTF8: &str = "ĄŁĽŚŠŤ";
         const COMP: &[u8] = &[0x1b, 0x2d, 0x42, 0xa1, 0xa3, 0xa5, 0xa6, 0xa9, 0xab];
-        assert_eq!(crate::compound_text_to_utf8(COMP).unwrap(), UTF8);
-    }
-
-    #[test]
-    fn iso_2022_jp_long() {
-        const UTF8: &str = "知ってるつもり";
-        const COMP: &[u8] = &[
-            27, 36, 40, 66, 67, 78, 36, 67, 36, 70, 36, 107, 36, 68, 36, 98, 36, 106, 27, 40, 66,
-        ];
         assert_eq!(crate::compound_text_to_utf8(COMP).unwrap(), UTF8);
     }
 }

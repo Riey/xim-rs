@@ -213,7 +213,7 @@ impl XimFormat {
             "#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Ord, PartialOrd)]"
         )?;
         writeln!(out, "pub enum AttributeName {{")?;
-        for (key, _value) in self.attribute_names.iter() {
+        for key in self.attribute_names.keys() {
             writeln!(out, "{},", key)?;
         }
         writeln!(out, "}}")?;
@@ -282,7 +282,7 @@ impl XimFormat {
         writeln!(out, "impl Request {{")?;
         writeln!(out, "pub fn name(&self) -> &'static str {{")?;
         writeln!(out, "match self {{")?;
-        for (name, _req) in self.requests.iter() {
+        for name in self.requests.keys() {
             writeln!(out, "Request::{} {{ .. }} => \"{}\",", name, name)?;
         }
         // match

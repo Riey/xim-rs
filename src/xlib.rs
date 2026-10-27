@@ -12,8 +12,8 @@ use std::sync::Arc;
 use std::{convert::TryInto, os::raw::c_long};
 
 use crate::{
-    client::{handle_request, ClientCore, ClientError, ClientHandler},
     Atoms,
+    client::{ClientCore, ClientError, ClientHandler, handle_request},
 };
 use x11_dl::xlib;
 use xim_parser::{AttributeName, Request, XimWrite};
@@ -148,104 +148,106 @@ impl<X: XlibRef> XlibClient<X> {
         display: *mut xlib::Display,
         im_name: Option<&str>,
     ) -> Result<Self, ClientError> {
-        let xlib = x.xlib();
-        let root = (xlib.XDefaultRootWindow)(display);
-        let client_window = (xlib.XCreateSimpleWindow)(display, root, 0, 0, 1, 1, 0, 0, 0);
+        unsafe {
+            let xlib = x.xlib();
+            let root = (xlib.XDefaultRootWindow)(display);
+            let client_window = (xlib.XCreateSimpleWindow)(display, root, 0, 0, 1, 1, 0, 0, 0);
 
-        let var = std::env::var("XMODIFIERS").ok();
-        let var = var.as_ref().and_then(|n| n.strip_prefix("@im="));
-        let im_name = im_name.or(var).ok_or(ClientError::NoXimServer)?;
+            let var = std::env::var("XMODIFIERS").ok();
+            let var = var.as_ref().and_then(|n| n.strip_prefix("@im="));
+            let im_name = im_name.or(var).ok_or(ClientError::NoXimServer)?;
 
-        let atoms = Atoms::new_null::<ClientError, _>(|name| {
-            let atom = (xlib.XInternAtom)(display, name.as_ptr() as *const _, 0);
-            if atom == 0 {
+            let atoms = Atoms::new_null::<ClientError, _>(|name| {
+                let atom = (xlib.XInternAtom)(display, name.as_ptr() as *const _, 0);
+                if atom == 0 {
+                    Err(ClientError::InvalidReply)
+                } else {
+                    Ok(atom)
+                }
+            })?;
+
+            let mut ty = MaybeUninit::uninit();
+            let mut format = MaybeUninit::uninit();
+            let mut items = MaybeUninit::uninit();
+            let mut bytes = MaybeUninit::uninit();
+            let mut prop = MaybeUninit::uninit();
+
+            let code = (xlib.XGetWindowProperty)(
+                display,
+                root,
+                atoms.XIM_SERVERS,
+                0,
+                i64::MAX,
+                xlib::False,
+                xlib::XA_ATOM,
+                ty.as_mut_ptr(),
+                format.as_mut_ptr(),
+                items.as_mut_ptr(),
+                bytes.as_mut_ptr(),
+                prop.as_mut_ptr(),
+            );
+
+            if code != 0 {
+                return Err(ClientError::InvalidReply);
+            }
+
+            let ty = ty.assume_init();
+            let format = format.assume_init();
+            let items = items.assume_init();
+            let _bytes = bytes.assume_init();
+            let prop = prop.assume_init() as *mut xlib::Atom;
+
+            if ty != xlib::XA_ATOM || format != 32 {
                 Err(ClientError::InvalidReply)
             } else {
-                Ok(atom)
-            }
-        })?;
+                for i in 0..items {
+                    let server_atom = prop.add(i as usize).read();
+                    let server_owner = (xlib.XGetSelectionOwner)(display, server_atom);
+                    let name_ptr = (xlib.XGetAtomName)(display, server_atom);
+                    let name = CStr::from_ptr(name_ptr);
+                    let name = match name.to_str() {
+                        Ok(s) => s,
+                        _ => continue,
+                    };
 
-        let mut ty = MaybeUninit::uninit();
-        let mut format = MaybeUninit::uninit();
-        let mut items = MaybeUninit::uninit();
-        let mut bytes = MaybeUninit::uninit();
-        let mut prop = MaybeUninit::uninit();
+                    if let Some(name) = name.strip_prefix("@server=") {
+                        if name == im_name {
+                            (xlib.XConvertSelection)(
+                                display,
+                                server_atom,
+                                atoms.TRANSPORT,
+                                atoms.TRANSPORT,
+                                client_window,
+                                xlib::CurrentTime,
+                            );
+                            (xlib.XFlush)(display);
+                            (xlib.XFree)(name_ptr as _);
+                            (xlib.XFree)(prop as _);
 
-        let code = (xlib.XGetWindowProperty)(
-            display,
-            root,
-            atoms.XIM_SERVERS,
-            0,
-            i64::MAX,
-            xlib::False,
-            xlib::XA_ATOM,
-            ty.as_mut_ptr(),
-            format.as_mut_ptr(),
-            items.as_mut_ptr(),
-            bytes.as_mut_ptr(),
-            prop.as_mut_ptr(),
-        );
-
-        if code != 0 {
-            return Err(ClientError::InvalidReply);
-        }
-
-        let ty = ty.assume_init();
-        let format = format.assume_init();
-        let items = items.assume_init();
-        let _bytes = bytes.assume_init();
-        let prop = prop.assume_init() as *mut xlib::Atom;
-
-        if ty != xlib::XA_ATOM || format != 32 {
-            Err(ClientError::InvalidReply)
-        } else {
-            for i in 0..items {
-                let server_atom = prop.add(i as usize).read();
-                let server_owner = (xlib.XGetSelectionOwner)(display, server_atom);
-                let name_ptr = (xlib.XGetAtomName)(display, server_atom);
-                let name = CStr::from_ptr(name_ptr);
-                let name = match name.to_str() {
-                    Ok(s) => s,
-                    _ => continue,
-                };
-
-                if let Some(name) = name.strip_prefix("@server=") {
-                    if name == im_name {
-                        (xlib.XConvertSelection)(
-                            display,
-                            server_atom,
-                            atoms.TRANSPORT,
-                            atoms.TRANSPORT,
-                            client_window,
-                            xlib::CurrentTime,
-                        );
-                        (xlib.XFlush)(display);
+                            return Ok(Self {
+                                atoms,
+                                client_window,
+                                server_atom,
+                                server_owner_window: server_owner,
+                                im_window: 0,
+                                transport_max: 0,
+                                display,
+                                x,
+                                ic_attributes: AHashMap::with_hasher(Default::default()),
+                                im_attributes: AHashMap::with_hasher(Default::default()),
+                                buf: Vec::with_capacity(1024),
+                                sequence: 0,
+                            });
+                        }
+                    } else {
                         (xlib.XFree)(name_ptr as _);
-                        (xlib.XFree)(prop as _);
-
-                        return Ok(Self {
-                            atoms,
-                            client_window,
-                            server_atom,
-                            server_owner_window: server_owner,
-                            im_window: 0,
-                            transport_max: 0,
-                            display,
-                            x,
-                            ic_attributes: AHashMap::with_hasher(Default::default()),
-                            im_attributes: AHashMap::with_hasher(Default::default()),
-                            buf: Vec::with_capacity(1024),
-                            sequence: 0,
-                        });
                     }
-                } else {
-                    (xlib.XFree)(name_ptr as _);
                 }
+
+                (xlib.XFree)(prop as _);
+
+                Err(ClientError::NoXimServer)
             }
-
-            (xlib.XFree)(prop as _);
-
-            Err(ClientError::NoXimServer)
         }
     }
 
@@ -259,89 +261,91 @@ impl<X: XlibRef> XlibClient<X> {
         e: &xlib::XEvent,
         handler: &mut impl ClientHandler<Self>,
     ) -> Result<bool, ClientError> {
-        match e.get_type() {
-            xlib::SelectionNotify if e.selection.requestor == self.client_window => {
-                let mut ty = MaybeUninit::uninit();
-                let mut format = MaybeUninit::uninit();
-                let mut items = MaybeUninit::uninit();
-                let mut bytes = MaybeUninit::uninit();
-                let mut prop = MaybeUninit::uninit();
-                (self.x.xlib().XGetWindowProperty)(
-                    self.display,
-                    self.client_window,
-                    self.atoms.TRANSPORT,
-                    0,
-                    i64::MAX,
-                    xlib::True,
-                    self.atoms.TRANSPORT,
-                    ty.as_mut_ptr(),
-                    format.as_mut_ptr(),
-                    items.as_mut_ptr(),
-                    bytes.as_mut_ptr(),
-                    prop.as_mut_ptr(),
-                );
+        unsafe {
+            match e.get_type() {
+                xlib::SelectionNotify if e.selection.requestor == self.client_window => {
+                    let mut ty = MaybeUninit::uninit();
+                    let mut format = MaybeUninit::uninit();
+                    let mut items = MaybeUninit::uninit();
+                    let mut bytes = MaybeUninit::uninit();
+                    let mut prop = MaybeUninit::uninit();
+                    (self.x.xlib().XGetWindowProperty)(
+                        self.display,
+                        self.client_window,
+                        self.atoms.TRANSPORT,
+                        0,
+                        i64::MAX,
+                        xlib::True,
+                        self.atoms.TRANSPORT,
+                        ty.as_mut_ptr(),
+                        format.as_mut_ptr(),
+                        items.as_mut_ptr(),
+                        bytes.as_mut_ptr(),
+                        prop.as_mut_ptr(),
+                    );
 
-                let _ty = ty.assume_init();
-                let _format = format.assume_init();
-                let items = items.assume_init();
-                let _bytes = bytes.assume_init();
-                let prop = prop.assume_init();
+                    let _ty = ty.assume_init();
+                    let _format = format.assume_init();
+                    let items = items.assume_init();
+                    let _bytes = bytes.assume_init();
+                    let prop = prop.assume_init();
 
-                if e.selection.property == self.atoms.LOCALES {
-                    // TODO: set locale
-                    self.xconnect();
-                } else if e.selection.property == self.atoms.TRANSPORT {
-                    let transport = std::slice::from_raw_parts(prop, items as usize);
+                    if e.selection.property == self.atoms.LOCALES {
+                        // TODO: set locale
+                        self.xconnect();
+                    } else if e.selection.property == self.atoms.TRANSPORT {
+                        let transport = std::slice::from_raw_parts(prop, items as usize);
 
-                    if !transport.starts_with(b"@transport=X/") {
-                        return Err(ClientError::UnsupportedTransport);
+                        if !transport.starts_with(b"@transport=X/") {
+                            return Err(ClientError::UnsupportedTransport);
+                        }
+
+                        (self.x.xlib().XConvertSelection)(
+                            self.display,
+                            self.server_atom,
+                            self.atoms.LOCALES,
+                            self.atoms.LOCALES,
+                            self.client_window,
+                            xlib::CurrentTime,
+                        );
                     }
 
-                    (self.x.xlib().XConvertSelection)(
-                        self.display,
-                        self.server_atom,
-                        self.atoms.LOCALES,
-                        self.atoms.LOCALES,
-                        self.client_window,
-                        xlib::CurrentTime,
-                    );
-                }
-
-                (self.x.xlib().XFree)(prop as _);
-
-                Ok(true)
-            }
-            xlib::ClientMessage if e.client_message.window == self.client_window => {
-                if e.client_message.message_type == self.atoms.XIM_XCONNECT {
-                    let [im_window, major, minor, max, _]: [c_long; 5] =
-                        e.client_message.data.as_longs().try_into().unwrap();
-
-                    log::info!(
-                        "XConnected server on {}, transport version: {}.{}, TRANSPORT_MAX: {}",
-                        im_window,
-                        major,
-                        minor,
-                        max
-                    );
-
-                    self.im_window = im_window as xlib::Window;
-                    self.transport_max = max as usize;
-                    self.send_req(Request::Connect {
-                        client_major_protocol_version: 1,
-                        client_minor_protocol_version: 0,
-                        endian: xim_parser::Endian::Native,
-                        client_auth_protocol_names: Vec::new(),
-                    })?;
+                    (self.x.xlib().XFree)(prop as _);
 
                     Ok(true)
-                } else if e.client_message.message_type == self.atoms.XIM_PROTOCOL {
-                    self.handle_xim_protocol(&e.client_message, handler)?;
-                    Ok(true)
-                } else {
-                    Ok(false)
                 }
+                xlib::ClientMessage if e.client_message.window == self.client_window => {
+                    if e.client_message.message_type == self.atoms.XIM_XCONNECT {
+                        let [im_window, major, minor, max, _]: [c_long; 5] =
+                            e.client_message.data.as_longs().try_into().unwrap();
+
+                        log::info!(
+                            "XConnected server on {}, transport version: {}.{}, TRANSPORT_MAX: {}",
+                            im_window,
+                            major,
+                            minor,
+                            max
+                        );
+
+                        self.im_window = im_window as xlib::Window;
+                        self.transport_max = max as usize;
+                        self.send_req(Request::Connect {
+                            client_major_protocol_version: 1,
+                            client_minor_protocol_version: 0,
+                            endian: xim_parser::Endian::Native,
+                            client_auth_protocol_names: Vec::new(),
+                        })?;
+
+                        Ok(true)
+                    } else if e.client_message.message_type == self.atoms.XIM_PROTOCOL {
+                        self.handle_xim_protocol(&e.client_message, handler)?;
+                        Ok(true)
+                    } else {
+                        Ok(false)
+                    }
+                }
+                _ => Ok(false),
             }
-            _ => Ok(false),
         }
     }
 

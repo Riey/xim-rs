@@ -34,7 +34,7 @@ jobs:
 
     strategy:
       matrix:
-        rust: ["1.82.0"]
+        rust: ["1.88.0"]
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -48,7 +48,6 @@ jobs:
             ${{ runner.os }}-cargo-target
       - name: Install Rust
         run: |
-          cargo generate-lockfile --config 'resolver.incompatible-rust-versions="fallback"'
           rustup toolchain install ${{ matrix.rust }}
           rustup default ${{ matrix.rust }}
           rustup component add rustfmt

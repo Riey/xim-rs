@@ -11,9 +11,9 @@ documentation = "https://docs.rs/xim"
 categories = ["no-std", "parser-implementations"]
 readme = "README.md"
 keywords = ["x11", "xim", "x11rb", "no-std"]
-edition = "2021"
+edition = "2024"
 license = "MIT"
-rust-version = "1.82"
+rust-version = "1.88"
 
 [features]
 default = ["std"]

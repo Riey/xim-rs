@@ -12,13 +12,13 @@ use std::{convert::TryInto, rc::Rc, sync::Arc};
 use x11rb::protocol::xproto::EventMask;
 
 #[cfg(feature = "x11rb-client")]
+use crate::AHashMap;
+#[cfg(feature = "x11rb-client")]
 use crate::client::{
-    handle_request as client_handle_request, ClientCore, ClientError, ClientHandler,
+    ClientCore, ClientError, ClientHandler, handle_request as client_handle_request,
 };
 #[cfg(feature = "x11rb-server")]
 use crate::server::{ServerCore, ServerError, ServerHandler, XimConnection, XimConnections};
-#[cfg(feature = "x11rb-client")]
-use crate::AHashMap;
 #[cfg(feature = "x11rb-client")]
 use xim_parser::{Attr, AttributeName};
 
@@ -29,19 +29,19 @@ use x11rb::xcb_ffi::XCBConnection;
 
 #[allow(unused_imports)]
 use x11rb::{
+    COPY_DEPTH_FROM_PARENT, CURRENT_TIME,
     connection::Connection,
     errors::{ConnectError, ConnectionError, ParseError, ReplyError, ReplyOrIdError},
     protocol::{
-        xproto::{
-            Atom, AtomEnum, ClientMessageEvent, ConnectionExt, KeyPressEvent, PropMode, Screen,
-            SelectionNotifyEvent, SelectionRequestEvent, Window, WindowClass, CLIENT_MESSAGE_EVENT,
-            SELECTION_NOTIFY_EVENT,
-        },
         Event,
+        xproto::{
+            Atom, AtomEnum, CLIENT_MESSAGE_EVENT, ClientMessageEvent, ConnectionExt, KeyPressEvent,
+            PropMode, SELECTION_NOTIFY_EVENT, Screen, SelectionNotifyEvent, SelectionRequestEvent,
+            Window, WindowClass,
+        },
     },
     rust_connection::RustConnection,
     wrapper::ConnectionExt as _,
-    COPY_DEPTH_FROM_PARENT, CURRENT_TIME,
 };
 
 use xim_parser::{Request, XimWrite};
@@ -452,32 +452,32 @@ impl<C: HasConnection> X11rbClient<C> {
                     _ => continue,
                 };
 
-                if let Some(name) = name.strip_prefix("@server=") {
-                    if name == im_name {
-                        conn.convert_selection(
-                            client_window,
-                            server_atom,
-                            atoms.TRANSPORT,
-                            atoms.TRANSPORT,
-                            CURRENT_TIME,
-                        )?;
+                if let Some(name) = name.strip_prefix("@server=")
+                    && name == im_name
+                {
+                    conn.convert_selection(
+                        client_window,
+                        server_atom,
+                        atoms.TRANSPORT,
+                        atoms.TRANSPORT,
+                        CURRENT_TIME,
+                    )?;
 
-                        conn.flush()?;
+                    conn.flush()?;
 
-                        return Ok(Self {
-                            has_conn,
-                            atoms,
-                            server_atom,
-                            server_owner_window: server_owner,
-                            im_attributes: AHashMap::with_hasher(Default::default()),
-                            ic_attributes: AHashMap::with_hasher(Default::default()),
-                            im_window: x11rb::NONE,
-                            transport_max: 20,
-                            client_window,
-                            sequence: 0,
-                            buf: Vec::with_capacity(1024),
-                        });
-                    }
+                    return Ok(Self {
+                        has_conn,
+                        atoms,
+                        server_atom,
+                        server_owner_window: server_owner,
+                        im_attributes: AHashMap::with_hasher(Default::default()),
+                        ic_attributes: AHashMap::with_hasher(Default::default()),
+                        im_window: x11rb::NONE,
+                        transport_max: 20,
+                        client_window,
+                        sequence: 0,
+                        buf: Vec::with_capacity(1024),
+                    });
                 }
             }
 

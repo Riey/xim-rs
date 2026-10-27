@@ -161,7 +161,7 @@ pub fn handle_request<C: ClientCore>(
             input_context_id,
             data,
         } => match data {
-            CommitData::Keysym { keysym: _, .. } => {
+            CommitData::Keysym { .. } => {
                 log::warn!("Keysym commit is not supported");
                 Ok(())
             }

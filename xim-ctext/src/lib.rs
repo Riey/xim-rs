@@ -123,7 +123,7 @@ pub fn compound_text_to_utf8(bytes: &[u8]) -> Result<String, DecodeError> {
 
     let mut result = String::new();
 
-    for chunk in split {
+    for (chunk_index, chunk) in split.enumerate() {
         let mut iter = chunk.iter();
         match (iter.next(), iter.next()) {
             // UTF-8
@@ -139,7 +139,7 @@ pub fn compound_text_to_utf8(bytes: &[u8]) -> Result<String, DecodeError> {
             // ISO-2022 return to ASCII (ESC ( B) or JIS X 0201 Roman (ESC ( J).
             // Mixed CJK+ASCII commits (e.g. Sogou date phrases) insert these between
             // charset segments; without handling them, "(B" / "(J" leaks into UTF-8.
-            (Some(0x28), Some(0x42)) | (Some(0x28), Some(0x4a)) => {
+            (Some(0x28), Some(0x42)) | (Some(0x28), Some(0x4a)) if chunk_index > 0 => {
                 let left = iter.as_slice();
                 let out = encoding_rs::mem::decode_latin1(left);
                 result.push_str(&out);
@@ -269,6 +269,21 @@ pub fn compound_text_to_utf8(bytes: &[u8]) -> Result<String, DecodeError> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn preserves_unescaped_ascii_charset_prefixes() -> Result<(), crate::DecodeError> {
+        for input in ["(B)", "(J)", "(B", "(J"] {
+            assert_eq!(crate::compound_text_to_utf8(input.as_bytes())?, input);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn decodes_escaped_ascii_charset_designators() -> Result<(), crate::DecodeError> {
+        assert_eq!(crate::compound_text_to_utf8(b"\x1b(B07")?, "07");
+        assert_eq!(crate::compound_text_to_utf8(b"\x1b(JABC")?, "ABC");
+        Ok(())
+    }
+
     #[test]
     fn korean() {
         const UTF8: &str = "가나다";

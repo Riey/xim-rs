@@ -447,12 +447,8 @@ impl<C: HasConnection> X11rbClient<C> {
                 let server_owner = conn.get_selection_owner(server_atom)?.reply()?.owner;
                 let name = conn.get_atom_name(server_atom)?.reply()?.name;
 
-                let name = match String::from_utf8(name) {
-                    Ok(name) => name,
-                    _ => continue,
-                };
-
-                if let Some(name) = name.strip_prefix("@server=")
+                if let Ok(name) = String::from_utf8(name)
+                    && let Some(name) = name.strip_prefix("@server=")
                     && name == im_name
                 {
                     conn.convert_selection(

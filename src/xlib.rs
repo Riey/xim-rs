@@ -205,40 +205,37 @@ impl<X: XlibRef> XlibClient<X> {
                     let server_owner = (xlib.XGetSelectionOwner)(display, server_atom);
                     let name_ptr = (xlib.XGetAtomName)(display, server_atom);
                     let name = CStr::from_ptr(name_ptr);
-                    let name = match name.to_str() {
-                        Ok(s) => s,
-                        _ => continue,
-                    };
 
-                    if let Some(name) = name.strip_prefix("@server=") {
-                        if name == im_name {
-                            (xlib.XConvertSelection)(
-                                display,
-                                server_atom,
-                                atoms.TRANSPORT,
-                                atoms.TRANSPORT,
-                                client_window,
-                                xlib::CurrentTime,
-                            );
-                            (xlib.XFlush)(display);
-                            (xlib.XFree)(name_ptr as _);
-                            (xlib.XFree)(prop as _);
+                    if let Ok(name) = name.to_str()
+                        && let Some(name) = name.strip_prefix("@server=")
+                        && name == im_name
+                    {
+                        (xlib.XConvertSelection)(
+                            display,
+                            server_atom,
+                            atoms.TRANSPORT,
+                            atoms.TRANSPORT,
+                            client_window,
+                            xlib::CurrentTime,
+                        );
+                        (xlib.XFlush)(display);
+                        (xlib.XFree)(name_ptr as _);
+                        (xlib.XFree)(prop as _);
 
-                            return Ok(Self {
-                                atoms,
-                                client_window,
-                                server_atom,
-                                server_owner_window: server_owner,
-                                im_window: 0,
-                                transport_max: 0,
-                                display,
-                                x,
-                                ic_attributes: AHashMap::with_hasher(Default::default()),
-                                im_attributes: AHashMap::with_hasher(Default::default()),
-                                buf: Vec::with_capacity(1024),
-                                sequence: 0,
-                            });
-                        }
+                        return Ok(Self {
+                            atoms,
+                            client_window,
+                            server_atom,
+                            server_owner_window: server_owner,
+                            im_window: 0,
+                            transport_max: 0,
+                            display,
+                            x,
+                            ic_attributes: AHashMap::with_hasher(Default::default()),
+                            im_attributes: AHashMap::with_hasher(Default::default()),
+                            buf: Vec::with_capacity(1024),
+                            sequence: 0,
+                        });
                     } else {
                         (xlib.XFree)(name_ptr as _);
                     }

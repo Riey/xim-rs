@@ -4,16 +4,16 @@ members = [".", "xim-ctext", "xim-gen", "xim-parser"]
 [package]
 name = "xim"
 description = "XIM protocol parser, handler"
-version = "0.5.0"
+version = "0.6.0"
 authors = ["Riey <creeper844@gmail.com>"]
 repository = "https://github.com/Riey/xim-rs"
 documentation = "https://docs.rs/xim"
 categories = ["no-std", "parser-implementations"]
 readme = "README.md"
 keywords = ["x11", "xim", "x11rb", "no-std"]
-edition = "2021"
+edition = "2024"
 license = "MIT"
-rust-version = "1.82"
+rust-version = "1.88"
 
 [features]
 default = ["std"]
@@ -34,16 +34,16 @@ client = []
 server = []
 
 [dependencies]
-xim-parser = { path = "./xim-parser", version = "0.2.0", default-features = false }
-xim-ctext = { path = "./xim-ctext", version = "0.4.0", default-features = false }
+xim-parser = { path = "./xim-parser", version = "0.3.0", default-features = false }
+xim-ctext = { path = "./xim-ctext", version = "0.5.0", default-features = false }
 log = { version = "0.4", default-features = false }
 ahash = { version = "0.8", default-features = false, features = [
     "compile-time-rng",
 ] }
 
-x11rb = { version = "0.13", optional = true }
+x11rb = { version = "0.14", optional = true }
 x11-dl = { version = "2.18.5", optional = true }
-hashbrown = { version = "0.16.0", default-features = false }
+hashbrown = { version = "0.17.0", default-features = false }
 
 [[example]]
 name = "x11rb_client"
@@ -61,7 +61,7 @@ path = "examples/xlib_client.rs"
 required-features = ["xlib-client"]
 
 [dev-dependencies]
-criterion = "0.5.1"
+criterion = "0.8"
 pretty_env_logger = "0.5.0"
 
 [[bench]]

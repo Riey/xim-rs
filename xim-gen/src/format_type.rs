@@ -33,7 +33,11 @@ impl FormatType {
                 write!(out, "; reader.pad4()?; inner }}")?;
             }
             FormatType::List(inner, prefix, len) => {
-                writeln!(out, "{{ let mut out = Vec::new(); let len = u{}::read(reader)? as usize; let end = reader.cursor() - len;", len * 8)?;
+                writeln!(
+                    out,
+                    "{{ let mut out = Vec::new(); let len = u{}::read(reader)? as usize; let end = reader.cursor() - len;",
+                    len * 8
+                )?;
                 if *prefix > 0 {
                     writeln!(out, "u{}::read(reader)?;", prefix * 8)?;
                 }

@@ -1,6 +1,6 @@
 use x11rb::connection::Connection;
 use xim::{
-    x11rb::X11rbServer, Server, ServerError, ServerHandler, UserInputContext, XimConnections,
+    Server, ServerError, ServerHandler, UserInputContext, XimConnections, x11rb::X11rbServer,
 };
 use xim_parser::InputStyle;
 

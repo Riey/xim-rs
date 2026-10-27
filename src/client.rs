@@ -317,7 +317,7 @@ pub trait Client {
         xev: &Self::XEvent,
     ) -> Result<(), ClientError>;
     fn set_focus(&mut self, input_method_id: u16, input_context_id: u16)
-        -> Result<(), ClientError>;
+    -> Result<(), ClientError>;
     fn unset_focus(
         &mut self,
         input_method_id: u16,

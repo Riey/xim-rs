@@ -1,4 +1,6 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use std::hint::black_box;
+
+use criterion::{Criterion, criterion_group, criterion_main};
 use xim_parser::{Request, XimWrite};
 
 static CONNECT: &[u8] = b"\x01\x00\x00\x00\x6c\x00\x00\x00\x00\x00\x00\x00";

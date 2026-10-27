@@ -9,6 +9,6 @@ license = "MIT"
 rust-version = "1.88"
 
 [dependencies]
-convert_case = "0.8"
+convert_case = "0.12"
 serde = { version = "1", features = ["derive"] }
 serde_yaml = "0.9"

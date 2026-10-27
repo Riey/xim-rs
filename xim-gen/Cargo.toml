@@ -1,7 +1,7 @@
 [package]
 name = "xim-gen"
 description = "XIM protocol parser generator"
-version = "0.1.2"
+version = "0.2.0"
 authors = ["Riey <creeper844@gmail.com>"]
 repository = "https://github.com/Riey/xim-rs"
 edition = "2024"
